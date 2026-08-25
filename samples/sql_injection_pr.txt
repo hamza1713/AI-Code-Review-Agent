@@ -1,0 +1,38 @@
+diff --git a/app/user_auth.py b/app/user_auth.py
+index 8f23c4d..b9e7f2a 100644
+--- a/app/user_auth.py
++++ b/app/user_auth.py
+@@ -1,7 +1,32 @@
++from datetime import datetime
++import time
++
+ def authenticate_user(username, password):
++    # Check if username or password is empty
++    if not username or not password:
++        return False
++    
++    # Query the database for the user
+     user = db.query(f"SELECT * FROM users WHERE username = '{username}'")
++    
++    # Verify the user exists and password matches
+     if user and user.password == password:
++        # Set session variables
+         session['user_id'] = user.id
++        session['login_time'] = datetime.now()
++        
++        # Update last login timestamp
++        db.execute(f"UPDATE users SET last_login = NOW() WHERE id = {user.id}")
++        
++        print(f"User {username} logged in successfully")
+         return True
+-    return False
++    else:
++        # Sleep to prevent timing attacks
++        time.sleep(1)
++        print(f"Failed login attempt for user {username}")
++        return False
++
++def logout_user():
++    # Clear all session data
++    session.clear()
++    return True

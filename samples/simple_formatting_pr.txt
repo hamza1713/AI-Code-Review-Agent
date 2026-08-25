@@ -1,0 +1,10 @@
+diff --git a/app/user_auth.py b/app/user_auth.py
+index 8f23c4d..b9e7f2a 100644
+--- a/app/user_auth.py
++++ b/app/user_auth.py
+@@ -1,7 +1,32 @@
++from datetime import datetime as dt
+-from datetime import datetime
+
++        session['login_time'] = dt.now()
+-        session['login_time'] = datetime.now()

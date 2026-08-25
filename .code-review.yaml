@@ -1,0 +1,45 @@
+# ====================================================================
+# AI Code Review Agent — Enterprise Governance & Custom Rules
+# ====================================================================
+# Define team-specific architectural, security, and quality constraints.
+# Rules are evaluated automatically against all Pull Request diffs.
+
+version: "1.0"
+
+rules:
+  # --- Security Governance ---
+  - id: "gov-no-raw-sql"
+    name: "Forbid Raw SQL String Interpolation"
+    severity: "BLOCKING"
+    pattern: "db\\.(?:query|execute)\\s*\\(\\s*f[\"']"
+    description: "Raw SQL queries using f-string interpolation are strictly prohibited due to SQL injection risks."
+    suggested_fix: "Use parameterized queries: db.query('SELECT * FROM users WHERE id = %s', (user_id,))"
+
+  - id: "gov-no-plaintext-passwords"
+    name: "Forbid Plaintext Password Equality Checks"
+    severity: "BLOCKING"
+    pattern: "password\\s*==\\s*user\\.password|user\\.password\\s*==\\s*password"
+    description: "Passwords must never be stored or evaluated in plaintext."
+    suggested_fix: "Use bcrypt.checkpw(password.encode(), user.password_hash.encode())"
+
+  # --- Code Quality & Reliability ---
+  - id: "gov-no-print-statements"
+    name: "Forbid Direct Print Statements in Production Code"
+    severity: "WARNING"
+    pattern: "(?<!#)\\bprint\\s*\\("
+    description: "Direct 'print()' statements pollute stdout and leak sensitive information in production environments."
+    suggested_fix: "Use Python's standard logging module: logger.info(...) or logger.debug(...)"
+
+  - id: "gov-no-hardcoded-sleep"
+    name: "Avoid Unexplained Thread Sleep"
+    severity: "WARNING"
+    pattern: "time\\.sleep\\s*\\("
+    description: "Hardcoded 'time.sleep()' calls introduce latency and non-deterministic delays."
+    suggested_fix: "Use asynchronous polling, exponential backoff, or event synchronization."
+
+  - id: "gov-no-wildcard-imports"
+    name: "Forbid Wildcard Module Imports"
+    severity: "WARNING"
+    pattern: "from\\s+[A-Za-z0-9_.]+\\s+import\\s+\\*"
+    description: "Wildcard imports pollute the namespace and obscure dependency origins."
+    suggested_fix: "Import specific symbols explicitly: from module import specific_function"

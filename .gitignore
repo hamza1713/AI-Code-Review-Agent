@@ -1,0 +1,63 @@
+# Environment variables & secrets
+.env
+*.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+
+# Node & Frontend artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# SQLite databases & runtime queue
+*.db
+*.db-shm
+*.db-wal
+webhook_jobs.db
+webhook_jobs.db-shm
+webhook_jobs.db-wal
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.uv/
+
+# Flow execution states & traces
+flow_state.json
+result.dill
+*.html
+*.sarif
+telemetry_metrics.json
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*Zone.Identifier

@@ -1,0 +1,52 @@
+name: 'AI Code Review Agent'
+description: 'Autonomous multi-agent PR review system powered by CrewAI Flows and Google Gemini'
+author: 'Hamza Ali'
+
+inputs:
+  gemini_api_key:
+    description: 'Google Gemini API Key'
+    required: true
+  github_token:
+    description: 'GitHub Token for posting PR reviews and inline comments'
+    required: true
+    default: ${{ github.token }}
+  llm_model:
+    description: 'Gemini LLM model identifier'
+    required: false
+    default: 'gemini/gemini-3.1-flash-lite-preview'
+
+  sarif_output:
+    description: 'File path to save the SARIF report'
+    required: false
+    default: 'code-review-results.sarif'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Run AI Code Review Flow
+      shell: bash
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        LLM_MODEL: ${{ inputs.llm_model }}
+      run: |
+        python -m code_review_agent.main \
+          --pr "${{ github.repository }}/pull/${{ github.event.pull_request.number }}" \
+          --sarif "${{ inputs.sarif_output }}"
+
+    - name: Upload SARIF Security Report
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: ${{ inputs.sarif_output }}

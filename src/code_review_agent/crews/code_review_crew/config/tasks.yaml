@@ -1,0 +1,57 @@
+analyze_code_quality:
+  name: Analyze Code Quality
+  agent: senior_developer
+  description: >
+    1. Perform a thorough architectural and quality review of the pull request changes.
+    2. Examine potential ripple effects using the repository call graph: \n{code_graph_context}
+    3. Identify code smells, anti-patterns, maintainability issues, or missing edge case handling.
+    4. Categorize each identified item into 'critical_issues' (blocking defects) or 'minor_issues' (suggestions).
+    5. Formulate 'cross_file_risks' and 'inline_suggestions' with exact file path, line number, and replacement suggestion code.
+    PR content: \n{file_content}
+  expected_output: >
+    A JSON object containing:
+    - 'critical_issues': An array of strings describing mandatory fixes.
+    - 'minor_issues': An array of strings describing optional quality improvements.
+    - 'reasoning': A detailed explanation of your architectural and quality decisions.
+    - 'cross_file_risks': An array of strings describing potential ripple effects in caller files.
+    - 'inline_suggestions': An array of objects with 'path', 'line', 'severity', 'comment_body', and optional 'suggestion_code'.
+
+review_security:
+  name: Review Security
+  agent: security_engineer
+  description: >
+    1. Inspect the pull request diff and security pattern scanner output for security vulnerabilities (e.g. OWASP Top 10, SQL injection, authentication bypasses, sensitive data exposure, plaintext credentials, command injection).
+    2. Document each vulnerability with description, assessed risk level ('low', 'medium', 'high', 'critical'), and concrete code evidence.
+    3. Provide actionable 'security_recommendations' and specify 'highest_risk'.
+    4. Formulate 'inline_security_comments' with exact file path, line number, and secure replacement code for each flaw.
+    PR content: \n{file_content}
+    Security Pattern Findings: \n{sast_context}
+  expected_output: >
+    A JSON object containing:
+    - 'security_vulnerabilities': An array of objects each with 'description', 'risk_level', and 'evidence'.
+    - 'blocking': A boolean indicating whether any security vulnerability is severe enough to block approval.
+    - 'highest_risk': A string representing the most severe risk level found ('low', 'medium', 'high', 'critical', or 'none').
+    - 'security_recommendations': An array of actionable remediation steps.
+    - 'inline_security_comments': An array of objects with 'path', 'line', 'severity', 'comment_body', and 'suggestion_code'.
+
+summarize_findings:
+  name: Summarize Findings
+  agent: tech_lead
+  description: >
+    1. Synthesize the findings from Code Quality, Security Analysis, and Project Governance rules: \n{rules_context}
+    2. Calculate an overall confidence score between 0 and 100 for merging the PR.
+    3. Consolidate a unified list of prioritized 'fix' items with clear technical solutions.
+    4. Assemble a consolidated list of 'inline_comments' with exact file path, line number, severity ('CRITICAL', 'WARNING', 'INFO'), comment_body, and 1-click replacement 'suggestion_code'.
+    5. Provide 'suggested_unit_tests' containing a complete pytest test suite covering the modified functionality.
+    PR content: \n{file_content}
+  expected_output: >
+    A JSON object containing:
+    - 'confidence': An integer score between 0 and 100 representing confidence for merging.
+    - 'findings': A comprehensive summary string synthesizing code quality, security, and rule checks.
+    - 'fix': A list of objects containing 'description', 'solutions', and 'explanation' for each required fix.
+    - 'recommendations': A list of strings containing additional recommendations or best practices.
+    - 'inline_comments': A list of objects each with 'path', 'line', 'side', 'severity', 'comment_body', and 'suggestion_code'.
+    - 'suggested_unit_tests': A string containing a complete pytest test suite for the modified functions.
+  context:
+    - analyze_code_quality
+    - review_security
