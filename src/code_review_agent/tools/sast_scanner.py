@@ -67,10 +67,10 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
     SecurityPatternRule(
         rule_id="SEC-CMD-001",
         cwe="CWE-78",
-        name="OS Command String Formatting",
+        name="OS Command Injection / Execution",
         severity="CRITICAL",
-        pattern=r"(?:os\.system|subprocess\.call|subprocess\.Popen)\s*\(\s*(?:f[\"'].*?\{.*?\}|.*?\+)",
-        description="Executing operating system commands with unescaped input or formatted string.",
+        pattern=r"(?:os\.system|subprocess\.(?:call|run|Popen))\s*\(",
+        description="Executing operating system commands with os.system or subprocess.",
         fix_recommendation="Pass arguments as a list with shell=False: subprocess.run(['ls', '-l', directory], shell=False, check=True)"
     ),
     SecurityPatternRule(
@@ -169,33 +169,31 @@ class UnifiedSecurityScanner:
         all_findings: List[SastFinding] = []
         seen_keys = set()
 
-        # 1. Semgrep AST scan (if available)
-        if SemgrepRunner.is_available():
-            semgrep_findings = SemgrepRunner.scan_diff(raw_diff)
-            for f in semgrep_findings:
-                key = (f.file_path, f.line_number, f.cwe)
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    all_findings.append(f)
+        # 1. Built-in Regex Pattern scanner (always active, high priority for SEC- rules)
+        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
+        for f in regex_findings:
+            key = (f.file_path, f.line_number, f.rule_id)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_findings.append(f)
 
         # 2. Bandit AST scan (if available)
         if BanditRunner.is_available():
             bandit_findings = BanditRunner.scan_diff(raw_diff)
             for f in bandit_findings:
-                key = (f.file_path, f.line_number, f.cwe)
+                key = (f.file_path, f.line_number, f.rule_id)
                 if key not in seen_keys:
                     seen_keys.add(key)
                     all_findings.append(f)
 
-        # 3. Built-in Regex Pattern scanner (always active)
-        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
-        for f in regex_findings:
-            key = (f.file_path, f.line_number, f.cwe)
-            # Also check if same line is already flagged by semgrep or bandit for similar issue
-            line_key = (f.file_path, f.line_number)
-            if key not in seen_keys and not any((f.file_path, f.line_number) == (sf.file_path, sf.line_number) and sf.analyzer_source in ["semgrep", "bandit"] for sf in all_findings):
-                seen_keys.add(key)
-                all_findings.append(f)
+        # 3. Semgrep AST scan (if available)
+        if SemgrepRunner.is_available():
+            semgrep_findings = SemgrepRunner.scan_diff(raw_diff)
+            for f in semgrep_findings:
+                key = (f.file_path, f.line_number, f.rule_id)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    all_findings.append(f)
 
         return all_findings
 

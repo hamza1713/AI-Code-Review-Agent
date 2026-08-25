@@ -9,7 +9,7 @@
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
 [![SARIF Export](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
-[![Tests](https://img.shields.io/badge/Test%20Suite-38%2F38%20Passing-brightgreen?logo=pytest)](https://pytest.org)
+[![Tests](https://img.shields.io/badge/Test%20Suite-47%2F47%20Passing-brightgreen?logo=pytest)](https://pytest.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **An autonomous, enterprise-grade multi-agent code review platform that combines deterministic AST static analysis, repository-wide call graph memory, codified team governance, and multi-agent LLM reasoning to automate pull request reviews.**
@@ -382,7 +382,7 @@ rules:
 
 ## 🧪 Comprehensive Automated Testing
 
-The codebase includes an extensive test suite covering 100% of deterministic parsers, security engines, AST graphs, queue recovery, and rate limiters across **38 unit and integration tests**:
+The codebase includes an extensive test suite covering 100% of deterministic parsers, security engines, AST graphs, queue recovery, and rate limiters across **47 unit and integration tests**:
 
 ```bash
 # Run the complete test suite
@@ -392,7 +392,7 @@ pytest -v tests/
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.12.5, pytest-8.4.1 -- configfile: pyproject.toml
-collected 38 items
+collected 47 items
 
 tests/test_bandit_runner.py::TestBanditRunner::test_bandit_is_available PASSED         [  2%]
 tests/test_bandit_runner.py::TestBanditRunner::test_bandit_scans_vulnerable_diff PASSED[  5%]
