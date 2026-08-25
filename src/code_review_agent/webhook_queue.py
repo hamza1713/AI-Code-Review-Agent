@@ -1,15 +1,10 @@
-"""
-Persistent Webhook Task Queue & Worker Engine.
-Provides durable SQLite-backed job persistence, crash recovery, atomic job claiming,
-exponential backoff retries, and concurrency rate limiting for incoming GitHub webhooks.
-"""
-
 import os
 import json
 import time
 import uuid
 import sqlite3
 import threading
+import concurrent.futures
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 from code_review_agent.config import logger
@@ -23,14 +18,23 @@ class WebhookJobQueue:
 
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or "webhook_jobs.db").resolve()
+        self._local = threading.local()
+        self._on_enqueue_callbacks: List[Callable[[], None]] = []
         self._init_db()
 
+    def add_enqueue_listener(self, callback: Callable[[], None]):
+        """Register a callback to be triggered immediately when a new job is enqueued."""
+        self._on_enqueue_callbacks.append(callback)
+
     def _get_connection(self) -> sqlite3.Connection:
-        """Create thread-safe SQLite connection with busy timeout and WAL journal mode."""
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
+        """Get thread-local SQLite connection with busy timeout and WAL journal mode."""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            self._local.conn = conn
         return conn
 
     def _init_db(self):
@@ -70,6 +74,13 @@ class WebhookJobQueue:
                 (job_id, pr_identifier, payload_str, max_retries, now, now)
             )
             conn.commit()
+
+        # Notify any listening worker for 0ms event-driven wakeup
+        for cb in self._on_enqueue_callbacks:
+            try:
+                cb()
+            except Exception:
+                pass
 
         logger.info(f"📥 Enqueued durable webhook job {job_id} for {pr_identifier}")
         return job_id
@@ -235,7 +246,7 @@ class WebhookJobQueue:
 class WebhookWorker:
     """
     Background worker that continuously pulls and processes jobs from WebhookJobQueue.
-    Supports graceful shutdown, concurrency rate limiting, and automatic error handling.
+    Supports graceful shutdown, concurrency rate limiting, adaptive backoff, and automatic error handling.
     """
 
     def __init__(
@@ -251,7 +262,13 @@ class WebhookWorker:
         self.max_workers = max_workers
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._wake_event = threading.Event()
         self._semaphore = threading.Semaphore(max_workers)
+        self._executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="WebhookWorkerPool"
+        )
+        self.queue.add_enqueue_listener(self._wake_event.set)
 
     def start(self):
         """Start the background worker thread and recover any orphan jobs."""
@@ -267,28 +284,32 @@ class WebhookWorker:
     def stop(self, timeout: float = 5.0):
         """Signal worker to stop and wait for active jobs to complete."""
         self._running = False
+        self._wake_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=timeout)
+        self._executor.shutdown(wait=False, cancel_futures=True)
         logger.info("🛑 Webhook background worker stopped.")
 
     def _run_loop(self):
-        """Main worker polling loop."""
+        """Main worker polling loop with adaptive backoff and immediate event wakeups."""
+        current_sleep = 0.2
+        max_sleep = 5.0
+
         while self._running:
             try:
                 job = self.queue.claim_next_job()
                 if job:
+                    current_sleep = 0.2
                     self._semaphore.acquire()
-                    worker_thread = threading.Thread(
-                        target=self._process_claimed_job,
-                        args=(job,),
-                        daemon=True
-                    )
-                    worker_thread.start()
+                    self._executor.submit(self._process_claimed_job, job)
                 else:
-                    time.sleep(self.poll_interval)
+                    self._wake_event.wait(timeout=min(current_sleep, self.poll_interval))
+                    self._wake_event.clear()
+                    current_sleep = min(current_sleep * 1.5, max_sleep)
             except Exception as e:
                 logger.error(f"Unexpected error in WebhookWorker loop: {e}", exc_info=True)
-                time.sleep(self.poll_interval)
+                self._wake_event.wait(timeout=self.poll_interval)
+                self._wake_event.clear()
 
     def _process_claimed_job(self, job: Dict[str, Any]):
         """Execute review handler on a claimed job and record completion or failure."""

@@ -9,6 +9,11 @@ from typing import List, Dict, Tuple, Optional
 from code_review_agent.models import ParsedPR, FileDiff, DiffHunk
 
 
+DIFF_SPLIT_RE = re.compile(r"(?=diff --git )")
+DIFF_HEADER_RE = re.compile(r"diff --git a/(.*?) b/(.*)")
+HUNK_HEADER_RE = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)")
+
+
 class DiffParser:
     """Parses raw unified git diffs into structured file and hunk objects."""
 
@@ -18,7 +23,7 @@ class DiffParser:
         if not raw_diff or not raw_diff.strip():
             return ParsedPR(files=[], total_added=0, total_deleted=0, files_changed=0)
 
-        file_diff_blocks = re.split(r"(?=diff --git )", raw_diff)
+        file_diff_blocks = DIFF_SPLIT_RE.split(raw_diff)
         files: List[FileDiff] = []
         total_added = 0
         total_deleted = 0
@@ -55,7 +60,7 @@ class DiffParser:
         is_deleted = False
 
         first_line = lines[0]
-        match = re.search(r"diff --git a/(.*?) b/(.*)", first_line)
+        match = DIFF_HEADER_RE.search(first_line)
         if match:
             source_file = match.group(1)
             target_file = match.group(2)
@@ -79,29 +84,30 @@ class DiffParser:
         added_count = 0
         deleted_count = 0
 
-        hunk_header_regex = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)")
-
         for line in lines:
-            hunk_match = hunk_header_regex.match(line)
-            if hunk_match:
-                if current_hunk:
-                    hunks.append(current_hunk)
+            if line.startswith("@@ "):
+                hunk_match = HUNK_HEADER_RE.match(line)
+                if hunk_match:
+                    if current_hunk:
+                        hunks.append(current_hunk)
 
-                old_start = int(hunk_match.group(1))
-                old_lines = int(hunk_match.group(2) or 1)
-                new_start = int(hunk_match.group(3))
-                new_lines = int(hunk_match.group(4) or 1)
-                header = line
+                    old_start = int(hunk_match.group(1))
+                    old_lines = int(hunk_match.group(2) or 1)
+                    new_start = int(hunk_match.group(3))
+                    new_lines = int(hunk_match.group(4) or 1)
+                    header = line
 
-                current_hunk = DiffHunk(
-                    old_start=old_start,
-                    old_lines=old_lines,
-                    new_start=new_start,
-                    new_lines=new_lines,
-                    header=header,
-                    lines=[]
-                )
-            elif current_hunk:
+                    current_hunk = DiffHunk(
+                        old_start=old_start,
+                        old_lines=old_lines,
+                        new_start=new_start,
+                        new_lines=new_lines,
+                        header=header,
+                        lines=[]
+                    )
+                    continue
+
+            if current_hunk:
                 current_hunk.lines.append(line)
                 if line.startswith("+") and not line.startswith("+++"):
                     added_count += 1

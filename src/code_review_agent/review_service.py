@@ -10,9 +10,10 @@ import re
 import time
 import zipfile
 import tempfile
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-from collections import deque
+from collections import OrderedDict, deque
 
 from code_review_agent.config import logger, get_model_name
 from code_review_agent.models import (
@@ -37,6 +38,9 @@ MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB max single file upload
 MAX_DIFF_CHARS = 500_000                # ~500 KB raw diff limit
 
 
+from collections import OrderedDict, deque
+
+
 class RateLimitExceeded(Exception):
     """Raised when client IP exceeds rate limit."""
     def __init__(self, retry_after: int = 60):
@@ -53,38 +57,48 @@ class InMemoryRateLimiter:
     """
     Thread-safe sliding-window rate limiter per client IP address.
     Configurable request count within a time window (default: 30 req/min).
+    Bounded to MAX_TRACKED_IPS with LRU eviction to prevent unbounded memory growth.
     """
 
-    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
+    def __init__(self, max_requests: int = 30, window_seconds: int = 60, max_tracked_ips: int = 10_000):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._ip_history: Dict[str, deque] = {}
+        self.max_tracked_ips = max_tracked_ips
+        self._ip_history: OrderedDict[str, deque] = OrderedDict()
+        self._lock = threading.Lock()
 
     def check_rate_limit(self, client_ip: str) -> None:
         """Check if request from client_ip is allowed; raises RateLimitExceeded if not."""
         now = time.time()
         window_start = now - self.window_seconds
 
-        if client_ip not in self._ip_history:
-            self._ip_history[client_ip] = deque()
+        with self._lock:
+            if client_ip in self._ip_history:
+                self._ip_history.move_to_end(client_ip)
+                timestamps = self._ip_history[client_ip]
+            else:
+                # Enforce capacity bound before inserting new IP
+                if len(self._ip_history) >= self.max_tracked_ips:
+                    self._ip_history.popitem(last=False)
+                timestamps = deque()
+                self._ip_history[client_ip] = timestamps
 
-        timestamps = self._ip_history[client_ip]
+            # Evict timestamps outside sliding window
+            while timestamps and timestamps[0] < window_start:
+                timestamps.popleft()
 
-        # Evict timestamps outside sliding window
-        while timestamps and timestamps[0] < window_start:
-            timestamps.popleft()
+            if len(timestamps) >= self.max_requests:
+                oldest = timestamps[0]
+                retry_after = max(1, int(self.window_seconds - (now - oldest)))
+                logger.warning(f"⚠️ Rate limit exceeded for IP '{client_ip}'. Retry after {retry_after}s.")
+                raise RateLimitExceeded(retry_after=retry_after)
 
-        if len(timestamps) >= self.max_requests:
-            oldest = timestamps[0]
-            retry_after = max(1, int(self.window_seconds - (now - oldest)))
-            logger.warning(f"⚠️ Rate limit exceeded for IP '{client_ip}'. Retry after {retry_after}s.")
-            raise RateLimitExceeded(retry_after=retry_after)
-
-        timestamps.append(now)
+            timestamps.append(now)
 
     def reset(self):
         """Reset rate limiter state (useful for tests)."""
-        self._ip_history.clear()
+        with self._lock:
+            self._ip_history.clear()
 
 
 # Global rate limiter instance
@@ -184,8 +198,9 @@ class ReviewService:
 
     @staticmethod
     def directory_to_unified_diff(dir_path: Path) -> str:
-        """Convert all files in a directory into a combined unified git diff."""
-        diff_chunks: List[str] = []
+        """Convert all files in a directory into a combined unified git diff using StringIO streaming."""
+        buf = io.StringIO()
+        first = True
         for root, _, files in os.walk(dir_path):
             for file in files:
                 file_path = Path(root) / file
@@ -195,11 +210,15 @@ class ReviewService:
                     rel_path = file
                 try:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
-                    diff_chunks.append(ReviewService.file_to_unified_diff(rel_path, content))
+                    chunk = ReviewService.file_to_unified_diff(rel_path, content)
+                    if not first:
+                        buf.write("\n\n")
+                    buf.write(chunk)
+                    first = False
                 except Exception as e:
                     logger.warning(f"Could not read extracted file '{file_path}': {e}")
 
-        return "\n\n".join(diff_chunks)
+        return buf.getvalue()
 
     @staticmethod
     def is_python_diff(parsed_pr: Any, raw_diff: str) -> bool:

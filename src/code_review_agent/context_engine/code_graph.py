@@ -7,12 +7,19 @@ and cross-file impact maps for modified PR functions with qualified symbol resol
 import ast
 import os
 import re
+import time
+import threading
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 
 from code_review_agent.models import SymbolInfo, CodeGraphSummary, ParsedPR
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.config import logger
+
+# Thread-safe global cache for indexed code graphs
+_INDEX_CACHE: Dict[str, Tuple[float, Dict[str, SymbolInfo], Dict[str, List[SymbolInfo]], Dict[str, Set[str]], Dict[str, Set[str]], int]] = {}
+_INDEX_CACHE_LOCK = threading.Lock()
+INDEX_CACHE_TTL_SECONDS = 300.0  # 5 minutes
 
 
 class CodeGraphIndexer:
@@ -34,8 +41,23 @@ class CodeGraphIndexer:
         self.reverse_call_graph: Dict[str, Set[str]] = {}
         self.indexed_files_count: int = 0
 
-    def index_repository(self, max_files: int = 500) -> CodeGraphSummary:
-        """Scan and index all python source files in repository."""
+    def index_repository(self, max_files: int = 500, force_reindex: bool = False) -> CodeGraphSummary:
+        """Scan and index all python source files in repository with TTL caching."""
+        cache_key = f"{str(self.repo_root)}::{max_files}"
+        now = time.time()
+
+        if not force_reindex:
+            with _INDEX_CACHE_LOCK:
+                cached = _INDEX_CACHE.get(cache_key)
+                if cached and (now - cached[0]) < INDEX_CACHE_TTL_SECONDS:
+                    _, self.symbols, self.symbols_by_name, self.call_graph, self.reverse_call_graph, self.indexed_files_count = cached
+                    logger.debug(f"🕸️ Code Graph Indexer: Reused cached graph for {self.repo_root} ({len(self.symbols)} symbols).")
+                    return CodeGraphSummary(
+                        files_indexed=self.indexed_files_count,
+                        symbols_count=len(self.symbols),
+                        impacted_callers={}
+                    )
+
         self.symbols.clear()
         self.symbols_by_name.clear()
         self.call_graph.clear()
@@ -61,6 +83,17 @@ class CodeGraphIndexer:
             self._index_file(file_path)
 
         self.indexed_files_count = len(source_files)
+
+        with _INDEX_CACHE_LOCK:
+            _INDEX_CACHE[cache_key] = (
+                now,
+                dict(self.symbols),
+                dict(self.symbols_by_name),
+                dict(self.call_graph),
+                dict(self.reverse_call_graph),
+                self.indexed_files_count
+            )
+
         logger.info(f"🕸️ Code Graph Indexer: Indexed {len(self.symbols)} qualified symbols across {self.indexed_files_count} files.")
 
         return CodeGraphSummary(
@@ -68,6 +101,12 @@ class CodeGraphIndexer:
             symbols_count=len(self.symbols),
             impacted_callers={}
         )
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear global code graph cache."""
+        with _INDEX_CACHE_LOCK:
+            _INDEX_CACHE.clear()
 
     def _index_file(self, file_path: Path):
         """Parse symbols, scopes, and function calls from a file (Python, JS, TS, Go, Java)."""
