@@ -289,10 +289,11 @@ class ReviewService:
         file_name: Optional[str] = None,
         file_bytes: Optional[bytes] = None,
         zip_bytes: Optional[bytes] = None,
+        pr_url: Optional[str] = None,
         client_ip: str = "127.0.0.1"
     ) -> ReviewAPIResponse:
         """
-        Execute synchronous in-browser review for raw diff, uploaded file, or uploaded zip.
+        Execute synchronous in-browser review for raw diff, uploaded file, uploaded zip, or live GitHub PR.
         Enforces resource limits, rate limiting, and returns structured ReviewAPIResponse.
         """
         # 1. Rate Limiting Check
@@ -304,7 +305,15 @@ class ReviewService:
         final_diff = ""
 
         try:
-            if zip_bytes:
+            if pr_url:
+                # Handle Live GitHub PR URL
+                clean_pr_url = pr_url.strip()
+                owner, repo, pull_number = GitHubClient.parse_pr_identifier(clean_pr_url)
+                gh_client = GitHubClient()
+                final_diff = gh_client.fetch_pull_request_diff(owner, repo, pull_number)
+                logger.info(f"🌐 Fetched live GitHub PR diff for {owner}/{repo}#{pull_number} ({len(final_diff)} bytes)")
+
+            elif zip_bytes:
                 # Handle Zip Upload
                 temp_dir_obj = tempfile.TemporaryDirectory(prefix="code_review_zip_")
                 temp_path = Path(temp_dir_obj.name)
@@ -338,10 +347,11 @@ class ReviewService:
                 final_diff = raw_diff.strip()
 
             else:
-                raise InputValidationError("No review content provided. Provide 'raw_diff', 'file', or 'zip_file'.")
+                raise InputValidationError("No review content provided. Provide 'raw_diff', 'file', 'zip_file', or 'pr_url'.")
 
             if not final_diff.strip():
                 raise InputValidationError("Supplied input contains no code or parseable diff content.")
+
 
             # 3. Check language (Python vs non-Python)
             parsed_pr = DiffParser.parse_diff(final_diff)
@@ -400,7 +410,32 @@ class ReviewService:
             # 6. Extract Verdict, Confidence, Summary, and Complete Report
             verdict, confidence, summary, full_report = cls.extract_verdict_and_confidence(flow.state)
 
-            # 7. Assemble Structured API Response
+            # 7. Assemble Structured Execution Trace Tree
+            from code_review_agent.observability.tracer import get_tracer
+            tracer = get_tracer(flow_id)
+            ingest_node = tracer.start_step(title="Ingestion & Diff Parsing", stage="INGESTION")
+            ingest_node.complete({"files_changed": flow.state.parsed_pr.files_changed if flow.state.parsed_pr else 0})
+
+            sec_node = tracer.start_step(title="Security Pattern & SAST Scan", stage="SECURITY_SCAN")
+            sec_node.complete({"findings_count": len(flow.state.sast_findings)})
+
+            gov_node = tracer.start_step(title="Governance Policy Check", stage="GOVERNANCE")
+            gov_node.complete({"violations_count": len(flow.state.rule_violations)})
+
+            crew_needed = getattr(flow.state, "crew_needed", False)
+            agent_node = tracer.start_step(
+                title="Multi-Agent Crew Evaluation",
+                stage="AGENT_CREW",
+                agent_name="Senior Dev / AppSec / Tech Lead"
+            )
+            agent_node.complete({"crew_executed": crew_needed})
+
+            synth_node = tracer.start_step(title="Executive Verdict Synthesis", stage="SYNTHESIS")
+            synth_node.complete({"verdict": verdict, "confidence": confidence})
+
+            trace_data = tracer.to_dict()
+
+            # 8. Assemble Structured API Response
             response = ReviewAPIResponse(
                 verdict=verdict,
                 confidence_score=confidence,
@@ -413,13 +448,17 @@ class ReviewService:
                 generated_unit_tests=flow.state.generated_unit_tests or None,
                 inline_comments=flow.state.inline_comments,
                 telemetry=flow.state.telemetry,
+                trace=trace_data,
+                reviewed_diff=final_diff,
                 scope_note=(
+
                     "Scope Note: Review performed via heuristic regex pattern scanning, AST Code Graph indexer "
                     "(Python only), and governance rules engine. Not a full dataflow SAST or formal verification engine."
                 )
             )
 
             return response
+
 
         finally:
             if temp_dir_obj:

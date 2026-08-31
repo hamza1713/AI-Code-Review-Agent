@@ -14,6 +14,8 @@ from code_review_agent.diff_parser import DiffParser
 from code_review_agent.tools.semgrep_runner import SemgrepRunner
 from code_review_agent.tools.bandit_runner import BanditRunner
 from code_review_agent.config import logger
+from code_review_agent.cache import memoize_by_content
+
 
 
 class SecurityPatternRule(BaseModel):
@@ -33,7 +35,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-89",
         name="SQL Query String Interpolation",
         severity="CRITICAL",
-        pattern=r"(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*f[\"'].*?(?:SELECT|INSERT|UPDATE|DELETE).*?\{.*?\}",
+        pattern=r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*f[\"']|(?:query|sql|stmt)\s*=\s*f[\"']).*?(?:SELECT|INSERT|UPDATE|DELETE).*?\{.*?\}",
         description="Formatted string (f-string) interpolation used directly in SQL query execution. Allows manipulation of SQL syntax.",
         fix_recommendation="Use parameterized queries or prepared statements: db.query('SELECT * FROM users WHERE username = %s', (username,))"
     ),
@@ -42,7 +44,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-89",
         name="SQL Query String Concatenation",
         severity="CRITICAL",
-        pattern=r"(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*[\"'].*?(?:SELECT|INSERT|UPDATE|DELETE).*?[\"']\s*\+",
+        pattern=r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*[\"']|(?:query|sql|stmt)\s*=\s*[\"']).*?(?:SELECT|INSERT|UPDATE|DELETE).*?[\"']\s*\+",
         description="String concatenation used directly in SQL query execution.",
         fix_recommendation="Pass SQL parameters as a tuple/dictionary rather than concatenating strings."
     ),
@@ -60,10 +62,11 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-798",
         name="Hardcoded Secret or API Key Pattern",
         severity="CRITICAL",
-        pattern=r"(?:api_key|secret_key|private_key|token|password)\s*=\s*['\"][A-Za-z0-9_\-]{16,}['\"]",
+        pattern=r"(?:api_key|secret_key|private_key|token|password|aws_secret|stripe_secret|_key)\s*=\s*['\"][A-Za-z0-9_\-]{16,}['\"]",
         description="Hardcoded credentials, API keys, or secrets detected in source code.",
         fix_recommendation="Move sensitive credentials to environment variables or a secure key management service."
     ),
+
     SecurityPatternRule(
         rule_id="SEC-CMD-001",
         cwe="CWE-78",
@@ -104,6 +107,7 @@ class QuickPatternScanner:
     """
 
     @staticmethod
+    @memoize_by_content("quick_pattern")
     def scan_diff(raw_diff: str) -> List[SastFinding]:
         """Scan all added lines in a unified diff for known security patterns."""
         parsed_pr = DiffParser.parse_diff(raw_diff)

@@ -1,0 +1,16 @@
+diff --git a/app/math/calculator.py b/app/math/calculator.py
+new file mode 100644
+--- /dev/null
++++ b/app/math/calculator.py
+@@ -0,0 +1,15 @@
++from typing import List, Union
++
++
++def calculate_average(numbers: List[Union[int, float]]) -> float:
++    """
++    Calculates the arithmetic mean of a list of numbers.
++    Raises ValueError if list is empty.
++    """
++    if not numbers:
++        raise ValueError("Cannot calculate average of an empty list.")
++    return sum(numbers) / len(numbers)

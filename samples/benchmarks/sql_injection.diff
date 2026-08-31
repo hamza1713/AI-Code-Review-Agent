@@ -1,0 +1,10 @@
+diff --git a/app/services/user_service.py b/app/services/user_service.py
+index 1234567..89abcde 100644
+--- a/app/services/user_service.py
++++ b/app/services/user_service.py
+@@ -10,6 +10,8 @@ def get_user_profile(db_connection, user_id: str):
++    # Raw unescaped query string concatenation
++    query = f"SELECT id, username, email FROM users WHERE id = '{user_id}'"
++    cursor = db_connection.cursor()
++    cursor.execute(query)
++    return cursor.fetchone()

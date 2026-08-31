@@ -39,6 +39,7 @@ export function App() {
     rawDiff?: string;
     file?: File;
     zipFile?: File;
+    prUrl?: string;
   }) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -47,7 +48,15 @@ export function App() {
     try {
       let response: Response;
 
-      if (payload.rawDiff) {
+      if (payload.prUrl) {
+        response = await fetch('/api/review', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ pr_url: payload.prUrl }),
+        });
+      } else if (payload.rawDiff) {
         response = await fetch('/api/review', {
           method: 'POST',
           headers: {
@@ -72,6 +81,7 @@ export function App() {
       } else {
         throw new Error('No input provided for review.');
       }
+
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

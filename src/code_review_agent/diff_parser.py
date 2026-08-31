@@ -5,7 +5,7 @@ and chunks large diffs into manageable batches.
 """
 
 import re
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from code_review_agent.models import ParsedPR, FileDiff, DiffHunk
 
 
@@ -153,31 +153,120 @@ class DiffParser:
         return results
 
     @staticmethod
+    def estimate_tokens(text: str) -> int:
+        """
+        Heuristic token estimator for source code diffs (approx 3.7 chars per token).
+        Fast, lightweight, and avoids heavy runtime tokenizer dependencies.
+        """
+        if not text:
+            return 0
+        return max(1, int(len(text) / 3.7))
+
+    @classmethod
     def chunk_diff_by_token_budget(
+        cls,
         parsed_pr: ParsedPR,
         max_chars_per_chunk: int = 12000
     ) -> List[str]:
         """
         Split a large PR diff into modular text chunks to avoid LLM context saturation.
-        Ensures each file's changes remain contiguous where possible.
+        Ensures each file's changes remain contiguous where possible, and splits oversized
+        single files across hunk boundaries with preserved headers.
         """
+        if not parsed_pr or not parsed_pr.files:
+            return [""]
+
         chunks: List[str] = []
-        current_chunk: List[str] = []
+        current_chunk_parts: List[str] = []
         current_length = 0
 
         for file_diff in parsed_pr.files:
-            file_patch = file_diff.raw_patch
+            file_patch = file_diff.raw_patch.strip()
             patch_length = len(file_patch)
 
-            if current_length + patch_length > max_chars_per_chunk and current_chunk:
-                chunks.append("\n\n".join(current_chunk))
-                current_chunk = [file_patch]
+            # If a single file exceeds the max chunk budget, split it at hunk level
+            if patch_length > max_chars_per_chunk:
+                # Flush pending chunk if non-empty
+                if current_chunk_parts:
+                    chunks.append("\n\n".join(current_chunk_parts))
+                    current_chunk_parts = []
+                    current_length = 0
+
+                # Split large file by hunks with header preservation
+                file_subchunks = cls._chunk_large_file_by_hunks(file_diff, max_chars_per_chunk)
+                chunks.extend(file_subchunks)
+                continue
+
+            if current_length + patch_length > max_chars_per_chunk and current_chunk_parts:
+                chunks.append("\n\n".join(current_chunk_parts))
+                current_chunk_parts = [file_patch]
                 current_length = patch_length
             else:
-                current_chunk.append(file_patch)
+                current_chunk_parts.append(file_patch)
                 current_length += patch_length
 
-        if current_chunk:
-            chunks.append("\n\n".join(current_chunk))
+        if current_chunk_parts:
+            chunks.append("\n\n".join(current_chunk_parts))
 
-        return chunks or [parsed_pr.files[0].raw_patch] if parsed_pr.files else [""]
+        return chunks or [""]
+
+    @classmethod
+    def _chunk_large_file_by_hunks(cls, file_diff: FileDiff, max_chars: int) -> List[str]:
+        """Splits an oversized single-file diff across hunk boundaries with header reproduction."""
+        header_lines = [
+            f"diff --git a/{file_diff.source_file} b/{file_diff.target_file}",
+            f"--- a/{file_diff.source_file}",
+            f"+++ b/{file_diff.target_file}"
+        ]
+        header = "\n".join(header_lines)
+
+        if not file_diff.hunks:
+            return [file_diff.raw_patch]
+
+        subchunks: List[str] = []
+        current_hunks: List[str] = []
+        current_len = len(header)
+
+        for hunk in file_diff.hunks:
+            hunk_text = hunk.header + "\n" + "\n".join(hunk.lines)
+            if current_len + len(hunk_text) > max_chars and current_hunks:
+                subchunks.append(header + "\n" + "\n".join(current_hunks))
+                current_hunks = [hunk_text]
+                current_len = len(header) + len(hunk_text)
+            else:
+                current_hunks.append(hunk_text)
+                current_len += len(hunk_text)
+
+        if current_hunks:
+            subchunks.append(header + "\n" + "\n".join(current_hunks))
+
+        return subchunks
+
+    @classmethod
+    def chunk_diff_adaptively(
+        cls,
+        raw_diff: str,
+        max_tokens: int = 3000
+    ) -> List[Dict[str, Any]]:
+        """
+        Adaptive chunking that returns structured metadata for multi-segment reviews.
+        """
+        parsed = cls.parse_diff(raw_diff)
+        max_chars = int(max_tokens * 3.7)
+        raw_chunks = cls.chunk_diff_by_token_budget(parsed, max_chars_per_chunk=max_chars)
+
+        result: List[Dict[str, Any]] = []
+        total = len(raw_chunks)
+        for i, chunk_text in enumerate(raw_chunks):
+            chunk_parsed = cls.parse_diff(chunk_text)
+            files = [f.target_file for f in chunk_parsed.files]
+            result.append({
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "files": files,
+                "estimated_tokens": cls.estimate_tokens(chunk_text),
+                "diff_content": chunk_text
+            })
+
+        return result
+

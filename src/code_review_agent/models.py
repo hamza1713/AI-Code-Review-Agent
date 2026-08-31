@@ -103,10 +103,12 @@ class InlineComment(BaseModel):
     side: str = Field(default="RIGHT", description="Diff side: 'RIGHT' (new) or 'LEFT' (old)")
     severity: str = Field(default="WARNING", description="'INFO', 'WARNING', or 'CRITICAL'")
     comment_body: str = Field(..., description="Explanation of the issue or feedback")
+    why: Optional[str] = Field(default=None, description="One-sentence plain-English explanation of the causal mechanism")
     suggestion_code: Optional[str] = Field(
         default=None,
         description="Suggested replacement code (will be rendered in GitHub suggestion blocks)"
     )
+
 
     def to_github_markdown(self) -> str:
         """Format comment into GitHub-flavored Markdown with 1-click suggestion block."""
@@ -145,6 +147,7 @@ class SecurityVulnerability(BaseModel):
     description: str = Field(..., description="Vulnerability description")
     risk_level: str = Field(..., description="Risk severity rating: low, medium, high, critical")
     evidence: str = Field(..., description="Specific line or code snippet demonstrating the vulnerability")
+    matched_by: List[str] = Field(default_factory=list, description="Rule IDs or analyzers that contributed to this finding")
     line_number: Optional[int] = Field(default=None, description="Line number in the modified file")
     file_path: Optional[str] = Field(default=None, description="Path to the file")
 
@@ -188,9 +191,17 @@ class SummarizedFindingsJSON(BaseModel):
         ...,
         description="Confidence score between 0 and 100 for merging the PR"
     )
+    confidence_breakdown: Optional[str] = Field(
+        default=None,
+        description="Arithmetic breakdown explaining how the confidence score was derived"
+    )
     findings: str = Field(
         ...,
         description="Executive summary synthesizing code quality, security, and rule checks"
+    )
+    coverage_gaps: List[str] = Field(
+        default_factory=list,
+        description="Potential gaps or areas not covered by upstream analysis"
     )
     fix: List[Fix] = Field(
         default_factory=list,
@@ -208,6 +219,7 @@ class SummarizedFindingsJSON(BaseModel):
         default=None,
         description="Automated pytest test suite covering modified functions and regression cases"
     )
+
 
 
 # --- Telemetry & Metrics ---
@@ -377,6 +389,14 @@ class ReviewAPIResponse(BaseModel):
         default=None,
         description="Execution latency and token cost telemetry"
     )
+    trace: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Hierarchical multi-agent execution trace and decision tree"
+    )
+    reviewed_diff: Optional[str] = Field(
+        default=None,
+        description="Raw diff or source file content that was reviewed"
+    )
     scope_note: str = Field(
         default=(
             "Scope Note: Review performed via heuristic regex pattern scanning, AST Code Graph indexer "
@@ -384,3 +404,5 @@ class ReviewAPIResponse(BaseModel):
         ),
         description="Permanent non-dismissible scope capability statement"
     )
+
+

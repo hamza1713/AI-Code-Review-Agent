@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { FileCode, Upload, FolderArchive, Sparkles, Trash2, ArrowRight, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 interface ReviewInputProps {
-  onSubmit: (payload: { rawDiff?: string; file?: File; zipFile?: File }) => void;
+  onSubmit: (payload: { rawDiff?: string; file?: File; zipFile?: File; prUrl?: string }) => void;
   isLoading: boolean;
 }
 
@@ -46,8 +46,9 @@ const SAMPLE_GOV_VIOLATION_DIFF = `diff --git a/services/payment.py b/services/p
 `;
 
 export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading }) => {
-  const [activeTab, setActiveTab] = useState<'diff' | 'file' | 'zip'>('diff');
+  const [activeTab, setActiveTab] = useState<'diff' | 'github' | 'file' | 'zip'>('diff');
   const [diffContent, setDiffContent] = useState('');
+  const [prUrl, setPrUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedZip, setSelectedZip] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -105,6 +106,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
   const handleClear = () => {
     setDiffContent('');
+    setPrUrl('');
     setSelectedFile(null);
     setSelectedZip(null);
     setErrorMessage(null);
@@ -112,7 +114,13 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
   const handleStartReview = () => {
     setErrorMessage(null);
-    if (activeTab === 'diff') {
+    if (activeTab === 'github') {
+      if (!prUrl.trim()) {
+        setErrorMessage('Please enter a valid GitHub Pull Request URL (e.g. owner/repo/pull/123 or https://github.com/...)');
+        return;
+      }
+      onSubmit({ prUrl: prUrl.trim() });
+    } else if (activeTab === 'diff') {
       if (!diffContent.trim()) {
         setErrorMessage('Please paste a unified git diff before submitting.');
         return;
@@ -147,7 +155,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
         </div>
 
         {/* Tab Selection */}
-        <div className="flex bg-slate-900/90 p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+        <div className="flex bg-slate-900/90 p-1 rounded-lg border border-slate-800 self-start sm:self-auto overflow-x-auto">
           <button
             type="button"
             onClick={() => { setActiveTab('diff'); setErrorMessage(null); }}
@@ -159,6 +167,18 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           >
             <FileCode className="w-3.5 h-3.5" />
             <span>Paste Diff</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('github'); setErrorMessage(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'github'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Live GitHub PR</span>
           </button>
           <button
             type="button"
@@ -186,6 +206,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           </button>
         </div>
       </div>
+
 
       {/* Content Area */}
       <div className="mt-4 relative z-10">
@@ -241,7 +262,60 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           </div>
         )}
 
-        {/* Tab 2: Upload File */}
+        {/* Tab 2: Live GitHub PR */}
+        {activeTab === 'github' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Review Public or Private GitHub Pull Request</span>
+                </span>
+                <span className="text-[10px] font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                  Live GitHub Ingestion
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Enter any GitHub Pull Request URL. The agent will fetch the real-time unified diff via the GitHub REST API and run the multi-agent review crew.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-slate-300">GitHub PR URL or Shorthand</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={prUrl}
+                    onChange={(e) => setPrUrl(e.target.value)}
+                    placeholder="https://github.com/owner/repository/pull/42 or owner/repo#42"
+                    className="flex-1 bg-[#0a0c10] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Sample PR Presets */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setPrUrl('https://github.com/octocat/Hello-World/pull/1')}
+                  className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                >
+                  octocat/Hello-World#1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrUrl('https://github.com/psf/requests/pull/6000')}
+                  className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                >
+                  psf/requests#6000
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Upload File */}
+
         {activeTab === 'file' && (
           <div className="space-y-3">
             <div

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "SEC-001",
+    "name": "SQL Injection Detection",
+    "file": "sql_injection.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-89",
+        "severity": "CRITICAL",
+        "keywords": ["sql", "injection", "query", "user_id"]
+      }
+    ]
+  },
+  {
+    "id": "SEC-002",
+    "name": "Hardcoded Secret Detection",
+    "file": "hardcoded_secret.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-798",
+        "severity": "CRITICAL",
+        "keywords": ["secret", "aws", "key"]
+      },
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-798",
+        "severity": "CRITICAL",
+        "keywords": ["secret", "stripe", "key"]
+      }
+    ]
+  },
+
+  {
+    "id": "SEC-003",
+    "name": "Command Injection Detection",
+    "file": "command_injection.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-78",
+        "severity": "HIGH",
+        "keywords": ["command", "injection", "subprocess", "shell"]
+      }
+    ]
+  },
+  {
+    "id": "QUAL-001",
+    "name": "Clean Code Verification",
+    "file": "clean_code.diff",
+    "expected_verdict": "APPROVE",
+    "expected_issues": []
+  }
+]

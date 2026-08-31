@@ -5,45 +5,53 @@ with AST Code Graph context, Quick Security Pattern Scanner, and custom rules go
 """
 
 import os
-from typing import List
+from typing import List, Optional, Any, Dict
 from crewai import Agent, Crew, Process, Task, LLM
+
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import SerperDevTool, ScrapeWebsiteTool
 
-from code_review_agent.config import get_gemini_api_key, get_serper_api_key, get_model_name, get_max_tokens, logger
+from code_review_agent.llm_factory import LLMFactory
+from code_review_agent.crews.code_review_crew.tool_registry import ToolRegistry
 from code_review_agent.models import (
     CodeQualityJSON,
     ReviewSecurityJSON,
     SummarizedFindingsJSON,
 )
-from code_review_agent.tools import QuickPatternScannerTool, SastScannerTool, RuffTool, UnifiedSecurityScannerTool
-from code_review_agent.context_engine import CodebaseContextTool
-from code_review_agent.governance import CustomRulesTool
-from code_review_agent.tools.test_generator import TestGeneratorTool
 from code_review_agent.crews.code_review_crew.guardrails import security_review_output_guardrail
 
 
 @CrewBase
 class CodeReviewCrew:
-    """Production Multi-Agent Code Review Crew with AST Context and Governance Tooling."""
+    """Production Multi-Agent Code Review Crew with AST Context, Dynamic Tools, and Governance Tooling."""
 
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
     def _get_llm(self) -> LLM:
-        """Initialize configured Gemini LLM for crew agents with max_tokens=4096."""
-        api_key = get_gemini_api_key()
-        model = get_model_name()
-        max_tokens = get_max_tokens()
-        return LLM(model=model, api_key=api_key, max_tokens=max_tokens)
+        """Initialize configured LLM for crew agents using LLMFactory."""
+        return LLMFactory.create_llm()
+
+    def _get_agent_tools(self, agent_name: str, fallback_tools: Optional[List[Any]] = None) -> List[Any]:
+        """Resolve tools dynamically from agents.yaml configuration via ToolRegistry."""
+        agent_cfg = self.agents_config.get(agent_name, {})
+        configured_tools = agent_cfg.get("assigned_tools", []) or agent_cfg.get("tools", [])
+        if configured_tools:
+            resolved = ToolRegistry.resolve_tools(configured_tools)
+            if resolved:
+                return resolved
+        return fallback_tools or []
 
 
     @agent
     def senior_developer(self) -> Agent:
         """Senior Developer agent equipped with AST Code Graph caller context and Ruff linter."""
+        cfg = dict(self.agents_config["senior_developer"])
+        tools = self._get_agent_tools("senior_developer")
+        cfg.pop("tools", None)
         return Agent(
-            config=self.agents_config["senior_developer"],
-            tools=[CodebaseContextTool(), RuffTool()],
+            config=cfg,
+            tools=tools,
             llm=self._get_llm(),
             verbose=True,
         )
@@ -51,17 +59,11 @@ class CodeReviewCrew:
     @agent
     def security_engineer(self) -> Agent:
         """Security Engineer agent equipped with Quick Security Pattern Scanner and OWASP search."""
-        tools = [QuickPatternScannerTool()]
-        serper_key = get_serper_api_key()
-        if serper_key:
-            os.environ["SERPER_API_KEY"] = serper_key
-            try:
-                tools.extend([SerperDevTool(), ScrapeWebsiteTool()])
-            except Exception as e:
-                logger.warning(f"Could not initialize web search tools: {e}")
-
+        cfg = dict(self.agents_config["security_engineer"])
+        tools = self._get_agent_tools("security_engineer")
+        cfg.pop("tools", None)
         return Agent(
-            config=self.agents_config["security_engineer"],
+            config=cfg,
             tools=tools,
             llm=self._get_llm(),
             verbose=True,
@@ -70,12 +72,17 @@ class CodeReviewCrew:
     @agent
     def tech_lead(self) -> Agent:
         """Tech Lead agent equipped with Governance Rules Validator and Test Generator."""
+        cfg = dict(self.agents_config["tech_lead"])
+        tools = self._get_agent_tools("tech_lead")
+        cfg.pop("tools", None)
         return Agent(
-            config=self.agents_config["tech_lead"],
-            tools=[CustomRulesTool(), TestGeneratorTool()],
+            config=cfg,
+            tools=tools,
             llm=self._get_llm(),
             verbose=True,
         )
+
+
 
     @task
     def analyze_code_quality(self) -> Task:

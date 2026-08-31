@@ -142,12 +142,15 @@ class RobustLLMOutputParser:
         if target_schema is SummarizedFindingsJSON:
             return SummarizedFindingsJSON(
                 confidence=50,
+                confidence_breakdown="Fallback parsing applied (base 50).",
                 findings=f"⚠️ Notice: The LLM returned unstructured output. Raw review content:\n\n{clean_text}",
+                coverage_gaps=[],
                 fix=[],
                 recommendations=["Review output required fallback parsing; manual review recommended."],
                 inline_comments=[],
                 suggested_unit_tests=""
             ) # type: ignore
+
 
         elif target_schema is CodeQualityJSON:
             return CodeQualityJSON(

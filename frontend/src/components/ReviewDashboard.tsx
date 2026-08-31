@@ -10,6 +10,10 @@ import { GeneratedUnitTests } from './GeneratedUnitTests';
 import { TelemetryCard } from './TelemetryCard';
 import { ScopeDisclaimer } from './ScopeDisclaimer';
 import { CompleteExecutiveReport } from './CompleteExecutiveReport';
+import { TraceVisualizer } from './TraceVisualizer';
+import { AnnotatedCodeViewer } from './AnnotatedCodeViewer';
+import { Sparkles } from 'lucide-react';
+
 
 interface ReviewDashboardProps {
   data: ReviewAPIResponse;
@@ -17,7 +21,8 @@ interface ReviewDashboardProps {
 }
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
+
 
   const handleExportJSON = () => {
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -59,6 +64,18 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           >
             <LayoutGrid className="w-3.5 h-3.5" />
             <span>Full Overview</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('annotated')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'annotated'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Annotated Code ({inlineCount})</span>
           </button>
 
           <button
@@ -141,25 +158,40 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
 
       {/* 3. Tab Contents */}
       {activeTab === 'all' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          {/* Left Column: Security & Governance */}
-          <div className="space-y-4">
-            <FindingsList
-              findings={data.pattern_findings || []}
-              label={data.pattern_findings_label}
-            />
-            <GovernanceViolations
-              violations={data.governance_violations || []}
-            />
-          </div>
+        <div className="space-y-4">
+          {/* Animated Interactive Code Annotation View */}
+          <AnnotatedCodeViewer
+            reviewedDiff={data.reviewed_diff}
+            inlineComments={data.inline_comments || []}
+          />
 
-          {/* Right Column: Tests, Inline Suggestions & Call Graph */}
-          <div className="space-y-4">
-            <GeneratedUnitTests unitTests={data.generated_unit_tests} />
-            <InlineCommentsList comments={data.inline_comments || []} />
-            <CrossFileImpact impact={data.cross_file_impact} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* Left Column: Security & Governance */}
+            <div className="space-y-4">
+              <FindingsList
+                findings={data.pattern_findings || []}
+                label={data.pattern_findings_label}
+              />
+              <GovernanceViolations
+                violations={data.governance_violations || []}
+              />
+            </div>
+
+            {/* Right Column: Tests, Inline Suggestions & Call Graph */}
+            <div className="space-y-4">
+              <GeneratedUnitTests unitTests={data.generated_unit_tests} />
+              <InlineCommentsList comments={data.inline_comments || []} />
+              <CrossFileImpact impact={data.cross_file_impact} />
+            </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'annotated' && (
+        <AnnotatedCodeViewer
+          reviewedDiff={data.reviewed_diff}
+          inlineComments={data.inline_comments || []}
+        />
       )}
 
       {activeTab === 'report' && (
@@ -182,8 +214,16 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       )}
 
       {activeTab === 'inline' && (
-        <InlineCommentsList comments={data.inline_comments || []} />
+        <div className="space-y-4">
+          <AnnotatedCodeViewer
+            reviewedDiff={data.reviewed_diff}
+            inlineComments={data.inline_comments || []}
+          />
+          <InlineCommentsList comments={data.inline_comments || []} />
+        </div>
       )}
+
+
 
       {activeTab === 'impact' && (
         <CrossFileImpact impact={data.cross_file_impact} />
@@ -193,12 +233,16 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         <GeneratedUnitTests unitTests={data.generated_unit_tests} />
       )}
 
-      {/* 4. Telemetry */}
+      {/* 4. Trace Visualizer */}
+      <TraceVisualizer trace={data.trace} />
+
+      {/* 5. Telemetry */}
       <TelemetryCard telemetry={data.telemetry} />
 
-      {/* 5. Scope Disclaimer */}
+      {/* 6. Scope Disclaimer */}
       <ScopeDisclaimer note={data.scope_note} />
     </div>
   );
 };
+
 

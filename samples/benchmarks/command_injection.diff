@@ -1,0 +1,8 @@
+diff --git a/app/utils/system.py b/app/utils/system.py
+index 9876543..fedcba9 100644
+--- a/app/utils/system.py
++++ b/app/utils/system.py
+@@ -8,5 +8,6 @@ import subprocess
+ def ping_host(host_ip: str):
++    # Insecure command execution with shell=True
++    return subprocess.check_output(f"ping -c 1 {host_ip}", shell=True)

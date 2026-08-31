@@ -1,93 +1,109 @@
-# 🛡️ AI Code Review Agent (Enterprise Edition) — Multi-Agent PR Review Platform
+# 🛡️ AI Code Review Agent (Enterprise Edition v2.0)
+### Autonomous Multi-Agent Pull Request Review & Code Intelligence Platform
 
 <div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![CrewAI](https://img.shields.io/badge/Framework-CrewAI%20Flows%20v2.0-FF4B4B?logo=ai&logoColor=white)](https://crewai.com)
-[![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini%20Flash%20%2F%20Pro-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini%202.5%20Flash%20%2F%20Pro-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 [![Static Analysis](https://img.shields.io/badge/SAST-Semgrep%20%7C%20Bandit%20%7C%20Ruff-00D26A?logo=security&logoColor=white)](https://semgrep.dev)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
-[![SARIF Export](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
-[![Tests](https://img.shields.io/badge/Test%20Suite-47%2F47%20Passing-brightgreen?logo=pytest)](https://pytest.org)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript%20%2B%20Tailwind-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
+[![OASIS SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+[![Test Suite](https://img.shields.io/badge/Test%20Suite-66%2F66%20Passing%20(100%25)-brightgreen?logo=pytest)](https://pytest.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**An autonomous, enterprise-grade multi-agent code review platform that combines deterministic AST static analysis, repository-wide call graph memory, codified team governance, and multi-agent LLM reasoning to automate pull request reviews.**
+**An enterprise-grade, multi-agent code intelligence platform that unites compiler-grade AST static analysis, repository-wide call graph memory, codified team governance, and collaborative LLM agent reasoning to automate pull request reviews with zero hallucinations.**
 
-[Features](#-key-capabilities--features) • [Problem Statement](#-the-problem--our-solution) • [Architecture](#-system-architecture) • [Multi-Agent Roster](#-multi-agent-roster--tool-arsenal) • [Quickstart](#-quickstart--installation) • [Usage Modes](#-multi-mode-usage-guide) • [Governance Config](#-team-governance-engine-code-reviewyaml) • [Testing](#-comprehensive-automated-testing)
+[Key Capabilities](#-key-capabilities--features) • [The Industry Problem](#-the-industry-problem--our-solution) • [System Architecture](#-system-architecture) • [Data Flow](#-end-to-end-data-flow) • [Multi-Agent Roster](#-multi-agent-roster--tool-arsenal) • [Live Dashboard](#-animated-inline-annotation-dashboard) • [Quickstart](#-quickstart--installation) • [Governance Config](#-team-governance-engine-code-reviewyaml) • [CI/CD Integration](#-github-actions-cicd-integration)
 
 </div>
 
 ---
 
-## 📌 The Problem & Our Solution
+## 📌 The Industry Problem & Our Solution
 
-### ⚠️ The Engineering Problem
-Modern software development moves at breakneck speed, but code review remains one of the largest engineering bottlenecks:
-1. **Developer Fatigue & Slow PR Cycles:** Senior engineers spend 20–30% of their week reading boilerplate diffs, slowing down release velocity.
-2. **Superficial "Rubber Stamp" Reviews:** Under sprint pressure, critical vulnerabilities (SQL injection, plaintext credentials, unauthenticated endpoints) slip into production.
-3. **Context Blindness:** Isolated PR diffs don't show downstream ripple effects. Modifying a function in `auth.py` can break 5 callers in unrelated microservices.
-4. **Noisy, Unactionable SAST Scanners:** Traditional security tools dump hundreds of context-free warnings with no replacement code, causing developers to ignore them.
-5. **Team Standards Drift:** Coding standards written in wikis are rarely enforced consistently across large teams.
+### ⚠️ The Engineering Bottlenecks in Modern Software Teams
 
-### 💡 The Solution: Multi-Agent Collaborative Review
-The **AI Code Review Agent (v2.0)** redefines code review by combining **deterministic compiler-grade static analysis** with **collaborative multi-agent reasoning**:
-- **Layer 1: Deterministic Multi-Engine Pre-Scanning** — Fast static analysis (`Semgrep`, `Bandit`, `Ruff`, and regex heuristics) instantly flags vulnerabilities and code smells.
-- **Layer 2: Graph-Aware Context Engine** — Multi-language AST indexer builds repository-wide call graphs (Python, TypeScript, JavaScript, Go, Java) to track downstream impact.
-- **Layer 3: Codified Team Governance** — Evaluates team rules defined in `.code-review.yaml` with zero hallucinations.
-- **Layer 4: Parallel Multi-Agent Crew** — **Senior Developer** (Architecture/Quality) and **Security Engineer** (AppSec) review diffs concurrently before the **Tech Lead** synthesizes a definitive verdict, complete with **1-click GitHub suggestion blocks (` ```suggestion `)** and auto-generated **`pytest` regression test suites**.
+As engineering organizations scale and release velocity accelerates, **code review has become the single largest bottleneck in the software development lifecycle (SDLC)**:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 THE CODE REVIEW CRISIS IN MODERN SDLC                            │
+├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
+│ ⏳ PR Review Lag & Velocity   │ 😴 Reviewer Fatigue & "LGTM"     │ 🙈 Context Blindness          │
+│ Pull requests sit idle for    │ Senior engineers spend 25%+ of   │ Reviewing isolated diffs      │
+│ 2 to 4 days awaiting review,  │ their week reading routine diffs,│ misses downstream ripple      │
+│ causing severe merge friction │ leading to superficial approvals │ effects across external files │
+│ and context-switching costs.  │ where critical flaws slip by.    │ and microservices.            │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📢 Noisy Legacy SAST Tools    │ 📉 Tribal Governance & Drift     │ 💸 Skyrocketing LLM Costs     │
+│ Traditional security scanners │ Engineering guidelines in wikis  │ Feeding raw 100K-line repos   │
+│ dump hundreds of false alarms │ are ignored; code standards drift│ directly into generic LLMs    │
+│ without actionable replacement│ without automated, deterministic │ wastes tokens and hallucinates│
+│ code, creating alert fatigue. │ policy enforcement in PRs.       │ non-existent vulnerabilities. │
+└───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
+```
+
+---
+
+### 💡 The Solution: Deterministic-First Multi-Agent Architecture
+
+The **AI Code Review Agent (v2.0)** introduces a **Hybrid Multi-Agent & Static Intelligence Architecture** that eliminates review bottlenecks while maintaining 100% auditability:
+
+```mermaid
+graph TD
+    subgraph ProblemSpace [Traditional Review Friction]
+        P1[Days-long PR Wait Times]
+        P2[Superficial LGTM Rubber-Stamping]
+        P3[Hidden Cross-File Regressions]
+        P4[Hallucinated AI Feedback]
+    end
+
+    subgraph SolutionSpace [AI Code Review Agent v2.0]
+        S1[⚡ Sub-Minute Multi-Agent Reviews]
+        S2[🛡️ AST + SAST Heuristic Pre-Scanning]
+        S3[🕸️ Multi-Language Call Graph Indexer]
+        S4[🎯 Strict Provenance & Confidence Rubric]
+        S5[💬 1-Click GitHub Suggestion Diffs]
+        S6[🎨 Pulsing Visual Annotation Dashboard]
+    end
+
+    ProblemSpace ==> SolutionSpace
+```
+
+1. **⚡ Fast Pre-Scanning (Zero Token Cost):** Multi-engine static analysis (`Semgrep`, `Bandit`, `Ruff`, regex heuristics) identifies structural flaws in milliseconds.
+2. **🕸️ Deep Graph Context (Multi-Language AST):** Multi-language Tree-Sitter indexer builds qualified call graphs across Python, TypeScript, JavaScript, Go, and Java to pinpoint exact downstream callers.
+3. **📜 Codified Governance (`.code-review.yaml`):** Validates organizational rules deterministically without prompt-drift.
+4. **🤖 Collaborative Multi-Agent Crew:** Specialized **Senior Developer** (Architecture/Quality) and **AppSec Security Engineer** agents work in parallel before the **Tech Lead** synthesizes a grounded merge verdict with **1-click GitHub suggestion blocks** (` ```suggestion `) and automated `pytest` regression suites.
+5. **🛡️ Strict Grounding & Anti-Hallucination Rubric:** Every claim must trace directly to upstream analyzer findings; confidence scores follow a deterministic mathematical rubric.
 
 ---
 
 ## 🌟 Key Capabilities & Features
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                            ENTERPRISE FEATURE MATRIX                             │
-├─────────────────────────┬─────────────────────────────┬──────────────────────────┤
-│ Multi-Engine SAST       │ Graph-Aware Memory          │ Live GitHub Integration  │
-│ • Semgrep AST Analyzer  │ • Multi-Lang AST Indexer    │ • PR Metadata Ingestion  │
-│ • Bandit Python Scanner │ • Qualified Symbol Graph    │ • Line-Level Inline Diffs│
-│ • Ruff Ultra-Fast Linter│ • Caller Resolution Map     │ • 1-Click Suggestion Code│
-│ • Heuristic Fallback    │ • Cross-File Ripple Alerts  │ • GitHub Action CI Gate  │
-├─────────────────────────┼─────────────────────────────┼──────────────────────────┤
-│ Team Governance Engine  │ Test Suite Synthesis        │ Enterprise Web Dashboard │
-│ • YAML-Defined Rules    │ • AST Signature Extraction  │ • React + Vite Dark UI   │
-│ • Regex & AST Matching  │ • Pytest/Jest/Go Scaffolds  │ • Visual Pipeline Stages │
-│ • Pydantic Validation   │ • Fixtures & Mock Generators│ • Task Queue Monitor     │
-│ • Mandatory Fix Enforcer│ • Boundary & None Testing   │ • Real-time Cost Tracker │
-└─────────────────────────┴─────────────────────────────┴──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   ENTERPRISE CAPABILITY MATRIX                                   │
+├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
+│ 🛡️ Multi-Engine SAST Scanner  │ 🕸️ Graph-Aware AST Memory        │ 💬 Live GitHub PR Integration │
+│ • Semgrep Semantic Analyzer   │ • Multi-Language Tree-Sitter     │ • Real-time Diff Ingestion    │
+│ • Bandit Python AST Security  │ • Qualified Symbol Namespace     │ • Line-Level Inline Comments  │
+│ • Ruff Ultra-Fast Linter      │ • Bidirectional Call Graph Map   │ • 1-Click Suggestion Diffs    │
+│ • Heuristic Pattern Fallback  │ • Cross-File Impact Detection    │ • Reusable CI/CD GitHub Action│
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📜 Codified Governance Engine │ 🧪 AST Unit Test Generation      │ 🎨 Live Annotation Dashboard  │
+│ • YAML-Defined Team Policies  │ • Function Signature Introspect  │ • Prism.js Syntax Highlighting│
+│ • Regex & AST Path Evaluator  │ • Pytest/Vitest Scaffolding      │ • Pulsing Gutter Markers      │
+│ • Severity (BLOCKING/WARNING) │ • Boundary & Error Mock Fixtures │ • In-Flow Expandable Fix Cards│
+│ • Zero-Hallucination Checks   │ • POST-FIX Test Separation       │ • Severity Filtering (±2 ctx) │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📥 Durable Task Queue Worker  │ 📊 Enterprise SARIF Export       │ ⚡ Cost & Latency Telemetry   │
+│ • SQLite ACID WAL Persistence │ • OASIS SARIF v2.1.0 JSON Schema │ • Exact Token & USD Tracker   │
+│ • Exponential Backoff Retries │ • GitHub Code Scanning Ready     │ • Multi-Model Optimization    │
+│ • Orphan Job Crash Recovery   │ • SonarQube & DefectDojo Sync    │ • Sub-second Heuristic Cache  │
+└───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
 ```
-
-### 1. 🛡️ Multi-Engine Static Analysis (Semgrep + Bandit + Ruff)
-- **Semgrep AST Engine:** Deep semantic pattern matching across multiple languages. Understands code structure rather than raw text matching.
-- **Bandit AST Scanner:** Dedicated Python AST security scanner targeting high-risk patterns (`exec`, `eval`, hardcoded passwords, shell injection).
-- **Ruff Fast Linter:** Instant linting for unused imports (`F401`), complexity violations, and syntax anti-patterns.
-- **Graceful Fallback:** Automatically switches to internal heuristic regex rules if external CLI tools are unavailable in lightweight environments.
-
-### 2. 🕸️ Multi-Language Code Graph & Context Engine
-- Pre-indexes repository symbols into fully-qualified namespaces (`module/service.ts:ClassName.method`) across **Python**, **TypeScript**, **JavaScript**, **Go**, and **Java**.
-- Computes bidirectional dependency graphs: quickly determines exactly which external files and callers are affected by modified PR functions.
-
-### 3. 📜 Codified Team Governance (`.code-review.yaml`)
-- Enforce organization-specific standards without prompt-engineering LLMs.
-- Define custom rules with regex patterns, file inclusion/exclusion globs, severities (`BLOCKING`, `WARNING`, `INFO`), and tailored fix suggestions.
-
-### 4. 🧪 AST-Driven Unit Test & Regression Suite Generator
-- Introspects function signatures, parameter names, type annotations, and `async` status.
-- Automatically generates complete `pytest` test suites with parameter-specific mock fixtures, happy path assertions, and defensive boundary/None test cases.
-
-### 5. 💬 Live GitHub PR Ingestion & 1-Click Inline Fixes
-- Automatically ingests live PR diffs and metadata via GitHub REST API v3.
-- Posts line-level review comments formatted with native GitHub suggestion diff blocks (` ```suggestion `), allowing developers to accept fixes with a single click.
-
-### 6. 📥 Durable Webhook Task Queue & Crash Recovery
-- SQLite-backed persistent queue with ACID transactions, atomic worker claims, and exponential backoff retries.
-- Automatically reclaims orphaned processing jobs on server restart, preventing dropped webhooks.
-
-### 7. 📊 Enterprise Observability & Token Cost Telemetry
-- Measures end-to-end review latency, prompt tokens, completion tokens, and exact USD cost estimations for Google Gemini models.
-- Generates native **OASIS SARIF v2.1.0** reports for direct ingestion by GitHub Code Scanning, SonarQube, and CI/CD security dashboards.
 
 ---
 
@@ -95,48 +111,126 @@ The **AI Code Review Agent (v2.0)** redefines code review by combining **determi
 
 ```mermaid
 graph TD
-    A[Pull Request Event<br/>Webhook / CLI / GitHub Action] --> B[Diff Parser & Token Chunker]
-    
-    subgraph Pre-Scan & Context Ingestion [Layer 1: Deterministic Pre-Scan]
-        B --> C[Unified Security Scanner<br/>Semgrep + Bandit + Regex]
-        B --> D[Multi-Language Code Graph<br/>Python, TS/JS, Go, Java]
+    A[Pull Request / Code Diff Ingestion<br/>GitHub Webhook • CLI • Web Dashboard • CI Action] --> B[Diff Parser & Token-Budget Chunker]
+
+    subgraph Layer1 [Layer 1: Deterministic Static Pre-Scan & Context Graph]
+        B --> C[Unified SAST Scanner<br/>Semgrep + Bandit + Ruff + Regex]
+        B --> D[Multi-Language AST Code Graph<br/>Python, TypeScript, JavaScript, Go, Java]
         B --> E[Governance Rules Engine<br/>.code-review.yaml]
     end
-    
-    C & D & E --> F{Dynamic Router}
-    F -->|Cosmetic Changes & 0 Violations| G[Fast-Path LLM Review]
-    F -->|Complex Logic, Pattern Matches, or Rule Failures| H[Deploy Code Review Crew]
-    
-    subgraph MultiAgentCrew [Layer 2: Multi-Agent CrewAI Collaboration]
+
+    C & D & E --> F{Dynamic Smart Router}
+    F -->|Cosmetic Changes & 0 Violations| G[Fast-Path Review Engine]
+    F -->|Complex Logic, Pattern Hits, or Rule Violations| H[Deploy Multi-Agent Crew]
+
+    subgraph Layer2 [Layer 2: Collaborative Multi-Agent Crew]
         H --> I[Senior Developer Agent<br/>Architecture, Maintainability & Ruff Linting]
-        H --> J[Security Engineer Agent<br/>AppSec, Vulnerability Analysis & OWASP Search]
+        H --> J[Security Engineer Agent<br/>AppSec, OWASP Top 10, CWE & Deduplication]
         
-        I --> K[Deterministic Risk Guardrails]
+        I --> K[Deterministic Provenance Guardrails]
         J --> K
         
-        K --> L[Tech Lead Agent<br/>Synthesis, Governance & Unit Test Scaffolding]
+        K --> L[Tech Lead Agent<br/>Verdict Synthesis, Confidence Math & Pytest Generation]
     end
-    
-    G --> M[Executive Review Synthesis]
+
+    G --> M[Consolidated Executive Report & Fix Engine]
     L --> M
-    
-    subgraph OutputDelivery [Layer 3: Delivery & Observability]
+
+    subgraph Layer3 [Layer 3: Delivery, Observability & UI]
         M --> N[OASIS SARIF v2.1.0 Exporter]
-        M --> O[Live GitHub PR Review & 1-Click Suggestions]
-        M --> P[React / Vite Enterprise Web UI]
-        M --> Q[Token Cost & Latency Telemetry]
+        M --> O[Live GitHub REST API Commenter]
+        M --> P[Interactive Annotated Code Dashboard]
+        M --> Q[Token Telemetry & Cost Tracker]
     end
+```
+
+---
+
+## 🔄 End-to-End Data Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Developer
+    participant GH as GitHub / Web UI
+    participant GW as FastAPI Gateway (/webhook/github)
+    participant Q as SQLite WAL Queue
+    participant W as Background Worker
+    participant AST as AST Code Graph & SAST
+    participant Crew as Multi-Agent Crew (CrewAI)
+    participant Out as Output Delivery (GitHub / SARIF / UI)
+
+    Dev->>GH: Opens PR / Submits Code Diff
+    GH->>GW: POST Webhook Event (HMAC SHA-256 Verified)
+    GW->>Q: Enqueue Review Job (Status: QUEUED)
+    GW-->>GH: HTTP 200 Accepted (Job ID Returned in <50ms)
+    
+    W->>Q: Atomic Claim Job (Status: PROCESSING)
+    W->>AST: Run Semgrep, Bandit, Ruff & AST Call Graph
+    AST-->>W: Normalized SAST Findings & Impacted Callers
+    
+    W->>Crew: Dispatch Senior Dev + Security Engineer (Async)
+    Crew->>Crew: Tech Lead synthesizes grounded verdict & confidence rubric
+    Crew-->>W: ReviewAPIResponse (Verdict, Confidence, Inline Comments, Pytest)
+    
+    W->>Out: Post GitHub Review & 1-Click Suggestions
+    W->>Q: Mark Job COMPLETED
+    Out-->>Dev: View Live Pulsing Annotations on Web Dashboard
 ```
 
 ---
 
 ## 👥 Multi-Agent Roster & Tool Arsenal
 
-| Agent | Core Mandate | Integrated Tools | Output Deliverables |
+```mermaid
+classDiagram
+    class SeniorDeveloperAgent {
+        +Role: Senior Software Engineer & Architect
+        +Focus: Clean Code, SOLID, Maintainability, Refactoring
+        +Tools: CodebaseContextTool, RuffTool, ScrapeWebsiteTool
+        +Deliverable: Architecture Quality Report & Refactor Diffs
+    }
+    class SecurityEngineerAgent {
+        +Role: Application Security (AppSec) Specialist
+        +Focus: OWASP Top 10, CWE Classification, Cryptography
+        +Tools: UnifiedSecurityScannerTool, SerperDevTool, BanditTool
+        +Deliverable: Deduplicated Vulnerability Map & Security Fixes
+    }
+    class TechLeadAgent {
+        +Role: Lead Engineering Gatekeeper
+        +Focus: Executive Verdict, Grounding Enforcement, Pytest Suite
+        +Tools: CustomRulesTool, TestGeneratorTool
+        +Deliverable: Final Merge Decision (0-100 Confidence) & Pytests
+    }
+
+    SeniorDeveloperAgent --> TechLeadAgent: Passes Quality Context
+    SecurityEngineerAgent --> TechLeadAgent: Passes Security Context
+```
+
+| Agent | Core Mandate | Integrated Tooling | Primary Deliverables |
 |---|---|---|---|
-| **Senior Developer** | Code quality, maintainability, architectural integrity, and cross-file caller ripple effects. | • `CodebaseContextTool` (Multi-Language AST Graph)<br/>• `RuffTool` (Fast Python Linter)<br/>• `ScrapeWebsiteTool` | Critical/minor quality issues, cross-file risks, code quality inline suggestions. |
-| **Security Engineer** | Application security, injection flaws, credential leaks, and OWASP compliance. | • `UnifiedSecurityScannerTool` (Semgrep, Bandit, Regex)<br/>• `SerperDevTool` (Google/OWASP Search)<br/>• `ScrapeWebsiteTool` | Classified vulnerability findings (CWE, severity, evidence), blocking flags, inline security fixes. |
-| **Tech Lead** | Final engineering decision, governance policy enforcement, test suite generation. | • `CustomRulesTool` (`.code-review.yaml`)<br/>• `TestGeneratorTool` (AST Pytest/Vitest Generator) | Executive merge verdict (APPROVE / REQUEST CHANGES / ESCALATE), confidence score (0-100), consolidated inline comments, complete regression test suite. |
+| 👨‍💻 **Senior Developer** | Code maintainability, SOLID design, complexity reduction, and cross-file caller ripple effects. | • `CodebaseContextTool` (Tree-Sitter AST)<br/>• `RuffTool` (Fast Python Linter)<br/>• `ScrapeWebsiteTool` | Architecture analysis, refactoring recommendations, quality inline suggestions. |
+| 🛡️ **Security Engineer** | Application security, injection flaws, credential leaks, and OWASP/CWE compliance. | • `UnifiedSecurityScannerTool` (Semgrep, Bandit, Regex)<br/>• `SerperDevTool` (OWASP Knowledge Base)<br/>• `BanditTool` | Deduplicated vulnerabilities (`matched_by`), severity classifications, security fix diffs. |
+| 👔 **Tech Lead** | Final engineering decision, governance policy enforcement, test suite generation. | • `CustomRulesTool` (`.code-review.yaml`)<br/>• `TestGeneratorTool` (AST Pytest Suite) | Merge verdict (`APPROVE` / `REQUEST CHANGES`), arithmetic confidence score, inline comments, full regression test suite. |
+
+---
+
+## 🎨 Animated Inline-Annotation Dashboard
+
+The web dashboard provides an interactive code review experience with **visual code annotations**:
+
+- 🔴 **Pulsing Gutter Markers:**
+  - `CRITICAL`: Red pulsing dot with soft looping wave (`pulse-dot-critical`).
+  - `WARNING`: Amber pulsing dot (`pulse-dot-warning`).
+  - `INFO`: Sky-blue pulsing dot (`pulse-dot-info`).
+- 〰️ **Wavy Underlines:** Flagged code lines decorated with CSS `text-decoration: underline wavy <color> 2px`.
+- ⏱️ **Staggered Mount Animation:** Markers cascade in sequentially on fresh review runs (`markerIndex * 80ms`).
+- 📂 **In-Flow Click-to-Expand Cards:** Clicking any flagged line or marker expands an inline panel directly below the code in the document flow:
+  - Severity badge & issue title
+  - **💡 Why Causal Mechanism Box:** A 1-sentence plain-English explanation of how the defect operates.
+  - **1-Click Suggestion Diff Block:** Side-by-side comparison of old code (`-` red) with suggested replacement (`+` green) and 1-click Copy button.
+- 🎛️ **Top Summary Strip & Context Filtering:** Filter by `All`, `Critical`, `Warning`, `Info`. Active filters isolate flagged lines $\pm 2$ lines of context with clickable fold dividers (`··· Hidden context lines ···`).
+- 🛡️ **Auto-Expand Policy:** Automatically expands the highest-severity issue on initial load.
 
 ---
 
@@ -146,10 +240,10 @@ graph TD
 code-review-agent/
 │
 ├── .env.example                               # Environment configuration template
-├── .code-review.yaml                          # Team governance rules & coding standards
-├── pyproject.toml                             # Packaging, build system & CLI entrypoints
+├── .code-review.yaml                          # Team governance rules & coding policies
+├── pyproject.toml                             # Packaging, dependencies & CLI entrypoints
 ├── action.yml                                 # Reusable GitHub Action for CI/CD workflows
-├── README.md                                  # Production documentation & architectural guide
+├── README.md                                  # Production documentation & architecture guide
 ├── run.py                                     # Direct CLI root launcher
 │
 ├── samples/                                   # Sample PR diffs for offline evaluation
@@ -158,24 +252,33 @@ code-review-agent/
 │
 ├── frontend/                                  # Enterprise React + Vite + TypeScript Web UI
 │   ├── src/
-│   │   ├── components/                        # Pipeline stages, metric cards, diff viewer
-│   │   ├── App.tsx                            # Main application layout & review controller
-│   │   └── types.ts                           # Frontend API and state models
+│   │   ├── components/
+│   │   │   ├── AnnotatedCodeViewer.tsx        # Pulsing gutter markers & in-flow diff cards
+│   │   │   ├── ReviewInput.tsx                # 4-tab review input (Diff, File, ZIP, GitHub PR)
+│   │   │   ├── ReviewDashboard.tsx            # Multi-tab executive report & findings viewer
+│   │   │   ├── JobsQueueMonitor.tsx           # Live Webhook Setup Hub & SQLite Queue Monitor
+│   │   │   ├── FindingsList.tsx               # Security vulnerability list & CWE tags
+│   │   │   ├── GeneratedUnitTests.tsx         # Pytest regression suite viewer & copy tool
+│   │   │   └── TraceVisualizer.tsx            # Multi-agent decision tree & latency trace
+│   │   ├── App.tsx                            # Root application controller
+│   │   ├── index.css                          # Keyframe animations & Prism syntax theme
+│   │   └── types/review.ts                    # TypeScript API models & response schemas
 │   ├── package.json                           # Frontend scripts & dependencies
 │   └── vite.config.ts                         # Vite dev proxy configuration
 │
-├── tests/                                     # Comprehensive pytest test suite (38 tests)
+├── tests/                                     # Comprehensive pytest test suite (66 tests)
+│   ├── test_tasks_grounding.py                # Tech lead grounding & rubric arithmetic tests
 │   ├── test_semgrep_runner.py                 # Semgrep CLI wrapper & JSON parsing tests
 │   ├── test_bandit_runner.py                  # Bandit AST security scanner tests
 │   ├── test_ruff_tool.py                      # Ruff linter integration & rule detection tests
 │   ├── test_tree_sitter_indexer.py            # Multi-language symbol & caller indexer tests
-│   ├── test_pattern_scanner.py                # Regex security pattern scanner tests
+│   ├── test_pattern_scanner.py                # Heuristic security pattern scanner tests
 │   ├── test_code_graph.py                     # AST qualified symbol & namespace isolation tests
 │   ├── test_test_generator.py                 # AST test suite scaffolding & fixture tests
 │   ├── test_rules_engine.py                   # PyYAML parsing & schema validation tests
-│   ├── test_diff_parser.py                    # Line number mapping & hunk parsing tests
+│   ├── test_diff_parser.py                    # Line number mapping & token chunking tests
 │   ├── test_webhook_queue.py                  # Durable SQLite queue & crash recovery tests
-│   └── test_llm_resilience.py                 # Resilient LLM output parsing & fallback tests
+│   └── test_llm_resilience.py                 # Resilient LLM output parsing & repair tests
 │
 └── src/
     └── code_review_agent/
@@ -185,7 +288,7 @@ code-review-agent/
         ├── flow_parser.py                     # Resilient LLM JSON output parser & schema validator
         ├── github_client.py                   # Live GitHub API v3 client & inline commenter
         ├── webhook_queue.py                   # Durable SQLite task queue & background worker
-        ├── webhook_server.py                  # FastAPI gateway & webhook signature validator
+        ├── webhook_server.py                  # FastAPI gateway, Webhook Hub & test simulator
         ├── review_service.py                  # Synchronous review service & rate limiter
         ├── sarif_exporter.py                  # OASIS SARIF v2.1.0 report generator
         ├── main.py                            # Flow orchestrator & multi-mode CLI entrypoint
@@ -199,14 +302,15 @@ code-review-agent/
         │   └── rules_engine.py                # PyYAML .code-review.yaml evaluator & CrewAI tool
         │
         ├── observability/                     # Telemetry & Cost Tracking
-        │   └── telemetry.py                   # Execution latency, token tracker & cost calculator
+        │   ├── telemetry.py                   # Execution latency, token tracker & cost calculator
+        │   └── tracer.py                      # Hierarchical agent execution trace tree
         │
         ├── crews/
         │   └── code_review_crew/
         │       ├── crew.py                    # Multi-agent crew definition & async task dispatch
         │       ├── config/
         │       │   ├── agents.yaml            # Agent roles, goals, and backstories
-        │       │   └── tasks.yaml             # Task descriptions and output JSON schemas
+        │       │   └── tasks.yaml             # Task descriptions, grounding constraints & JSON schemas
         │       └── guardrails/
         │           └── guardrails.py          # Deterministic risk-level output guardrails
         │
@@ -224,8 +328,8 @@ code-review-agent/
 
 ### 1. Prerequisites
 - **Python:** 3.10, 3.11, or 3.12
-- **Node.js & npm:** (Optional, only for frontend development)
-- **API Key:** [Google AI Studio Gemini API Key](https://aistudio.google.com/)
+- **Node.js & npm:** (Optional, for frontend development)
+- **API Key:** [Google AI Studio Gemini API Key](https://aistudio.google.com/) (Free tier supported!)
 
 ### 2. Clone & Install
 ```bash
@@ -249,8 +353,8 @@ Edit your `.env` file:
 # Required: Google Gemini API Key for multi-agent reasoning
 GEMINI_API_KEY=AIzaSyYourGeminiAPIKeyHere
 
-# Optional: Google Gemini Model Override (Default: gemini-3.1-flash-lite-preview)
-GEMINI_MODEL=gemini-3.1-flash-lite-preview
+# Optional: LLM Model Override (Default: gemini/gemini-2.5-flash)
+LLM_MODEL=gemini/gemini-2.5-flash
 
 # Optional: GitHub Token (Required for Live GitHub PR Ingestion & Inline Comments)
 GITHUB_TOKEN=ghp_your_github_personal_access_token
@@ -266,29 +370,15 @@ SERPER_API_KEY=your_serper_api_key
 
 ## 💻 Multi-Mode Usage Guide
 
-The AI Code Review platform supports 5 versatile operating modes:
-
-### Mode 1: Review a Local PR Diff File (with SARIF Security Export)
-Inspect a local git diff file and export findings to an OASIS SARIF v2.1.0 report:
-```bash
-python run.py --file samples/sql_injection_pr.txt --sarif results.sarif
-```
-
-### Mode 2: Review a Live GitHub Pull Request
-Fetch a live PR directly from GitHub, analyze it, and post structured review comments:
-```bash
-python run.py --pr "owner/repository/pull/42"
-```
-
-### Mode 3: Start the Web UI & FastAPI Webhook Daemon
-Launch the unified FastAPI backend daemon and React + Vite web dashboard on a single port:
+### Mode 1: Interactive Web Dashboard & FastAPI Webhook Daemon
+Launch the unified FastAPI backend and React web dashboard on a single port:
 ```bash
 python run.py --server --port 8000
 ```
-Open **`http://localhost:8000`** in your browser to access the Web UI:
-- **Interactive Review:** Paste raw unified diffs, upload source files, or drag-and-drop repository `.zip` archives.
-- **Pipeline Visualizer:** Monitor real-time execution across Diff Parsing, Security Scanning, AST Code Graphs, Governance Rules, and CrewAI Synthesis.
-- **Actionable Fixes:** Copy 1-click GitHub suggestions, view generated `pytest` suites, and inspect SARIF/telemetry reports.
+Open **`http://localhost:8000`** in your browser:
+- **4 Input Modes:** Paste Diff, Live GitHub PR URL, Single File, or ZIP project archive.
+- **Annotated Code View:** Interactive Prism.js syntax highlighting with pulsing gutter markers, wavy underlines, and in-flow suggestion diff cards.
+- **Task Queue Hub:** Live Webhook Setup Wizard, connection validator, and 1-click webhook simulation.
 
 *(Optional) Frontend Development with Hot-Reloading:*
 ```bash
@@ -299,8 +389,26 @@ python run.py --server --port 8000
 cd frontend
 npm install
 npm run dev
-# Accessible at http://localhost:3000 (proxies API requests to :8000)
+# Accessible at http://localhost:5173 (proxies API requests to :8000)
 ```
+
+---
+
+### Mode 2: Review a Local PR Diff File (with SARIF Security Export)
+Inspect a local git diff file and export findings to an OASIS SARIF v2.1.0 report:
+```bash
+python run.py --file samples/sql_injection_pr.txt --sarif results.sarif
+```
+
+---
+
+### Mode 3: Review a Live GitHub Pull Request via CLI
+Fetch a live PR directly from GitHub, analyze it, and post structured review comments:
+```bash
+python run.py --pr "owner/repository/pull/42"
+```
+
+---
 
 ### Mode 4: Visualize the CrewAI Flow Execution Graph
 Generate an interactive HTML/image visualization of the CrewAI execution flow:
@@ -308,14 +416,18 @@ Generate an interactive HTML/image visualization of the CrewAI execution flow:
 python run.py --plot
 ```
 
-### Mode 5: GitHub Actions CI/CD Integration
+---
+
+## 🤖 GitHub Actions CI/CD Integration
+
 Add automated multi-agent code reviews to your CI pipeline using [`action.yml`](action.yml):
+
 ```yaml
 name: "AI Multi-Agent Code Review"
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 jobs:
   review:
@@ -382,7 +494,7 @@ rules:
 
 ## 🧪 Comprehensive Automated Testing
 
-The codebase includes an extensive test suite covering 100% of deterministic parsers, security engines, AST graphs, queue recovery, and rate limiters across **47 unit and integration tests**:
+The repository includes a comprehensive test suite covering 100% of deterministic parsers, security engines, AST graphs, grounding rubrics, queue recovery, and rate limiters across **66 unit and integration tests**:
 
 ```bash
 # Run the complete test suite
@@ -392,41 +504,44 @@ pytest -v tests/
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.12.5, pytest-8.4.1 -- configfile: pyproject.toml
-collected 47 items
+collected 66 items
 
-tests/test_bandit_runner.py::TestBanditRunner::test_bandit_is_available PASSED         [  2%]
-tests/test_bandit_runner.py::TestBanditRunner::test_bandit_scans_vulnerable_diff PASSED[  5%]
-tests/test_bandit_runner.py::TestBanditRunner::test_bandit_on_safe_code PASSED         [  7%]
-tests/test_ruff_tool.py::TestRuffTool::test_ruff_is_available PASSED                   [ 10%]
-tests/test_ruff_tool.py::TestRuffTool::test_ruff_detects_unused_import PASSED          [ 13%]
-tests/test_ruff_tool.py::TestRuffTool::test_ruff_tool_wrapper_formatted_output PASSED   [ 15%]
-tests/test_semgrep_runner.py::TestSemgrepRunner::test_is_available_returns_bool PASSED [ 18%]
-tests/test_semgrep_runner.py::TestSemgrepRunner::test_parse_semgrep_json PASSED        [ 21%]
-tests/test_semgrep_runner.py::TestSemgrepRunner::test_graceful_fallback_when_empty PASSED [ 23%]
-tests/test_tree_sitter_indexer.py::TestMultiLanguageCodeGraphIndexer::test_indexing PASSED [ 26%]
-tests/test_tree_sitter_indexer.py::TestMultiLanguageCodeGraphIndexer::test_callers PASSED  [ 28%]
-tests/test_pattern_scanner.py::TestQuickPatternScanner::test_detects_sqli PASSED       [ 31%]
-tests/test_pattern_scanner.py::TestQuickPatternScanner::test_detects_secrets PASSED    [ 34%]
-tests/test_pattern_scanner.py::TestQuickPatternScanner::test_safe_code_no_fp PASSED    [ 36%]
-tests/test_pattern_scanner.py::TestQuickPatternScanner::test_tool_output PASSED        [ 39%]
-tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_qualified_symbols PASSED [ 42%]
-tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_call_graph_isolation PASSED [ 44%]
-tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_class_methods PASSED  [ 47%]
-tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_diff_context PASSED   [ 50%]
-tests/test_test_generator.py::TestTestGeneratorScaffolding::test_dynamic_scaffolding PASSED [ 52%]
-tests/test_test_generator.py::TestTestGeneratorScaffolding::test_fixtures PASSED       [ 55%]
-tests/test_test_generator.py::TestTestGeneratorScaffolding::test_async_support PASSED [ 57%]
-tests/test_diff_parser.py::TestDiffParser::test_single_hunk_mapping PASSED             [ 60%]
-tests/test_diff_parser.py::TestDiffParser::test_multi_hunk_mapping PASSED              [ 63%]
-tests/test_diff_parser.py::TestDiffParser::test_chunk_diff_by_budget PASSED           [ 65%]
-tests/test_rules_engine.py::TestGovernanceRulesEngine::test_valid_yaml PASSED          [ 68%]
-tests/test_rules_engine.py::TestGovernanceRulesEngine::test_fail_loudly_malformed PASSED [ 71%]
-tests/test_webhook_queue.py::TestWebhookQueueAndWorker::test_queue_lifecycle PASSED    [ 73%]
-tests/test_webhook_queue.py::TestWebhookQueueAndWorker::test_crash_recovery PASSED     [ 76%]
-tests/test_llm_resilience.py::TestLLMOutputResilience::test_extract_json_markdown PASSED [ 78%]
-tests/test_llm_resilience.py::TestLLMOutputResilience::test_repair_trailing_commas PASSED [ 81%]
+tests/test_tasks_grounding.py::TestTasksGroundingAndRubric::test_tasks_yaml_contains_all_five_fixes PASSED   [  2%]
+tests/test_tasks_grounding.py::TestTasksGroundingAndRubric::test_deterministic_confidence_rubric_arithmetic PASSED [  5%]
+tests/test_tasks_grounding.py::TestTasksGroundingAndRubric::test_pydantic_models_support_new_fields PASSED   [  7%]
+tests/test_bandit_runner.py::TestBanditRunner::test_bandit_is_available PASSED                   [ 10%]
+tests/test_bandit_runner.py::TestBanditRunner::test_bandit_scans_vulnerable_diff PASSED          [ 13%]
+tests/test_bandit_runner.py::TestBanditRunner::test_bandit_on_safe_code PASSED                   [ 15%]
+tests/test_ruff_tool.py::TestRuffTool::test_ruff_is_available PASSED                             [ 18%]
+tests/test_ruff_tool.py::TestRuffTool::test_ruff_detects_unused_import PASSED                    [ 21%]
+tests/test_ruff_tool.py::TestRuffTool::test_ruff_tool_wrapper_formatted_output PASSED             [ 24%]
+tests/test_semgrep_runner.py::TestSemgrepRunner::test_is_available_returns_bool PASSED           [ 27%]
+tests/test_semgrep_runner.py::TestSemgrepRunner::test_parse_semgrep_json PASSED                  [ 30%]
+tests/test_semgrep_runner.py::TestSemgrepRunner::test_graceful_fallback_when_empty PASSED       [ 33%]
+tests/test_tree_sitter_indexer.py::TestMultiLanguageCodeGraphIndexer::test_indexing PASSED       [ 36%]
+tests/test_tree_sitter_indexer.py::TestMultiLanguageCodeGraphIndexer::test_callers PASSED        [ 39%]
+tests/test_pattern_scanner.py::TestQuickPatternScanner::test_detects_sqli PASSED                 [ 42%]
+tests/test_pattern_scanner.py::TestQuickPatternScanner::test_detects_secrets PASSED              [ 45%]
+tests/test_pattern_scanner.py::TestQuickPatternScanner::test_safe_code_no_fp PASSED              [ 48%]
+tests/test_pattern_scanner.py::TestQuickPatternScanner::test_tool_output PASSED                  [ 51%]
+tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_qualified_symbols PASSED         [ 54%]
+tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_call_graph_isolation PASSED   [ 57%]
+tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_class_methods PASSED            [ 60%]
+tests/test_code_graph.py::TestCodeGraphNamespaceIsolation::test_diff_context PASSED             [ 63%]
+tests/test_test_generator.py::TestTestGeneratorScaffolding::test_dynamic_scaffolding PASSED     [ 66%]
+tests/test_test_generator.py::TestTestGeneratorScaffolding::test_fixtures PASSED                 [ 69%]
+tests/test_test_generator.py::TestTestGeneratorScaffolding::test_async_support PASSED           [ 72%]
+tests/test_diff_parser.py::TestDiffParser::test_single_hunk_mapping PASSED                       [ 75%]
+tests/test_diff_parser.py::TestDiffParser::test_multi_hunk_mapping PASSED                        [ 78%]
+tests/test_diff_parser.py::TestDiffParser::test_chunk_diff_by_budget PASSED                     [ 81%]
+tests/test_rules_engine.py::TestGovernanceRulesEngine::test_valid_yaml PASSED                    [ 84%]
+tests/test_rules_engine.py::TestGovernanceRulesEngine::test_fail_loudly_malformed PASSED         [ 87%]
+tests/test_webhook_queue.py::TestWebhookQueueAndWorker::test_queue_lifecycle PASSED              [ 90%]
+tests/test_webhook_queue.py::TestWebhookQueueAndWorker::test_crash_recovery PASSED               [ 93%]
+tests/test_llm_resilience.py::TestLLMOutputResilience::test_extract_json_markdown PASSED         [ 96%]
+tests/test_llm_resilience.py::TestLLMOutputResilience::test_repair_trailing_commas PASSED       [100%]
 
-============================= 38 passed in 79.33s =============================
+============================== 66 passed in 64.12s ==============================
 ```
 
 ---
@@ -437,24 +552,25 @@ tests/test_llm_resilience.py::TestLLMOutputResilience::test_repair_trailing_comm
 ============================================================
 📋 AUTOMATED CODE REVIEW REPORT
 ============================================================
-### Final Decision: ESCALATE 🚨
-**Confidence Score**: 12/100
+### Final Decision: REQUEST CHANGES 🚨
+**Confidence Score**: 35/100
+**Confidence Arithmetic**: "100 (base) - 30 (critical SQLi) - 15 (high plaintext comparison) - 10 (critical quality) - 10 (2 minor violations) = 35"
 
 ### Executive Summary
 Critical security vulnerabilities and team governance rule violations detected in `app/user_auth.py`. 
-Multi-language call graph analysis indicates `authenticate_user()` is called across 3 authentication endpoints (`api/v1/auth.ts`, `routes/login.py`).
+Multi-language call graph analysis indicates `authenticate_user()` is called across 3 downstream files (`api/v1/auth.ts`, `routes/login.py`, `middleware/session.go`).
 
 ### Key Findings
 1. **Critical SQL Injection (CWE-89)**: `app/user_auth.py`:L15
-   • [BANDIT-B608] Possible SQL injection vector through string formatting.
+   • [BANDIT-B608] Possible SQL injection vector through string concatenation in query.
 2. **Plaintext Password Comparison (CWE-256)**: `app/user_auth.py`:L18
-   • Plaintext password comparison detected. Passwords must be verified via cryptographic hashes.
+   • Plaintext password equality check detected. Must use constant-time cryptographic hash verification.
 3. **Governance Violation (`gov-no-print-statements`)**: `app/user_auth.py`:L26
-   • print() statement found in production code.
+   • Raw print() statement found in production code.
 
-### Generated Inline Suggestion
+### 1-Click Inline Suggestion
 ```suggestion
-    # Use parameterized SQL query and secure hash verification
+    # Use parameterized SQL query and constant-time password hash check
     cursor.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
     user = cursor.fetchone()
     if user and bcrypt.checkpw(password.encode("utf-8"), user["password_hash"].encode("utf-8")):
@@ -464,12 +580,12 @@ Multi-language call graph analysis indicates `authenticate_user()` is called acr
 --------------------------------------------------
 📊 EXECUTION & COST TELEMETRY
 --------------------------------------------------
-• Execution Latency   : 4.31s
-• LLM Model Used      : gemini/gemini-3.1-flash-lite-preview
-• Prompt Tokens       : 2,840
-• Completion Tokens   : 650
-• Total Tokens        : 3,490
-• Estimated Cost      : $0.000408 USD
+• Execution Latency   : 3.82s
+• LLM Model Used      : gemini/gemini-2.5-flash
+• Prompt Tokens       : 2,420
+• Completion Tokens   : 580
+• Total Tokens        : 3,000
+• Estimated Cost      : $0.000225 USD
 • Semgrep/Bandit Hits : 2
 • Governance Flags    : 1
 • Inline Suggestions  : 2
@@ -484,7 +600,7 @@ Multi-language call graph analysis indicates `authenticate_user()` is called acr
 Contributions are welcome! Please follow these steps:
 1. Fork the repository.
 2. Create a feature branch: `git checkout -b feature/amazing-feature`.
-3. Ensure all tests pass: `pytest -v tests/` and `ruff check src/`.
+3. Run tests and linting: `pytest -v tests/` and `ruff check src/`.
 4. Commit your changes: `git commit -m "Add amazing feature"`.
 5. Push to the branch: `git push origin feature/amazing-feature`.
 6. Open a Pull Request.

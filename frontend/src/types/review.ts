@@ -31,6 +31,7 @@ export interface InlineComment {
   side: string;
   severity: string;
   comment_body: string;
+  why?: string;
   suggestion_code?: string;
 }
 
@@ -54,6 +55,26 @@ export interface TelemetryMetrics {
   final_verdict: string;
 }
 
+export interface TraceNode {
+  id: string;
+  title: string;
+  stage: string;
+  agent_name?: string | null;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+  started_at: number;
+  ended_at?: number | null;
+  duration_ms?: number | null;
+  details?: Record<string, unknown>;
+  children?: TraceNode[];
+}
+
+export interface TraceData {
+  trace_id: string;
+  started_at: number;
+  duration_ms: number;
+  nodes: TraceNode[];
+}
+
 export interface ReviewAPIResponse {
   verdict: string;
   confidence_score: number;
@@ -66,21 +87,30 @@ export interface ReviewAPIResponse {
   generated_unit_tests?: string | null;
   inline_comments: InlineComment[];
   telemetry?: TelemetryMetrics | null;
+  trace?: TraceData | null;
+  reviewed_diff?: string | null;
   scope_note: string;
 }
+
+
 
 export interface WebhookJob {
   job_id: string;
   pr_identifier: string;
   status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING';
-  created_at: string;
-  started_at?: string | null;
-  completed_at?: string | null;
-  retry_count: number;
+  created_at: string | number;
+  updated_at?: string | number | null;
+  started_at?: string | number | null;
+  completed_at?: string | number | null;
+  attempts?: number;
+  max_retries?: number;
+  retry_count?: number;
+  last_error?: string | null;
   error_message?: string | null;
   payload?: Record<string, unknown>;
   result?: Record<string, unknown> | null;
 }
+
 
 export interface HealthStatus {
   status: string;

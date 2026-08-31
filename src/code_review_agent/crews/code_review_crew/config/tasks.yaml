@@ -21,14 +21,15 @@ review_security:
   agent: security_engineer
   description: >
     1. Inspect the pull request diff and security pattern scanner output for security vulnerabilities (e.g. OWASP Top 10, SQL injection, authentication bypasses, sensitive data exposure, plaintext credentials, command injection).
-    2. Document each vulnerability with description, assessed risk level ('low', 'medium', 'high', 'critical'), and concrete code evidence.
+    Before documenting vulnerabilities: if the Security Pattern Findings ({sast_context}) contain multiple entries pointing to the same file, line range, and root cause (e.g. a heuristic hit and a Bandit rule for the same issue), merge them into a single entry in 'security_vulnerabilities'. List every rule ID that contributed under a new 'matched_by' field rather than creating duplicate entries.
+    2. Document each vulnerability with description, assessed risk level ('low', 'medium', 'high', 'critical'), concrete code evidence, and 'matched_by' rule IDs.
     3. Provide actionable 'security_recommendations' and specify 'highest_risk'.
     4. Formulate 'inline_security_comments' with exact file path, line number, and secure replacement code for each flaw.
     PR content: \n{file_content}
     Security Pattern Findings: \n{sast_context}
   expected_output: >
     A JSON object containing:
-    - 'security_vulnerabilities': An array of objects each with 'description', 'risk_level', and 'evidence'.
+    - 'security_vulnerabilities': An array of objects each with 'description', 'risk_level', 'evidence', and 'matched_by' (array of strings).
     - 'blocking': A boolean indicating whether any security vulnerability is severe enough to block approval.
     - 'highest_risk': A string representing the most severe risk level found ('low', 'medium', 'high', 'critical', or 'none').
     - 'security_recommendations': An array of actionable remediation steps.
@@ -39,19 +40,30 @@ summarize_findings:
   agent: tech_lead
   description: >
     1. Synthesize the findings from Code Quality, Security Analysis, and Project Governance rules: \n{rules_context}
-    2. Calculate an overall confidence score between 0 and 100 for merging the PR.
+    IMPORTANT: Every claim in 'findings', 'recommendations', and 'inline_comments' MUST trace back to a specific item in the Code Quality output or Security Analysis output provided in context. Do not introduce new issues, vulnerability categories, or risk types that were not identified by analyze_code_quality or review_security. If you believe something was missed, do not include it — flag it separately under a new 'coverage_gaps' field instead of stating it as a finding.
+    'findings' and 'inline_comments' MUST include content sourced from BOTH analyze_code_quality and review_security — do not let one context input dominate. If analyze_code_quality reported zero critical_issues and zero minor_issues, state that explicitly in 'findings' rather than omitting code-quality coverage entirely.
+    2. Calculate 'confidence' using this explicit rubric, not free judgment:
+       - Start at 100.
+       - Subtract 30 for each 'critical' risk_level vulnerability in security_vulnerabilities that remains unresolved.
+       - Subtract 15 for each 'high' risk_level vulnerability.
+       - Subtract 10 for each critical_issue from analyze_code_quality.
+       - Subtract 5 for each minor_issue or 'medium'/'low' vulnerability.
+       - Floor at 0.
+       Show the arithmetic that produced the final number as a string in a new 'confidence_breakdown' field.
     3. Consolidate a unified list of prioritized 'fix' items with clear technical solutions.
-    4. Assemble a consolidated list of 'inline_comments' with exact file path, line number, severity ('CRITICAL', 'WARNING', 'INFO'), comment_body, and 1-click replacement 'suggestion_code'.
-    5. Provide 'suggested_unit_tests' containing a complete pytest test suite covering the modified functionality.
-    PR content: \n{file_content}
+    4. Assemble a consolidated list of 'inline_comments' with exact file path, line number, side ('RIGHT' or 'LEFT'), severity ('CRITICAL', 'WARNING', 'INFO'), a terse technical 'comment_body', a 1-sentence plain-English 'why' explanation describing the causal mechanism (e.g. "user input reaches the query string unescaped, so a crafted id can run arbitrary SQL"), and 1-click replacement 'suggestion_code'.
+    5. Provide 'suggested_unit_tests' containing a complete pytest test suite. Tests must assert the CURRENT, ACTUAL behavior of the code as given in {file_content} — including current bugs (e.g. if a function raises an exception today, assert that it raises, using pytest.raises; do not assert a hypothetical post-fix behavior). Where a test is meant to validate a proposed fix rather than current behavior, prefix its docstring with "POST-FIX:" and do not mix these with tests of current behavior in the same function.
   expected_output: >
     A JSON object containing:
     - 'confidence': An integer score between 0 and 100 representing confidence for merging.
+    - 'confidence_breakdown': A string explaining the exact arithmetic calculation of the confidence score.
     - 'findings': A comprehensive summary string synthesizing code quality, security, and rule checks.
+    - 'coverage_gaps': An array of strings describing potential gaps or areas not covered by upstream analysis.
     - 'fix': A list of objects containing 'description', 'solutions', and 'explanation' for each required fix.
     - 'recommendations': A list of strings containing additional recommendations or best practices.
-    - 'inline_comments': A list of objects each with 'path', 'line', 'side', 'severity', 'comment_body', and 'suggestion_code'.
+    - 'inline_comments': A list of objects each with 'path', 'line', 'side', 'severity', 'comment_body', 'why', and 'suggestion_code'.
     - 'suggested_unit_tests': A string containing a complete pytest test suite for the modified functions.
+
   context:
     - analyze_code_quality
     - review_security

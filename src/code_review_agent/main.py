@@ -28,10 +28,10 @@ if sys.platform == "win32":
         pass
 
 from crewai import LLM
-
 from crewai.flow import Flow, listen, start, router, or_, persist
 
-from code_review_agent.config import get_gemini_api_key, get_model_name, get_max_tokens, get_github_token, logger
+from code_review_agent.config import get_github_token, get_model_name, logger
+from code_review_agent.llm_factory import LLMFactory
 
 from code_review_agent.models import ReviewState, InlineComment, SastFinding, RuleViolation, SummarizedFindingsJSON
 from code_review_agent.diff_parser import DiffParser
@@ -51,18 +51,14 @@ class PRCodeReviewFlow(Flow[ReviewState]):
     Supports repository AST context, security pattern scanning, team rules governance, and telemetry.
     """
 
-
     _telemetry_tracker: Optional[TelemetryTracker] = None
     _code_graph: Optional[CodeGraphIndexer] = None
     _rules_engine: Optional[RulesEngine] = None
 
     def _get_llm(self) -> LLM:
-        """Initialize Gemini LLM for flow reasoning with max_tokens=4096."""
-        return LLM(
-            model=get_model_name(),
-            api_key=get_gemini_api_key(),
-            max_tokens=get_max_tokens()
-        )
+        """Initialize configured LLM for flow reasoning via LLMFactory."""
+        return LLMFactory.create_llm()
+
 
     def _call_llm_with_timeout(self, prompt: str, timeout_seconds: Optional[float] = None) -> str:
         """Execute LLM call with strict timeout to prevent indefinite hanging."""

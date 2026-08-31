@@ -88,6 +88,26 @@ def get_serper_api_key() -> str:
     return os.getenv("SERPER_API_KEY", "")
 
 
+def get_openai_api_key() -> str:
+    """Retrieve OpenAI API Key from environment."""
+    return os.getenv("OPENAI_API_KEY", "").strip()
+
+
+def get_anthropic_api_key() -> str:
+    """Retrieve Anthropic API Key from environment."""
+    return os.getenv("ANTHROPIC_API_KEY", "").strip()
+
+
+def get_groq_api_key() -> str:
+    """Retrieve Groq API Key from environment."""
+    return os.getenv("GROQ_API_KEY", "").strip()
+
+
+def get_ollama_base_url() -> str:
+    """Retrieve Ollama Base URL from environment (default: http://localhost:11434)."""
+    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+
+
 def get_model_name() -> str:
     """Retrieve configured LLM model identifier."""
     return os.getenv("LLM_MODEL", "gemini/gemini-3.1-flash-lite-preview").strip()
@@ -96,3 +116,4 @@ def get_model_name() -> str:
 def get_max_tokens() -> int:
     """Retrieve max_tokens setting for LLM calls (default: 4096)."""
     return int(os.getenv("MAX_TOKENS", "4096"))
+
