@@ -1,0 +1,10 @@
+diff --git a/app/controllers/user_controller.py b/app/controllers/user_controller.py
+index 9999999..aaaaaaa 100644
+--- a/app/controllers/user_controller.py
++++ b/app/controllers/user_controller.py
+@@ -10,6 +10,10 @@ def create_user(request_data: dict):
++    # Raw print debug statements violating governance
++    print(f"Creating user with payload: {request_data}")
++    user = db_create(request_data)
++    print(f"User created: {user.id}")
++    return user

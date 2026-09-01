@@ -1,0 +1,8 @@
+diff --git a/app/services/payment_service.py b/app/services/payment_service.py
+index ddddddd..eeeeeee 100644
+--- a/app/services/payment_service.py
++++ b/app/services/payment_service.py
+@@ -5,4 +5,4 @@
+-def process_payment(amount: float, currency: str = "USD") -> bool:
++def process_payment(amount: float, currency: str, merchant_account_id: str, idempotency_key: str) -> bool:
+     pass

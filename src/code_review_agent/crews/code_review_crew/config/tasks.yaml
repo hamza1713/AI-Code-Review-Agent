@@ -125,21 +125,18 @@ summarize_findings:
     Governance context from [governance-policy-enforcer]:
     {rules_context}
 
-    PROVENANCE RULE (MANDATORY): Every claim in 'findings', 'recommendations',
+    IMPORTANT: Every claim in 'findings', 'recommendations',
     and 'inline_comments' MUST trace back to a specific item in the Code Quality
     output or Security Analysis output. Do NOT introduce new issues,
     vulnerability categories, or risk types not identified by the upstream agents.
     If you believe something was missed, flag it under 'coverage_gaps' only —
     never state it as a finding.
 
-    COVERAGE BALANCE RULE: 'findings' and 'inline_comments' MUST include content
-    from BOTH analyze_code_quality AND review_security. If analyze_code_quality
-    reported zero critical_issues and zero minor_issues, state that explicitly
-    rather than omitting code-quality coverage.
+    COVERAGE BALANCE RULE: 'findings' and 'inline_comments' MUST include content sourced from BOTH analyze_code_quality and review_security — do not let one context input dominate. If analyze_code_quality reported zero critical_issues and zero minor_issues, state that explicitly in 'findings' rather than omitting code-quality coverage.
 
-    Using [tech-lead-verdict-synthesizer] — CONFIDENCE SCORING RUBRIC (mandatory):
+    Using [tech-lead-verdict-synthesizer] — Calculate 'confidence' using this explicit rubric, not free judgment:
     Start at 100. Apply deductions:
-      - Subtract 30 for each 'critical' risk_level vulnerability (unresolved).
+      - Subtract 30 for each 'critical' risk_level vulnerability in security_vulnerabilities that remains unresolved.
       - Subtract 15 for each 'high' risk_level vulnerability.
       - Subtract 10 for each critical_issue from analyze_code_quality,
         OR each BLOCKING governance rule violation.
@@ -163,7 +160,7 @@ summarize_findings:
     the causal mechanism, and 1-click replacement 'suggestion_code'.
 
     Using [automated-unit-test-generator]:
-    Provide 'suggested_unit_tests' with a complete pytest test suite. Tests MUST
+    Provide 'suggested_unit_tests' with a complete pytest test suite. Tests must
     assert the CURRENT, ACTUAL behavior of the code as given in {file_content}
     — including current bugs (if a function raises an exception today, assert
     that it raises using pytest.raises; do not assert hypothetical post-fix

@@ -1,0 +1,10 @@
+diff --git a/app/routes/api.py b/app/routes/api.py
+index bbbbbbb..ccccccc 100644
+--- a/app/routes/api.py
++++ b/app/routes/api.py
+@@ -1,3 +1,6 @@
++from app.models.user import *
++from app.utils.helpers import *
++
+ def handle_request():
+     pass

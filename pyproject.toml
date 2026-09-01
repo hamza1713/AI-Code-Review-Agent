@@ -18,11 +18,19 @@ dependencies = [
     "bandit>=1.7.8"
 ]
 
+[project.optional-dependencies]
+eval = [
+    "deepeval>=1.5.0",
+    "langfuse>=2.50.0",
+    "jsonschema>=4.20.0"
+]
+
 [project.scripts]
 code-review-agent = "code_review_agent.main:cli_main"
 kickoff = "code_review_agent.main:kickoff"
 plot = "code_review_agent.main:plot"
 review-server = "code_review_agent.webhook_server:start_server"
+eval-benchmarks = "code_review_agent.benchmarks:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -34,3 +42,7 @@ type = "flow"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "eval: AI evaluation tests requiring LLM-as-a-judge",
+    "deterministic_eval: Fast, zero-cost deterministic evaluation tests"
+]

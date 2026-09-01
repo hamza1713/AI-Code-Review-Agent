@@ -1,8 +1,10 @@
 """
-Observability and Cost Telemetry Tracker.
-Measures end-to-end review latency, token usage breakdown, and accurate USD cost estimation.
+Observability, Cost Telemetry, and Production Evaluation Tracker.
+Measures end-to-end review latency, token usage breakdown, accurate USD cost estimation,
+and optionally streams evaluation traces and quality scores to Langfuse.
 """
 
+import os
 import time
 import json
 from pathlib import Path
@@ -14,18 +16,41 @@ from code_review_agent.config import logger, get_model_name
 # Pricing Table (USD per 1M tokens)
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "gemini/gemini-3.1-flash-lite-preview": {"prompt": 0.0375, "completion": 0.15},
+    "gemini/gemini-2.5-flash": {"prompt": 0.075, "completion": 0.30},
+    "gemini/gemini-2.5-pro": {"prompt": 1.25, "completion": 5.00},
     "default": {"prompt": 0.0375, "completion": 0.15}
 }
 
 
-
 class TelemetryTracker:
-    """Tracks performance, latency, and cost telemetry for review executions."""
+    """Tracks performance, latency, cost, and production evaluation telemetry."""
 
     def __init__(self, model_name: Optional[str] = None):
         self.model_name = model_name or get_model_name()
         self.start_time: float = 0.0
         self.end_time: float = 0.0
+        self._langfuse_client = None
+        self._init_langfuse()
+
+    def _init_langfuse(self):
+        """Initialize Langfuse observability client if credentials are configured."""
+        public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+        secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+        host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+        if public_key and secret_key:
+            try:
+                from langfuse import Langfuse
+                self._langfuse_client = Langfuse(
+                    public_key=public_key,
+                    secret_key=secret_key,
+                    host=host
+                )
+                logger.info("📡 Langfuse production observability client initialized.")
+            except ImportError:
+                logger.debug("Langfuse library not installed. Install via pip install langfuse to enable cloud tracing.")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Langfuse client: {e}")
 
     def start(self):
         """Start execution timer."""
@@ -37,9 +62,10 @@ class TelemetryTracker:
         sast_count: int = 0,
         rules_count: int = 0,
         inline_comments_count: int = 0,
-        final_verdict: str = ""
+        final_verdict: str = "",
+        eval_score: Optional[float] = None
     ) -> TelemetryMetrics:
-        """Stop execution timer and compute cost metrics."""
+        """Stop execution timer, compute cost metrics, and emit production traces."""
         self.end_time = time.time()
         duration = round(self.end_time - self.start_time, 3)
 
@@ -64,6 +90,24 @@ class TelemetryTracker:
             inline_comments_count=inline_comments_count,
             final_verdict=final_verdict[:30] if final_verdict else "COMPLETED"
         )
+
+        # Log trace and quality score to Langfuse if available
+        if self._langfuse_client:
+            try:
+                trace = self._langfuse_client.trace(
+                    name="ai_code_review_execution",
+                    metadata={
+                        "model": self.model_name,
+                        "duration_seconds": duration,
+                        "total_tokens": total_tokens,
+                        "estimated_cost_usd": cost,
+                        "final_verdict": metrics.final_verdict,
+                    }
+                )
+                if eval_score is not None:
+                    trace.score(name="deterministic_eval_score", value=eval_score)
+            except Exception as e:
+                logger.debug(f"Langfuse trace logging error: {e}")
 
         return metrics
 

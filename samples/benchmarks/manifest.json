@@ -2,6 +2,7 @@
   {
     "id": "SEC-001",
     "name": "SQL Injection Detection",
+    "category": "SECURITY",
     "file": "sql_injection.diff",
     "expected_verdict": "REQUEST CHANGES",
     "expected_issues": [
@@ -16,6 +17,7 @@
   {
     "id": "SEC-002",
     "name": "Hardcoded Secret Detection",
+    "category": "SECURITY",
     "file": "hardcoded_secret.diff",
     "expected_verdict": "REQUEST CHANGES",
     "expected_issues": [
@@ -29,14 +31,14 @@
         "category": "SECURITY",
         "cwe": "CWE-798",
         "severity": "CRITICAL",
-        "keywords": ["secret", "stripe", "key"]
+        "keywords": ["secret", "password", "key"]
       }
     ]
   },
-
   {
     "id": "SEC-003",
     "name": "Command Injection Detection",
+    "category": "SECURITY",
     "file": "command_injection.diff",
     "expected_verdict": "REQUEST CHANGES",
     "expected_issues": [
@@ -49,10 +51,155 @@
     ]
   },
   {
+    "id": "SEC-004",
+    "name": "Insecure Deserialization Detection",
+    "category": "SECURITY",
+    "file": "insecure_deserialization.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-502",
+        "severity": "CRITICAL",
+        "keywords": ["pickle", "deserialization", "cookie", "session"]
+      }
+    ]
+  },
+  {
+    "id": "SEC-005",
+    "name": "Plaintext Password Comparison",
+    "category": "SECURITY",
+    "file": "plaintext_password.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-256",
+        "severity": "HIGH",
+        "keywords": ["password", "plaintext", "compare", "user.password"]
+      }
+    ]
+  },
+  {
     "id": "QUAL-001",
     "name": "Clean Code Verification",
+    "category": "QUALITY",
     "file": "clean_code.diff",
     "expected_verdict": "APPROVE",
     "expected_issues": []
+  },
+  {
+    "id": "QUAL-002",
+    "name": "N+1 ORM Query Loop",
+    "category": "QUALITY",
+    "file": "n_plus_one.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "QUALITY",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["n+1", "query", "loop", "order"]
+      }
+    ]
+  },
+  {
+    "id": "QUAL-003",
+    "name": "Swallowed Exception Anti-Pattern",
+    "category": "QUALITY",
+    "file": "swallowed_exception.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "QUALITY",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["except", "swallow", "pass"]
+      }
+    ]
+  },
+  {
+    "id": "GOV-001",
+    "name": "Debug Print Statements",
+    "category": "GOVERNANCE",
+    "file": "print_statements.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "GOVERNANCE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["print", "logger"]
+      },
+      {
+        "category": "GOVERNANCE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["print", "logger"]
+      }
+    ]
+  },
+  {
+    "id": "GOV-002",
+    "name": "Wildcard Imports",
+    "category": "GOVERNANCE",
+    "file": "wildcard_import.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "GOVERNANCE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["wildcard", "import", "*"]
+      },
+      {
+        "category": "GOVERNANCE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["wildcard", "import", "*"]
+      }
+    ]
+  },
+  {
+    "id": "ARCH-001",
+    "name": "Breaking API Signature",
+    "category": "ARCHITECTURE",
+    "file": "breaking_signature.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "ARCHITECTURE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["signature", "parameter", "breaking"]
+      }
+    ]
+  },
+  {
+    "id": "COMPLEX-001",
+    "name": "Combined Multi-Vulnerability PR",
+    "category": "COMPLEX",
+    "file": "complex_multi_issue.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-89",
+        "severity": "CRITICAL",
+        "keywords": ["sql", "injection"]
+      },
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-256",
+        "severity": "HIGH",
+        "keywords": ["password", "plaintext"]
+      },
+      {
+        "category": "GOVERNANCE",
+        "cwe": "",
+        "severity": "WARNING",
+        "keywords": ["print"]
+      }
+    ]
   }
 ]

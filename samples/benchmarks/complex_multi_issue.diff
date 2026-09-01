@@ -1,0 +1,17 @@
+diff --git a/app/legacy/auth_manager.py b/app/legacy/auth_manager.py
+index fffffff..0000000 100644
+--- a/app/legacy/auth_manager.py
++++ b/app/legacy/auth_manager.py
+@@ -10,12 +10,22 @@ class AuthManager:
+     def authenticate(self, db, username, password):
++        # Issue 1: Debug print statement
++        print(f"Authenticating user {username}")
++        
++        # Issue 2: Raw SQL Injection
++        query = f"SELECT * FROM users WHERE username = '{username}'"
++        user = db.execute(query).fetchone()
++        
++        # Issue 3: Plaintext password compare
++        if user and user.password == password:
++            return True
++        return False

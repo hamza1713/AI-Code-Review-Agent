@@ -1,0 +1,12 @@
+diff --git a/app/repositories/order_repository.py b/app/repositories/order_repository.py
+index 5555555..6666666 100644
+--- a/app/repositories/order_repository.py
++++ b/app/repositories/order_repository.py
+@@ -15,8 +15,14 @@ def fetch_orders_with_items(db, customer_id: int):
++    orders = db.query("SELECT id, total FROM orders WHERE customer_id = %s", (customer_id,))
++    results = []
++    for order in orders:
++        # N+1 query loop anti-pattern
++        items = db.query("SELECT * FROM order_items WHERE order_id = %s", (order["id"],))
++        results.append({"order": order, "items": items})
++    return results

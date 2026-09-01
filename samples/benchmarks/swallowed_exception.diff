@@ -1,0 +1,10 @@
+diff --git a/app/handlers/event_handler.py b/app/handlers/event_handler.py
+index 7777777..8888888 100644
+--- a/app/handlers/event_handler.py
++++ b/app/handlers/event_handler.py
+@@ -20,6 +20,10 @@ def process_incoming_webhook(payload: dict):
++    try:
++        sync_billing_record(payload)
++    except:
++        # Bare except and silently swallowed exception
++        pass

@@ -1,0 +1,10 @@
+diff --git a/app/cache/session_store.py b/app/cache/session_store.py
+index 1111111..2222222 100644
+--- a/app/cache/session_store.py
++++ b/app/cache/session_store.py
+@@ -10,6 +10,10 @@ import pickle
+ 
+ def load_user_session(raw_cookie_data: bytes):
++    # Insecure deserialization of untrusted user input
++    session_obj = pickle.loads(raw_cookie_data)
++    return session_obj

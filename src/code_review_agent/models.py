@@ -283,6 +283,26 @@ class ReviewState(BaseModel):
         default_factory=dict,
         description="Structured dictionary holding review results (simple or crew)"
     )
+    summarized_findings: Optional[SummarizedFindingsJSON] = Field(
+        default=None,
+        description="Typed Tech Lead synthesized review output"
+    )
+    quality_review: Optional[CodeQualityJSON] = Field(
+        default=None,
+        description="Typed Senior Developer code quality review output"
+    )
+    security_review: Optional[ReviewSecurityJSON] = Field(
+        default=None,
+        description="Typed Security Engineer vulnerability review output"
+    )
+    sast_context: str = Field(
+        default="",
+        description="Pre-computed SAST vulnerability context string"
+    )
+    rules_context: str = Field(
+        default="",
+        description="Pre-computed Governance rules context string"
+    )
     inline_comments: List[InlineComment] = Field(
         default_factory=list,
         description="Line-level inline review comments generated for GitHub"
