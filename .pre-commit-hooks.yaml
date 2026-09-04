@@ -1,0 +1,8 @@
+- id: ai-code-review
+  name: AI Code Review
+  description: Scans staged files for security anti-patterns, CWE vulnerabilities, and team governance policies before commit. Blocks the commit on ESCALATE or REQUEST CHANGES.
+  entry: code-review-agent
+  language: python
+  stages: [pre-commit]
+  pass_filenames: true
+  types: [text]

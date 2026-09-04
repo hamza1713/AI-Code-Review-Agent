@@ -1,0 +1,41 @@
+# Version control
+.git
+.github
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / frontend (rebuilt inside the frontend-builder stage)
+frontend/node_modules/
+frontend/dist/
+
+# Runtime state & local databases (never bake these into an image)
+*.db
+*.db-shm
+*.db-wal
+flow_state.json
+telemetry_metrics.json
+*.sarif
+*.html
+
+# Secrets & local env
+.env
+*.env
+
+# Docs, samples, notebooks — not needed at runtime
+docs/
+notebooks/
+samples/
+skills.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*Zone.Identifier

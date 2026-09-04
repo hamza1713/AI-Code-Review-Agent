@@ -101,6 +101,20 @@ def get_job_detail(job_id: str):
     return job
 
 
+@app.get("/jobs/{job_id}/result")
+def get_job_result(job_id: str):
+    """Retrieve completed review result for a webhook job."""
+    job = queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    if job.get("status") != "COMPLETED":
+        return JSONResponse(
+            status_code=202,
+            content={"status": job.get("status"), "message": f"Job is currently {job.get('status')}"}
+        )
+    return job.get("result") or {"message": "No result payload stored for this job"}
+
+
 @app.get("/api/webhook/config")
 def get_webhook_config(request: Request):
     """Return status of GitHub token, webhook secret, and public webhook URL for live UI setup."""

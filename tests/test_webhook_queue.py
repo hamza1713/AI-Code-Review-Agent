@@ -94,3 +94,62 @@ class TestWebhookQueueAndWorker:
 
         # No more jobs available to claim
         assert queue.claim_next_job() is None
+
+    def test_job_persists_and_retrieves_review_result(self, tmp_path):
+        """Verify that complete_job persists review results and get_job/list_jobs decodes them (F6)."""
+        import json
+        db_file = tmp_path / "result_test.db"
+        queue = WebhookJobQueue(db_path=str(db_file))
+
+        job_id = queue.enqueue("org/repo/pull/77", {"action": "opened"})
+        claimed = queue.claim_next_job()
+        assert claimed is not None
+
+        review_payload = {
+            "verdict": "APPROVE",
+            "confidence_score": 95,
+            "summary": "Clean code changes with zero regressions.",
+            "action_items": []
+        }
+        queue.complete_job(job_id, result_json=json.dumps(review_payload))
+
+        # Check get_job
+        record = queue.get_job(job_id)
+        assert record["status"] == "COMPLETED"
+        assert record["result"] == review_payload
+        assert record["result"]["verdict"] == "APPROVE"
+
+        # Check list_jobs
+        jobs = queue.list_jobs(status="COMPLETED")
+        assert len(jobs) == 1
+        assert jobs[0]["result"]["confidence_score"] == 95
+
+    def test_concurrent_claims_do_not_produce_duplicate_claims(self, tmp_path):
+        """Verify BEGIN IMMEDIATE transaction locking prevents duplicate job claims (F7)."""
+        import threading
+        db_file = tmp_path / "concurrency_test.db"
+        queue = WebhookJobQueue(db_path=str(db_file))
+
+        # Enqueue 5 jobs
+        for i in range(5):
+            queue.enqueue(f"org/repo/pull/{i}", {"pr": i})
+
+        claimed_ids = []
+        lock = threading.Lock()
+
+        def worker_claim():
+            worker_q = WebhookJobQueue(db_path=str(db_file))
+            job = worker_q.claim_next_job()
+            if job:
+                with lock:
+                    claimed_ids.append(job["job_id"])
+
+        threads = [threading.Thread(target=worker_claim) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Exactly 5 jobs should have been claimed, all unique!
+        assert len(claimed_ids) == 5
+        assert len(set(claimed_ids)) == 5

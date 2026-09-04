@@ -169,6 +169,8 @@ summarize_findings:
     separate test function from current-behavior tests.
   expected_output: >
     A JSON object containing:
+    - 'verdict': Exactly one of 'APPROVE', 'REQUEST CHANGES', or 'ESCALATE' based on the explicit rubric.
+    - 'blocking_reasons': An array of strings explaining any critical defects or blocking rules preventing merge (empty if APPROVE).
     - 'confidence': An integer score between 0 and 100 representing confidence
       for merging the PR.
     - 'confidence_breakdown': A string showing the exact arithmetic calculation

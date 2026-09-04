@@ -90,10 +90,11 @@ class BenchmarkRunner:
             sast_findings = SastEngine.scan_diff(diff_content)
             rule_violations = self.rules_engine.evaluate_diff(diff_content)
 
-            # Combine and deduplicate detected issues by (file_path, line_number)
+            # Combine and deduplicate detected issues by (file_basename, line_number)
             dedup_detected: Dict[Tuple[str, int], Dict[str, Any]] = {}
             for f in sast_findings:
-                key = (f.file_path or item["file"], f.line_number)
+                f_name = Path(f.file_path).name if f.file_path else item["file"]
+                key = (f_name, f.line_number)
                 if key not in dedup_detected:
                     dedup_detected[key] = {
                         "source": "SAST",
@@ -110,7 +111,8 @@ class BenchmarkRunner:
                     dedup_detected[key]["description"] += f" {f.description.lower()}"
 
             for v in rule_violations:
-                key = (v.file_path or item["file"], v.line_number)
+                v_name = Path(v.file_path).name if v.file_path else item["file"]
+                key = (v_name, v.line_number)
                 if key not in dedup_detected:
                     dedup_detected[key] = {
                         "source": "GOVERNANCE",

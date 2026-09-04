@@ -10,7 +10,12 @@
         "category": "SECURITY",
         "cwe": "CWE-89",
         "severity": "CRITICAL",
-        "keywords": ["sql", "injection", "query", "user_id"]
+        "keywords": [
+          "sql",
+          "injection",
+          "query",
+          "user_id"
+        ]
       }
     ]
   },
@@ -25,13 +30,21 @@
         "category": "SECURITY",
         "cwe": "CWE-798",
         "severity": "CRITICAL",
-        "keywords": ["secret", "aws", "key"]
+        "keywords": [
+          "secret",
+          "aws",
+          "key"
+        ]
       },
       {
         "category": "SECURITY",
         "cwe": "CWE-798",
         "severity": "CRITICAL",
-        "keywords": ["secret", "password", "key"]
+        "keywords": [
+          "secret",
+          "password",
+          "key"
+        ]
       }
     ]
   },
@@ -46,7 +59,12 @@
         "category": "SECURITY",
         "cwe": "CWE-78",
         "severity": "HIGH",
-        "keywords": ["command", "injection", "subprocess", "shell"]
+        "keywords": [
+          "command",
+          "injection",
+          "subprocess",
+          "shell"
+        ]
       }
     ]
   },
@@ -61,7 +79,12 @@
         "category": "SECURITY",
         "cwe": "CWE-502",
         "severity": "CRITICAL",
-        "keywords": ["pickle", "deserialization", "cookie", "session"]
+        "keywords": [
+          "pickle",
+          "deserialization",
+          "cookie",
+          "session"
+        ]
       }
     ]
   },
@@ -76,7 +99,12 @@
         "category": "SECURITY",
         "cwe": "CWE-256",
         "severity": "HIGH",
-        "keywords": ["password", "plaintext", "compare", "user.password"]
+        "keywords": [
+          "password",
+          "plaintext",
+          "compare",
+          "user.password"
+        ]
       }
     ]
   },
@@ -99,7 +127,12 @@
         "category": "QUALITY",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["n+1", "query", "loop", "order"]
+        "keywords": [
+          "n+1",
+          "query",
+          "loop",
+          "order"
+        ]
       }
     ]
   },
@@ -114,7 +147,11 @@
         "category": "QUALITY",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["except", "swallow", "pass"]
+        "keywords": [
+          "except",
+          "swallow",
+          "pass"
+        ]
       }
     ]
   },
@@ -129,13 +166,19 @@
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["print", "logger"]
+        "keywords": [
+          "print",
+          "logger"
+        ]
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["print", "logger"]
+        "keywords": [
+          "print",
+          "logger"
+        ]
       }
     ]
   },
@@ -150,13 +193,21 @@
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["wildcard", "import", "*"]
+        "keywords": [
+          "wildcard",
+          "import",
+          "*"
+        ]
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["wildcard", "import", "*"]
+        "keywords": [
+          "wildcard",
+          "import",
+          "*"
+        ]
       }
     ]
   },
@@ -171,7 +222,11 @@
         "category": "ARCHITECTURE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["signature", "parameter", "breaking"]
+        "keywords": [
+          "signature",
+          "parameter",
+          "breaking"
+        ]
       }
     ]
   },
@@ -186,19 +241,75 @@
         "category": "SECURITY",
         "cwe": "CWE-89",
         "severity": "CRITICAL",
-        "keywords": ["sql", "injection"]
+        "keywords": [
+          "sql",
+          "injection"
+        ]
       },
       {
         "category": "SECURITY",
         "cwe": "CWE-256",
         "severity": "HIGH",
-        "keywords": ["password", "plaintext"]
+        "keywords": [
+          "password",
+          "plaintext"
+        ]
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": ["print"]
+        "keywords": [
+          "print"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "SEC-006",
+    "name": "Weak Cryptographic Hash (MD5)",
+    "category": "SECURITY",
+    "file": "weak_crypto.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-327",
+        "severity": "MEDIUM",
+        "keywords": [
+          "md5",
+          "hash",
+          "crypto"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-327",
+        "severity": "MEDIUM",
+        "keywords": [
+          "bandit",
+          "md5",
+          "hashlib"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "SEC-007",
+    "name": "Path Traversal Arbitrary File Read",
+    "category": "SECURITY",
+    "file": "path_traversal.diff",
+    "expected_verdict": "REQUEST CHANGES",
+    "expected_issues": [
+      {
+        "category": "SECURITY",
+        "cwe": "CWE-22",
+        "severity": "HIGH",
+        "keywords": [
+          "path",
+          "traversal",
+          "open"
+        ]
       }
     ]
   }

@@ -40,8 +40,13 @@ class GovernanceConfigFile(BaseModel):
 class RulesEngine:
     """Evaluates project-specific custom rules (.code-review.yaml) with PyYAML and Pydantic validation."""
 
-    def __init__(self, rules_file_path: Optional[str] = None):
-        self.rules_file = Path(rules_file_path or ".code-review.yaml")
+    def __init__(self, rules_file_path: Optional[str] = None, repo_root: Optional[str] = None):
+        if rules_file_path:
+            self.rules_file = Path(rules_file_path)
+        elif repo_root:
+            self.rules_file = Path(repo_root) / ".code-review.yaml"
+        else:
+            self.rules_file = Path(".code-review.yaml")
         self.rules: List[CustomRule] = []
         self.load_rules()
 
@@ -123,11 +128,23 @@ class RulesEngine:
         violations: List[RuleViolation] = []
 
         for file_diff in parsed_pr.files:
-            file_path = file_diff.target_file
+            file_path = file_diff.target_file or file_diff.source_file or ""
+            norm_path = file_path.lower().replace("\\", "/")
+            is_exempt_from_quality = any(
+                p in norm_path for p in [
+                    "test", "tests/", "/test_", "_test.py", "scripts/", "benchmarks/", "samples/", "conftest.py"
+                ]
+            )
             added_lines = DiffParser.extract_added_lines_with_numbers(file_diff)
 
             for line_no, line_content in added_lines:
                 for rule in self.rules:
+                    # Exempt tests and scripts from non-blocking quality rules (e.g. print statements)
+                    if is_exempt_from_quality and ("print" in rule.id.lower() or "sleep" in rule.id.lower()):
+                        continue
+                    if "__main__" in line_content and "print" in rule.id.lower():
+                        continue
+
                     try:
                         if re.search(rule.pattern, line_content, re.IGNORECASE):
                             violations.append(

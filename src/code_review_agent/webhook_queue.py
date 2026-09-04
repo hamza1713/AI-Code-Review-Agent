@@ -51,12 +51,19 @@ class WebhookJobQueue:
                     last_error TEXT,
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL,
-                    locked_at REAL
+                    locked_at REAL,
+                    review_result_json TEXT
                 );
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_webhook_status ON webhook_jobs(status, created_at);
             """)
+            # Migration check: ensure review_result_json exists if table already existed
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(webhook_jobs);")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "review_result_json" not in columns:
+                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN review_result_json TEXT;")
             conn.commit()
 
     def enqueue(self, pr_identifier: str, payload: Dict[str, Any], max_retries: int = 3) -> str:
@@ -87,14 +94,15 @@ class WebhookJobQueue:
 
     def claim_next_job(self, lock_timeout_seconds: float = 300.0) -> Optional[Dict[str, Any]]:
         """
-        Atomically claim the next eligible job for processing.
-        Also reclaims stale jobs that timed out while in PROCESSING status.
+        Atomically claim the next eligible job for processing using BEGIN IMMEDIATE.
+        Locks against concurrent multi-process worker races and reclaims stale jobs.
         """
         now = time.time()
         timeout_threshold = now - lock_timeout_seconds
 
         with self._get_connection() as conn:
-            # Atomic select and update in a transaction
+            # Atomic select and update in an immediate transaction (locks database against concurrent worker race conditions)
+            conn.execute("BEGIN IMMEDIATE")
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -109,6 +117,7 @@ class WebhookJobQueue:
             )
             row = cursor.fetchone()
             if not row:
+                conn.commit()
                 return None
 
             job_id = row["job_id"]
@@ -135,8 +144,8 @@ class WebhookJobQueue:
                 "max_retries": row["max_retries"],
             }
 
-    def complete_job(self, job_id: str):
-        """Mark a job as successfully COMPLETED."""
+    def complete_job(self, job_id: str, result_json: Optional[str] = None):
+        """Mark a job as successfully COMPLETED and persist review results."""
         now = time.time()
         with self._get_connection() as conn:
             conn.execute(
@@ -144,10 +153,11 @@ class WebhookJobQueue:
                 UPDATE webhook_jobs
                 SET status = 'COMPLETED',
                     locked_at = NULL,
-                    updated_at = ?
+                    updated_at = ?,
+                    review_result_json = ?
                 WHERE job_id = ?
                 """,
-                (now, job_id)
+                (now, result_json, job_id)
             )
             conn.commit()
         logger.info(f"✅ Webhook job {job_id} marked as COMPLETED.")
@@ -215,32 +225,41 @@ class WebhookJobQueue:
         return count
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve details of a single job."""
+        """Retrieve details of a single job including parsed review result."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at FROM webhook_jobs WHERE job_id = ?",
+                "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at, review_result_json FROM webhook_jobs WHERE job_id = ?",
                 (job_id,)
             )
             row = cursor.fetchone()
             if not row:
                 return None
-            return dict(row)
+            res = dict(row)
+            result_json = res.pop("review_result_json", None)
+            res["result"] = json.loads(result_json) if result_json else None
+            return res
 
     def list_jobs(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List jobs matching an optional status filter."""
+        """List jobs matching an optional status filter including parsed review result."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             if status:
                 cursor.execute(
-                    "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at FROM webhook_jobs WHERE status = ? ORDER BY created_at DESC",
+                    "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at, review_result_json FROM webhook_jobs WHERE status = ? ORDER BY created_at DESC",
                     (status,)
                 )
             else:
                 cursor.execute(
-                    "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at FROM webhook_jobs ORDER BY created_at DESC"
+                    "SELECT job_id, pr_identifier, status, attempts, max_retries, last_error, created_at, updated_at, review_result_json FROM webhook_jobs ORDER BY created_at DESC"
                 )
-            return [dict(r) for r in cursor.fetchall()]
+            rows = []
+            for r in cursor.fetchall():
+                d = dict(r)
+                result_json = d.pop("review_result_json", None)
+                d["result"] = json.loads(result_json) if result_json else None
+                rows.append(d)
+            return rows
 
 
 class WebhookWorker:
@@ -317,21 +336,34 @@ class WebhookWorker:
         pr_id = job["pr_identifier"]
         try:
             logger.info(f"⚙️ Worker executing review for job {job_id} ({pr_id})")
+            result = None
             if self.handler:
-                self.handler(job["payload"])
+                result = self.handler(job["payload"])
             else:
-                self._default_execute_review(job["payload"])
+                result = self._default_execute_review(job["payload"])
 
-            self.queue.complete_job(job_id)
+            result_str = None
+            if result is not None:
+                if isinstance(result, (dict, list)):
+                    result_str = json.dumps(result, default=str)
+                elif hasattr(result, "model_dump_json"):
+                    result_str = result.model_dump_json()
+                elif hasattr(result, "dict"):
+                    result_str = json.dumps(result.dict(), default=str)
+                else:
+                    result_str = str(result)
+
+            self.queue.complete_job(job_id, result_json=result_str)
         except Exception as e:
             logger.error(f"❌ Error processing job {job_id}: {e}", exc_info=True)
             self.queue.fail_job(job_id, str(e))
         finally:
             self._semaphore.release()
 
-    def _default_execute_review(self, payload: Dict[str, Any]):
+    def _default_execute_review(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Default handler running PRCodeReviewFlow."""
         from code_review_agent.main import PRCodeReviewFlow
+        from code_review_agent.review_service import ReviewService
 
         pr_data = payload.get("pull_request", {})
         repo_data = payload.get("repository", {})
@@ -347,3 +379,7 @@ class WebhookWorker:
         flow = PRCodeReviewFlow()
         flow.state.pr_url = pr_identifier
         flow.kickoff(inputs={"id": f"pr_review_{owner}_{repo}_{pull_number}"})
+
+        # Build structured ReviewAPIResponse dict and return for persistence
+        review_response = ReviewService.build_review_response(flow.state)
+        return review_response.model_dump()

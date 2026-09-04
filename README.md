@@ -1,137 +1,194 @@
-# 🛡️ AI Code Review Agent (Enterprise Edition v2.0)
+# 🛡️ AI Code Review Agent
+
 ### Autonomous Multi-Agent Pull Request Review & Code Intelligence Platform
 
 <div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![CrewAI](https://img.shields.io/badge/Framework-CrewAI%20Flows%20v2.0-FF4B4B?logo=ai&logoColor=white)](https://crewai.com)
-[![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini%202.5%20Flash%20%2F%20Pro-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![CrewAI](https://img.shields.io/badge/Framework-CrewAI%20Flows-FF4B4B?logo=ai&logoColor=white)](https://crewai.com)
+[![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 [![Static Analysis](https://img.shields.io/badge/SAST-Semgrep%20%7C%20Bandit%20%7C%20Ruff-00D26A?logo=security&logoColor=white)](https://semgrep.dev)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript%20%2B%20Tailwind-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
 [![OASIS SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
-[![Test Suite](https://img.shields.io/badge/Test%20Suite-86%2F86%20Passing%20(100%25)-brightgreen?logo=pytest)](https://pytest.org)
-[![Skills](https://img.shields.io/badge/Agent%20Skills-12%20Protocols%20Assigned-orange)](skills.md)
+[![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blueviolet?logo=anthropic)](https://modelcontextprotocol.io)
+[![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**An enterprise-grade, multi-agent code intelligence platform that unites compiler-grade AST static analysis, repository-wide call graph memory, codified team governance, and collaborative LLM agent reasoning to automate pull request reviews with zero hallucinations.**
+**A multi-agent code intelligence platform that combines deterministic static analysis, repository-wide AST call-graph memory, codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them.**
 
-[Key Features](#-key-capabilities--features) • [System Architecture](#-system-architecture) • [Agent Roster & Skills](#-multi-agent-roster--skills) • [Data Flow](#-end-to-end-data-flow) • [Quickstart](#-quickstart--installation) • [Usage Modes](#-multi-mode-usage-guide) • [Governance Config](#-team-governance-engine-code-reviewyaml) • [CI/CD](#-github-actions-cicd-integration) • [AI Evaluation](#-ai-evaluation-system) • [Testing](#-automated-test-suite)
+[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Evaluation & Benchmarks](#-evaluation--benchmarks) • [Repository Structure](#-repository-structure)
 
 </div>
 
 ---
 
-## 📌 The Industry Problem & Our Solution
+## 📌 The Problem
 
-### ⚠️ The Engineering Bottlenecks in Modern Software Teams
-
-As engineering organizations scale and release velocity accelerates, **code review has become the single largest bottleneck in the SDLC**:
+Code review is the highest-friction step in the modern SDLC, and the tools built to fix it introduced a new failure mode of their own:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 THE CODE REVIEW CRISIS IN MODERN SDLC                            │
+│                                 THE CODE REVIEW CRISIS IN MODERN SDLC                              │
 ├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
-│ ⏳ PR Review Lag & Velocity   │ 😴 Reviewer Fatigue & "LGTM"     │ 🙈 Context Blindness          │
-│ Pull requests sit idle for    │ Senior engineers spend 25%+ of   │ Reviewing isolated diffs      │
-│ 2 to 4 days awaiting review,  │ their week reading routine diffs, │ misses downstream ripple      │
-│ causing severe merge friction │ leading to superficial approvals │ effects across external files │
-│ and context-switching costs.  │ where critical flaws slip by.    │ and microservices.            │
+│ ⏳ Review Lag                  │ 😴 Reviewer Fatigue               │ 🙈 Context Blindness          │
+│ PRs sit idle for days awaiting │ Senior engineers spend a large    │ Reviewing an isolated diff    │
+│ human attention, stalling      │ share of their week on routine    │ misses downstream ripple      │
+│ releases and context-switching │ diffs — leading to superficial    │ effects in files the diff     │
+│ costs across the team.         │ "LGTM" approvals.                 │ never touches.                │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 📢 Noisy Legacy SAST Tools    │ 📉 Tribal Governance & Drift     │ 💸 Skyrocketing LLM Costs     │
-│ Traditional security scanners │ Engineering guidelines in wikis  │ Feeding raw 100K-line repos   │
-│ dump hundreds of false alarms │ are ignored; code standards drift │ directly into generic LLMs    │
-│ without actionable replacement│ without automated, deterministic │ wastes tokens and hallucinates│
-│ code, creating alert fatigue. │ policy enforcement in PRs.       │ non-existent vulnerabilities. │
+│ 📢 AI Reviewer Noise           │ 📉 Governance Drift               │ 💸 Unverified LLM Output      │
+│ Industry data puts typical AI  │ Coding standards live in wikis,   │ A general-purpose LLM handed  │
+│ code-review false-positive     │ ignored, drifting, unenforced —   │ a raw diff will confidently   │
+│ rates at 5–15%; teams learn to │ no automated, deterministic       │ assert vulnerabilities that   │
+│ skim past every comment.       │ policy check runs on every PR.    │ don't exist. Nothing verifies │
+│                                │                                    │ the claim before it's posted. │
 └───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
 ```
 
-### 💡 The Solution: Deterministic-First Multi-Agent Architecture
+Most "AI code review" tools solve the first problem (speed) by making the second and third worse: an LLM narrates plausible-sounding findings, and the team has no way to tell a real defect from a hallucinated one until a human re-checks it by hand — which is the exact cost the tool was supposed to remove.
 
-The **AI Code Review Agent (v2.0)** introduces a **Hybrid Multi-Agent & Static Intelligence Architecture** that eliminates review bottlenecks while maintaining 100% auditability:
+## 💡 The Solution: Deterministic-First, Then Prove It
 
-1. **⚡ Fast Pre-Scanning (Zero Token Cost):** Multi-engine static analysis (`Semgrep`, `Bandit`, `Ruff`, regex heuristics) identifies structural flaws in milliseconds before any LLM is called.
-2. **🕸️ Deep Graph Context (Multi-Language AST):** Tree-Sitter indexer builds qualified call graphs across Python, TypeScript, JavaScript, Go, and Java to pinpoint exact downstream callers.
-3. **📜 Codified Governance (`.code-review.yaml`):** Validates organizational rules deterministically — no prompt drift.
-4. **🤖 Collaborative Multi-Agent Crew with Skills:** Three specialized agents — each equipped with **assigned reasoning skills and executable tools** — work in parallel before synthesizing a grounded merge verdict with 1-click GitHub suggestion blocks and automated `pytest` regression suites.
-5. **🛡️ Anti-Hallucination Rubric:** Every finding traces directly to upstream analyzer output. Confidence scores follow a deterministic mathematical deduction rubric.
+This system is built on two ideas most reviewers skip:
 
----
-
-## 🌟 Key Capabilities & Features
+1. **Deterministic analysis runs before the LLM, and can override it.** Static tools decide what's provably true; the LLM only reasons about what's left. A confirmed CRITICAL/HIGH finding or a `BLOCKING` governance violation routes straight to the full multi-agent crew — the model never gets a chance to talk the system out of escalating a real vulnerability.
+2. **Findings get executed, not just asserted.** For every review, the Tech Lead agent generates a `pytest` regression suite targeting the reported defects. That suite runs in an isolated sandbox subprocess against the actual PR code, and the result — not the model's confidence — decides the evidence badge attached to the finding: `REPRODUCED`, `PASSING`, `UNVERIFIED`, or `HEURISTIC`. A finding that ships with a failing test that actually fails isn't a false positive by construction.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   ENTERPRISE CAPABILITY MATRIX                                   │
-├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
-│ 🛡️ Multi-Engine SAST Scanner  │ 🕸️ Graph-Aware AST Memory        │ 💬 Live GitHub PR Integration │
-│ • Semgrep Semantic Analyzer   │ • Multi-Language Tree-Sitter     │ • Real-time Diff Ingestion    │
-│ • Bandit Python AST Security  │ • Qualified Symbol Namespace     │ • Line-Level Inline Comments  │
-│ • Ruff Ultra-Fast Linter      │ • Bidirectional Call Graph Map   │ • 1-Click Suggestion Diffs    │
-│ • Heuristic Pattern Fallback  │ • Cross-File Impact Detection    │ • Reusable CI/CD GitHub Action│
-├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 📜 Codified Governance Engine │ 🧪 AST Unit Test Generation      │ 🎨 Live Annotation Dashboard  │
-│ • YAML-Defined Team Policies  │ • Function Signature Introspect  │ • Prism.js Syntax Highlighting│
-│ • Regex & AST Path Evaluator  │ • Pytest Scaffolding             │ • Pulsing Gutter Markers      │
-│ • Severity (BLOCKING/WARNING) │ • Boundary & Error Mock Fixtures │ • In-Flow Expandable Fix Cards│
-│ • Zero-Hallucination Checks   │ • POST-FIX Test Separation       │ • Severity Filtering (±2 ctx) │
-├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 📥 Durable Task Queue Worker  │ 📊 Enterprise SARIF Export       │ ⚡ Cost & Latency Telemetry   │
-│ • SQLite ACID WAL Persistence │ • OASIS SARIF v2.1.0 JSON Schema │ • Exact Token & USD Tracker   │
-│ • Exponential Backoff Retries │ • GitHub Code Scanning Ready     │ • Multi-Model Optimization    │
-│ • Orphan Job Crash Recovery   │ • SonarQube & DefectDojo Sync    │ • Sub-second Heuristic Cache  │
-├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 🎓 Agent Skills System        │ 🔒 Output Guardrails             │ 🔄 CrewAI Flows 2.0           │
-│ • 12 Reasoning Protocols      │ • Risk-Level Consistency Check   │ • Async Parallel Crew Tasks   │
-│ • Assigned per Agent & Task   │ • Deduplication Enforcement      │ • Smart Routing (Fast/Full)   │
-│ • Injected into LLM Context   │ • Provenance-Grounded Findings   │ • Flow State Management       │
-│ • See skills.md for catalog   │ • Automatic Retry on Failure     │ • Interactive Flow Graph Plot │
-├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 🧪 AI Evaluation System       │ 📡 Langfuse Production Monitor   │ 📊 Benchmark Suite (12 Cases) │
-│ • DeepEval G-Eval LLM Judge   │ • Conditional Langfuse Client    │ • 5 Categories: SEC/QUAL/GOV  │
-│ • 5 Deterministic Evaluators  │ • Eval Score Streaming           │   ARCH/COMPLEX                │
-│ • Confidence Math Invariants  │ • Trace-Level Quality Telemetry  │ • Precision, Recall, F1       │
-│ • SARIF Schema Compliance     │ • Zero-Impact (keys optional)    │ • Verdict Accuracy: 100%      │
-└───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
+1. ⚡ Fast Pre-Scan (zero token cost)     Semgrep + Bandit + Ruff + regex heuristics catch structural
+                                          flaws in milliseconds before any LLM call.
+2. 🕸️ AST Call-Graph Context             Fully-qualified symbol graph (Python native AST; JS/TS/Go/
+                                          Java via lighter tokenization) surfaces cross-file callers.
+3. 📜 Codified Governance                .code-review.yaml rules evaluate deterministically — no
+                                          prompt drift, no LLM call, sub-millisecond.
+4. 🤖 Multi-Agent Crew                   Senior Developer + Security Engineer run in parallel; Tech
+                                          Lead synthesizes a grounded verdict with a mathematical
+                                          confidence rubric — every claim traces to an upstream finding.
+5. 🧪 Empirical Verification (sandbox)   Generated regression tests execute against the PR code in
+                                          an isolated subprocess. The badge reflects what actually ran.
 ```
 
 ---
 
-## 📐 System Architecture
+## 🌟 Key Capabilities
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    CAPABILITY MATRIX                                               │
+├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
+│ 🛡️ Multi-Engine SAST Scanner  │ 🕸️ AST Call-Graph Memory          │ 🧪 Empirical Test Evidence    │
+│ • Semgrep semantic analyzer   │ • Native Python AST indexer       │ • Generated pytest suite runs │
+│ • Bandit Python AST security  │   (fully-qualified symbols)       │   in an isolated sandbox      │
+│ • Ruff ultra-fast linter      │ • Cross-file caller impact map    │ • REPRODUCED/PASSING/         │
+│ • 7-rule regex fallback       │ • Per-target repo_root scoping    │   UNVERIFIED/HEURISTIC badge  │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📜 Codified Governance Engine │ 🤖 MCP Server (5 Tools)           │ 💬 Live GitHub Integration    │
+│ • YAML-defined team policies  │ • review_diff, scan_sast_patterns │ • Real-time diff ingestion    │
+│ • BLOCKING/WARNING/INFO       │ • check_governance_rules          │ • Line-level inline comments  │
+│ • Deterministic, zero LLM cost│ • find_impacted_callers           │ • 1-click GitHub suggestions  │
+│                               │ • generate_unit_tests             │ • Reusable CI/CD GitHub Action│
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📥 Durable Task Queue         │ 📊 SARIF v2.1.0 Export            │ ⚡ Cost & Latency Telemetry   │
+│ • SQLite WAL, ACID, BEGIN     │ • GitHub Code Scanning ready      │ • Per-review token + USD cost │
+│   IMMEDIATE (multi-process    │ • Reviews persisted & queryable   │ • SHA-256 memoization cache   │
+│   claim-safe)                 │   via GET /jobs/{id}/result       │ • Hierarchical decision trace │
+│ • Crash/orphan-job recovery   │                                    │                               │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 🎓 12-Skill Agent System      │ 🔒 Output Guardrails              │ 🐳 One-Command Deployment     │
+│ • Reasoning protocols per     │ • Provenance-grounded findings    │ • Multi-stage Docker build    │
+│   agent, injected at build    │ • Risk-level consistency check    │   (frontend + backend)        │
+│   time from agents.yaml       │ • Deduplication enforcement       │ • docker compose up --build   │
+└───────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
+```
+
+---
+
+## 📐 Architecture
 
 ```mermaid
 graph TD
-    A[Pull Request / Code Diff Ingestion<br/>GitHub Webhook · CLI · Web Dashboard · CI Action] --> B[Diff Parser & Token-Budget Chunker<br/>git-diff-and-patch-analyzer skill]
+    A[Pull Request Ingestion<br/>Webhook · CLI · Web Dashboard · MCP · CI Action] --> B[Diff Parser & Token-Budget Chunker]
 
-    subgraph Layer1 [Layer 1 — Deterministic Static Pre-Scan & Context Graph]
-        B --> C[Unified SAST Scanner<br/>Semgrep + Bandit + Ruff + Regex<br/>sast-vulnerability-auditor skill]
-        B --> D[Multi-Language AST Code Graph<br/>Python TypeScript JavaScript Go Java<br/>ast-callgraph-context-indexer skill]
-        B --> E[Governance Rules Engine<br/>.code-review.yaml<br/>governance-policy-enforcer skill]
+    subgraph Layer1 [Layer 1 — Deterministic Pre-Scan]
+        B --> C[Unified SAST Scanner<br/>Semgrep + Bandit + Ruff + Regex]
+        B --> D[AST Code Graph<br/>Python native AST · repo_root-scoped]
+        B --> E[Governance Rules Engine<br/>.code-review.yaml]
     end
 
-    C & D & E --> F{Dynamic Smart Router}
-    F -->|Cosmetic Changes and 0 Violations| G[Fast-Path Review Engine]
-    F -->|Complex Logic or Pattern Hits or Rule Violations| H[Deploy Multi-Agent Crew]
+    C & D & E --> F{Dynamic Router}
+    F -->|Cosmetic, zero violations| G[Fast-Path Review]
+    F -->|Critical SAST or BLOCKING rule<br/>— hard override, no LLM vote| H[Multi-Agent Crew]
 
-    subgraph Layer2 [Layer 2 — Collaborative Multi-Agent Crew with Skills]
-        H --> I["Senior Developer Agent<br/>Skills: senior-dev-quality-reviewer<br/>ast-callgraph-context-indexer<br/>api-breaking-change-detector<br/>performance-and-concurrency-auditor"]
-        H --> J["Security Engineer Agent<br/>Skills: sast-vulnerability-auditor<br/>git-diff-and-patch-analyzer"]
-
-        I --> K[Deterministic Provenance Guardrails<br/>security_review_output_guardrail]
+    subgraph Layer2 [Layer 2 — Multi-Agent Crew]
+        H --> I[Senior Developer Agent<br/>quality, cross-file risk, breaking changes]
+        H --> J[Security Engineer Agent<br/>OWASP/CWE, dedup across scanners]
+        I --> K[Provenance Guardrails<br/>every claim traces to an upstream finding]
         J --> K
-
-        K --> L["Tech Lead Agent<br/>Skills: tech-lead-verdict-synthesizer<br/>automated-unit-test-generator<br/>governance-policy-enforcer"]
+        K --> L[Tech Lead Agent<br/>confidence rubric, verdict, pytest suite]
     end
 
-    G --> M[Consolidated Executive Report and Fix Engine]
+    G --> M[Executive Report]
     L --> M
+    L --> S[🧪 Sandbox Test Runner<br/>executes generated pytest suite in isolation]
+    S --> M
 
-    subgraph Layer3 [Layer 3 — Delivery Observability and UI]
-        M --> N[OASIS SARIF v2.1.0 Exporter<br/>sarif-v21-compliance-exporter skill]
-        M --> O[Live GitHub REST API Commenter<br/>github-pr-comment-generator skill]
-        M --> P[Interactive Annotated Code Dashboard]
-        M --> Q[Token Telemetry and Cost Tracker<br/>telemetry-and-cost-optimizer skill]
+    subgraph Layer3 [Layer 3 — Delivery]
+        M --> N[SARIF v2.1.0 Exporter]
+        M --> O[GitHub Review + Inline Suggestions]
+        M --> P[React Dashboard with Evidence Badges]
+        M --> Q[Telemetry & Cost Tracker]
     end
+```
+
+---
+
+## 🧪 Empirical Test Evidence: the differentiator
+
+Every AI code reviewer on the market in 2026 has the same weakness: a finding is only as trustworthy as the model's confidence in it, and there's no way to tell them apart from the comment alone. This system closes that gap with one extra step most reviewers skip entirely.
+
+When the Tech Lead agent proposes a fix, it also writes a `pytest` suite that asserts the defect's *current* behavior (using `pytest.raises` where the bug manifests as an exception, plain assertions where it manifests as wrong output). That suite is handed to `SandboxTestRunner`, which:
+
+1. Runs `ast.parse()` on the generated code first — a syntax error short-circuits straight to `UNVERIFIED`, no wasted subprocess.
+2. Materializes the PR's added lines into a throwaway temp directory and executes the suite as an isolated subprocess with a **process-environment allowlist** (only `PATH`, `TEMP`, and OS-essential variables pass through — every key containing `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, or `CREDENTIAL` is stripped before the subprocess ever starts) and a hard timeout.
+3. Reads the actual exit code and maps it to an evidence badge:
+
+| Badge | What it means | How it's earned |
+|---|---|---|
+| 🟢 `REPRODUCED` | The defect is real — the test failed exactly as predicted | pytest exit code 1: an assertion actually failed against the PR's code |
+| 🔵 `PASSING` | The generated test ran and passed | Used for regression tests validating a proposed fix |
+| 🟡 `UNVERIFIED` | Could not be proven either way | Syntax error, missing dependency, or the sandbox timed out |
+| ⚪ `HEURISTIC` | No test was generated for this finding | Static-analysis-only signal (still shown, just labeled honestly) |
+
+A finding tagged `REPRODUCED` isn't a model's opinion — it's a test that failed on your actual code, in a process that ran two seconds ago. That's the artifact you hand a skeptical senior engineer instead of asking them to trust the AI.
+
+---
+
+## 🤖 MCP Server: use it from your editor
+
+The same review engine is exposed as a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude Code, Cursor, Windsurf, and any other MCP-compatible client can call it directly while you're writing code — not just after you open a PR.
+
+```bash
+pip install -e .
+code-review-mcp   # starts the MCP server over stdio
+```
+
+| Tool | What it does |
+|---|---|
+| `review_diff(diff, repo_root=None)` | Full pipeline review — verdict, confidence, findings, evidence badges |
+| `scan_sast_patterns(diff)` | Fast deterministic SAST scan only (Semgrep + Bandit + regex) |
+| `check_governance_rules(diff, repo_root=None)` | Validate a diff against `.code-review.yaml` |
+| `find_impacted_callers(target_identifiers, repo_root=None)` | AST call-graph query — who calls this function? |
+| `generate_unit_tests(function_signature, module_path)` | Generate a pytest suite for a function signature |
+
+Add it to your client's MCP config (e.g. Claude Code's `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "ai-code-reviewer": { "command": "code-review-mcp" }
+  }
+}
 ```
 
 ---
@@ -142,349 +199,196 @@ graph TD
 sequenceDiagram
     autonumber
     actor Dev as Developer
-    participant GH as GitHub / Web UI
-    participant GW as FastAPI Gateway (/webhook/github)
+    participant GH as GitHub / Web UI / MCP Client
+    participant GW as FastAPI Gateway
     participant Q as SQLite WAL Queue
     participant W as Background Worker
-    participant AST as AST Code Graph & SAST
-    participant Crew as Multi-Agent Crew (CrewAI Flows)
-    participant Out as Output Delivery (GitHub / SARIF / UI)
+    participant Static as SAST + AST + Governance
+    participant Crew as Multi-Agent Crew
+    participant SB as Sandbox Test Runner
+    participant Out as Delivery (GitHub / SARIF / UI)
 
-    Dev->>GH: Opens PR / Submits Code Diff
-    GH->>GW: POST Webhook Event (HMAC SHA-256 Verified)
-    GW->>Q: Enqueue Review Job (Status: QUEUED)
-    GW-->>GH: HTTP 200 Accepted (Job ID in <50ms)
+    Dev->>GH: Opens PR / submits diff / calls MCP tool
+    GH->>GW: POST /webhook/github (HMAC verified)
+    GW->>Q: Enqueue job — BEGIN IMMEDIATE claim-safe
+    GW-->>GH: 202 Accepted (job id)
 
-    W->>Q: Atomic Claim Job (Status: PROCESSING)
-    W->>AST: Run Semgrep, Bandit, Ruff & AST Call Graph
-    AST-->>W: Normalized SAST Findings & Impacted Callers
+    W->>Q: Atomically claim next job
+    W->>Static: Run SAST + AST graph + governance rules
+    Static-->>W: Findings (deterministic, zero LLM cost)
 
-    W->>Crew: Dispatch Senior Dev + Security Engineer (Async Parallel)
-    Crew->>Crew: Tech Lead synthesizes grounded verdict & confidence rubric
-    Crew-->>W: SummarizedFindingsJSON (Verdict, Confidence, Inline Comments, Pytest)
+    W->>Crew: Dispatch Senior Dev + Security Engineer (parallel)
+    Crew->>Crew: Tech Lead synthesizes verdict + confidence rubric + pytest suite
+    Crew->>SB: Execute generated suite in isolated subprocess
+    SB-->>Crew: Evidence badge (REPRODUCED / PASSING / UNVERIFIED)
 
-    W->>Out: Post GitHub Review & 1-Click Suggestions
-    W->>Out: Export SARIF v2.1.0 Report
-    W->>Q: Mark Job COMPLETED
-    Out-->>Dev: View Live Pulsing Annotations on Web Dashboard
+    Crew-->>W: Verdict, findings, evidence badges, inline comments
+    W->>Out: Post GitHub review + SARIF export
+    W->>Q: Persist result, mark COMPLETED
+    Out-->>Dev: GET /jobs/{id}/result — full review, on demand
 ```
 
 ---
 
 ## 👥 Multi-Agent Roster & Skills
 
-The system uses three specialized agents, each equipped with **assigned skills** (reasoning protocols) and **assigned tools** (executable actions). Skills are declared in [`agents.yaml`](src/code_review_agent/crews/code_review_crew/config/agents.yaml) and injected into each agent's LLM context at crew build time by [`crew.py`](src/code_review_agent/crews/code_review_crew/crew.py). The full skill catalog is documented in [`skills.md`](skills.md).
+Three specialized agents, each with **assigned skills** (reasoning protocols, injected into the LLM's context at crew build time) and **assigned tools** (executable actions). Full catalog: [`docs/SKILLS.md`](docs/SKILLS.md).
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              AGENT — SKILL — TOOL ASSIGNMENT MATRIX                                              │
-├──────────────────────────┬───────────────────────────────────────────────┬──────────────────────────────────────┤
-│ 👨‍💻 SENIOR DEVELOPER       │ 🔐 SECURITY ENGINEER                          │ 👑 TECH LEAD                         │
-├──────────────────────────┼───────────────────────────────────────────────┼──────────────────────────────────────┤
-│ SKILLS (4):              │ SKILLS (2):                                   │ SKILLS (3):                          │
-│ • senior-dev-quality-    │ • sast-vulnerability-auditor                  │ • tech-lead-verdict-synthesizer      │
-│   reviewer               │   OWASP Top 10, CWE classification,           │   Confidence math rubric + verdict   │
-│ • ast-callgraph-context- │   Semgrep+Bandit+Regex deduplication          │ • automated-unit-test-generator      │
-│   indexer                │ • git-diff-and-patch-analyzer                 │   Pytest suite w/ POST-FIX tests     │
-│ • api-breaking-change-   │   Added-line (+) only scanning                │ • governance-policy-enforcer         │
-│   detector               │   Hunk line number mapping                    │   .code-review.yaml rule reflection  │
-│ • performance-and-       │                                               │                                      │
-│   concurrency-auditor    │                                               │                                      │
-├──────────────────────────┼───────────────────────────────────────────────┼──────────────────────────────────────┤
-│ TOOLS (2):               │ TOOLS (3):                                    │ TOOLS (2):                           │
-│ ✅ CodebaseContextTool    │ ✅ QuickPatternScannerTool                     │ ✅ CustomRulesTool                    │
-│    AST call graph        │    Semgrep + Bandit + Regex unified           │    .code-review.yaml evaluator       │
-│ ✅ RuffTool               │ ✅ SerperDevTool                               │ ✅ TestGeneratorTool                  │
-│    Fast Python linter    │    CVE/OWASP web search (optional)            │    AST pytest generator              │
-│                          │ ✅ ScrapeWebsiteTool                           │                                      │
-│                          │    Vulnerability detail scraping (optional)   │                                      │
-├──────────────────────────┼───────────────────────────────────────────────┼──────────────────────────────────────┤
-│ TASK: analyze_code_      │ TASK: review_security                         │ TASK: summarize_findings             │
-│ quality (async)          │ (async, parallel with Senior Dev)             │ (sequential, after both complete)    │
-│ Output: CodeQualityJSON  │ Output: ReviewSecurityJSON + Guardrail        │ Output: SummarizedFindingsJSON       │
-└──────────────────────────┴───────────────────────────────────────────────┴──────────────────────────────────────┘
-```
+| Agent | Skills | Tools | Task Output |
+|---|---|---|---|
+| **Senior Developer** | senior-dev-quality-reviewer · ast-callgraph-context-indexer · api-breaking-change-detector · performance-and-concurrency-auditor | `CodebaseContextTool`, `RuffTool` | `CodeQualityJSON` |
+| **Security Engineer** | sast-vulnerability-auditor · git-diff-and-patch-analyzer | `QuickPatternScannerTool`, `SerperDevTool`*, `ScrapeWebsiteTool`* | `ReviewSecurityJSON` + output guardrail |
+| **Tech Lead** | tech-lead-verdict-synthesizer · automated-unit-test-generator · governance-policy-enforcer | `CustomRulesTool`, `TestGeneratorTool` | `SummarizedFindingsJSON` |
 
-### Skill Quick Reference
+<sub>* optional, requires `SERPER_API_KEY` for live CVE/OWASP lookups</sub>
 
-| Skill ID | Assigned Agent | What It Does |
-|---|---|---|
-| `senior-dev-quality-reviewer` | Senior Developer | Architecture, code smells, Ruff linting, inline suggestions |
-| `ast-callgraph-context-indexer` | Senior Developer | Cross-file caller impact via repository AST call graph |
-| `api-breaking-change-detector` | Senior Developer | Removed routes, changed schemas, backwards-incompatible signatures |
-| `performance-and-concurrency-auditor` | Senior Developer | N+1 queries, blocking I/O in async, thread race conditions |
-| `sast-vulnerability-auditor` | Security Engineer | OWASP Top 10, CWE classification, multi-tool deduplication |
-| `git-diff-and-patch-analyzer` | Security Engineer | Added-line (+) filtering, hunk line number mapping |
-| `tech-lead-verdict-synthesizer` | Tech Lead | Confidence rubric (-30/-15/-10/-5), APPROVE / REQUEST CHANGES / ESCALATE |
-| `automated-unit-test-generator` | Tech Lead | Pytest suites with POST-FIX: regression separation |
-| `governance-policy-enforcer` | Tech Lead | BLOCKING/WARNING rule reflection in verdict and confidence |
-| `sarif-v21-compliance-exporter` | Flow Orchestrator | OASIS SARIF v2.1.0 JSON for GitHub Code Scanning |
-| `github-pr-comment-generator` | Flow Orchestrator | GitHub REST API inline comments with ```suggestion blocks |
-| `telemetry-and-cost-optimizer` | Flow Orchestrator | Token tracking, USD cost estimation, SHA-256 memoization cache |
+Senior Developer and Security Engineer tasks run **async in parallel**; Tech Lead runs sequentially afterward with both outputs as grounding context. Every claim in the final report must trace back to a specific upstream finding — if the Tech Lead believes something was missed, it goes under `coverage_gaps`, never stated as a finding.
 
-> 📋 Full protocols, activation triggers, guardrails, and few-shot examples for all 12 skills → **[`skills.md`](skills.md)**
-
----
-
-## 🎨 Animated Inline-Annotation Dashboard
-
-The web dashboard provides an interactive code review experience with **visual code annotations**:
-
-- 🔴 **Pulsing Gutter Markers:** `CRITICAL` (red pulse) · `WARNING` (amber pulse) · `INFO` (sky-blue pulse)
-- 〰️ **Wavy Underlines:** Flagged code lines decorated with CSS `text-decoration: underline wavy <color> 2px`
-- ⏱️ **Staggered Mount Animation:** Markers cascade in sequentially (`markerIndex × 80ms`) on fresh review runs
-- 📂 **In-Flow Click-to-Expand Cards:** Clicking any flagged line expands an inline panel with:
-  - Severity badge & issue title
-  - **💡 Why Causal Mechanism Box:** 1-sentence plain-English explanation of how the defect operates
-  - **1-Click Suggestion Diff Block:** Side-by-side old (`-` red) vs. replacement (`+` green) with Copy button
-- 🎛️ **Summary Strip & Context Filtering:** Filter by `All` · `Critical` · `Warning` · `Info` with ±2 line context
-- 🛡️ **Auto-Expand Policy:** Automatically expands the highest-severity issue on initial load
+**Confidence rubric** (deterministic, not free-form model judgment): start at 100, subtract 30 per unresolved CRITICAL vulnerability, 15 per HIGH, 10 per code-quality critical issue or BLOCKING governance rule, 5 per minor/medium/low finding or WARNING rule. Floor at 0.
 
 ---
 
 ## 📁 Repository Structure
 
 ```
-code-review-agent/
+AI-Code-Review-Agent/
+├── .github/workflows/
+│   ├── ci.yml                          # Test matrix (Python 3.10–3.12)
+│   └── ai-code-review.yml              # Dogfoods action.yml on this repo's own PRs
+├── .code-review.yaml                   # This repo's own governance rules
+├── .pre-commit-hooks.yaml              # `pre-commit` integration — blocks commits on ESCALATE
+├── .dockerignore
+├── .env.example
+├── action.yml                          # Reusable GitHub Action (published distribution)
+├── Dockerfile                          # Multi-stage: frontend build → Python runtime
+├── docker-compose.yml
+├── LICENSE                             # Apache 2.0
+├── pyproject.toml
+├── run.py                              # Root CLI launcher
 │
-├── .code-review.yaml                          # Team governance rules & coding policies
-├── .env.example                               # Environment configuration template
-├── pyproject.toml                             # Packaging, dependencies & CLI entrypoints
-├── action.yml                                 # Reusable GitHub Action for CI/CD workflows
-├── README.md                                  # This file — production documentation
-├── skills.md                                  # 📋 Agent Skills catalog (12 skills, full protocols)
-├── run.py                                     # Direct CLI root launcher
+├── scripts/                            # Cross-platform dev launchers
+│   ├── dev-backend.sh / .bat           # FastAPI gateway on :8000
+│   └── dev-frontend.sh / .bat          # Vite dev server on :3000
 │
 ├── docs/
-│   └── ARCHITECTURE_AND_STRUCTURE.md         # Detailed architecture & layer diagrams
+│   ├── ARCHITECTURE_AND_STRUCTURE.md   # Full layered architecture reference
+│   └── SKILLS.md                       # Agent skill catalog — protocols, triggers, guardrails
 │
-├── samples/                                   # Sample PR diffs for offline evaluation
-│   ├── sql_injection_pr.txt                   # PR diff with SQLi & plaintext auth flaws
-│   ├── simple_formatting_pr.txt              # PR diff with cosmetic style changes only
-│   └── benchmarks/                            # 📊 Ground-truth benchmark suite (12 cases)
-│       ├── manifest.json                      # Category, verdict, CWEs & keyword definitions
-│       ├── sql_injection.diff                 # CWE-89 — f-string in cursor.execute()
-│       ├── insecure_deserialization.diff      # CWE-502 — pickle.loads() on user data
-│       ├── plaintext_password.diff            # CWE-256 — cleartext password comparison
-│       ├── n_plus_one.diff                    # N+1 ORM query inside a loop
-│       ├── swallowed_exception.diff           # Bare except: pass anti-pattern
-│       ├── print_statements.diff              # Debug print in production code
-│       ├── wildcard_import.diff               # from module import *
-│       ├── breaking_signature.diff            # Breaking API parameter change
-│       └── complex_multi_issue.diff           # SQLi + plaintext auth + print (multi-issue)
+├── samples/
+│   ├── sql_injection_pr.txt / simple_formatting_pr.txt
+│   └── benchmarks/                     # 14-case ground-truth suite
+│       ├── manifest.json               # Category, expected verdict, CWEs
+│       └── *.diff                      # SQLi, secrets, command injection, path traversal,
+│                                        #   weak crypto, deserialization, N+1, wildcard imports…
 │
-├── frontend/                                  # Enterprise React + Vite + TypeScript Web UI
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── AnnotatedCodeViewer.tsx        # Pulsing gutter markers & in-flow diff cards
-│   │   │   ├── ReviewInput.tsx                # 4-tab input (Diff, File, ZIP, GitHub PR)
-│   │   │   ├── ReviewDashboard.tsx            # Multi-tab executive report & findings viewer
-│   │   │   ├── JobsQueueMonitor.tsx           # Live Webhook Hub & SQLite queue monitor
-│   │   │   ├── FindingsList.tsx               # Security vulnerability list & CWE tags
-│   │   │   ├── GeneratedUnitTests.tsx         # Pytest regression suite viewer & copy tool
-│   │   │   └── TraceVisualizer.tsx            # Multi-agent decision tree & latency trace
-│   │   ├── App.tsx                            # Root application controller
-│   │   ├── index.css                          # Keyframe animations & Prism syntax theme
-│   │   └── types/review.ts                    # TypeScript API models & response schemas
-│   ├── package.json
-│   └── vite.config.ts                         # Vite dev proxy configuration
+├── notebooks/
+│   └── finetune_code_review_peft.ipynb # QLoRA/PEFT experimentation (research track)
 │
-├── tests/                                     # Comprehensive pytest test suite (86 tests)
-│   ├── conftest.py                            # Shared fixtures & pytest configuration
-│   ├── test_tasks_grounding.py                # Tech lead grounding & rubric arithmetic tests
-│   ├── test_semgrep_runner.py                 # Semgrep CLI wrapper & JSON parsing tests
-│   ├── test_bandit_runner.py                  # Bandit AST security scanner tests
-│   ├── test_ruff_tool.py                      # Ruff linter integration & rule detection tests
-│   ├── test_tree_sitter_indexer.py            # Multi-language symbol & caller indexer tests
-│   ├── test_pattern_scanner.py                # Heuristic security pattern scanner tests
-│   ├── test_code_graph.py                     # AST qualified symbol & namespace isolation tests
-│   ├── test_test_generator.py                 # AST test suite scaffolding & fixture tests
-│   ├── test_rules_engine.py                   # PyYAML parsing & Pydantic validation tests
-│   ├── test_diff_parser.py                    # Line number mapping & token chunking tests
-│   ├── test_webhook_queue.py                  # Durable SQLite queue & crash recovery tests
-│   ├── test_llm_resilience.py                 # Resilient LLM output parsing & repair tests
-│   ├── test_benchmarks.py                     # Multi-category F1 / Verdict Accuracy assertions
-│   └── eval/                                  # 🧪 AI Evaluation test suite
-│       ├── conftest.py                        # Shared eval fixtures (sample states & outputs)
-│       ├── test_deterministic_evals.py        # 14 tests — ConfidenceMath, AST Compile,
-│       │                                      #   Guardrail, SARIF, DiffScope + EvalRunner
-│       └── test_agent_evals.py                # G-Eval interface shape tests
+├── frontend/                           # React 19 + Vite + TypeScript dashboard
+│   └── src/components/
+│       ├── AnnotatedCodeViewer.tsx     # Pulsing gutter markers, in-flow suggestion cards
+│       ├── ReviewInput.tsx             # Diff / File / ZIP / GitHub PR input
+│       ├── ReviewDashboard.tsx         # Verdict, findings, evidence badges, trace
+│       └── JobsQueueMonitor.tsx        # Live webhook queue + persisted results
 │
-└── src/
-    └── code_review_agent/
-        ├── config.py                          # Environment settings & structured logging
-        ├── models.py                          # Pydantic schemas (Diff, Findings, SARIF, Telemetry)
-        ├── diff_parser.py                     # Unified diff parser & token-aware chunker
-        ├── flow_parser.py                     # Resilient LLM JSON output parser & validator
-        ├── github_client.py                   # GitHub API v3 client & inline commenter
-        ├── webhook_queue.py                   # Durable SQLite task queue & background worker
-        ├── webhook_server.py                  # FastAPI gateway, Webhook Hub & test simulator
-        ├── review_service.py                  # Synchronous review service & rate limiter
-        ├── sarif_exporter.py                  # OASIS SARIF v2.1.0 report generator
-        ├── llm_factory.py                     # Multi-provider LLM factory (Gemini/OpenAI/Anthropic)
-        ├── cache.py                           # SHA-256 content-hash memoization (2000-entry LRU)
-        ├── benchmarks.py                      # Multi-category benchmark: Precision/Recall/F1 across 12 cases
-        ├── main.py                            # PRCodeReviewFlow — CrewAI Flows 2.0 orchestrator
-        │
-        ├── eval/                              # 🧪 AI Evaluation Engine (NEW)
-        │   ├── __init__.py                    # Package exports
-        │   ├── deterministic_evaluators.py    # 5 zero-cost evaluators: ConfidenceMath, AST Compile,
-        │   │                                  #   GuardrailConsistency, SARIFCompliance, DiffLineScope
-        │   ├── custom_metrics.py              # G-Eval LLM-as-a-Judge: ProvenanceGrounding,
-        │   │                                  #   SecurityDeduplication, QualityRefactor rubrics
-        │   └── eval_runner.py                 # EvalRunner orchestrator → EvaluationReport
-        │
-        ├── context_engine/
-        │   ├── code_graph.py                  # Qualified symbol indexer & caller resolver
-        │   ├── tree_sitter_indexer.py         # Multi-language AST indexer (Py, JS, TS, Go, Java)
-        │   └── context_tool.py                # CrewAI BaseTool: CodebaseContextTool
-        │
-        ├── governance/
-        │   └── rules_engine.py                # .code-review.yaml evaluator + CustomRulesTool
-        │
-        ├── observability/
-        │   ├── telemetry.py                   # Latency, token cost & Langfuse production eval traces
-        │   └── tracer.py                      # Hierarchical agent execution trace tree
-        │
-        ├── crews/
-        │   └── code_review_crew/
-        │       ├── crew.py                    # CodeReviewCrew — agent/task definitions,
-        │       │                              #   _get_agent_skills(), _build_skill_context()
-        │       ├── tool_registry.py           # Dynamic tool registry (string name → BaseTool)
-        │       ├── config/
-        │       │   ├── agents.yaml            # Agent roles, goals, backstories,
-        │       │   │                          #   assigned_tools & assigned_skills
-        │       │   └── tasks.yaml             # Task descriptions with [skill] activation markers,
-        │       │                              #   grounding constraints & JSON output schemas
-        │       └── guardrails/
-        │           └── guardrails.py          # security_review_output_guardrail
-        │
-        └── tools/
-            ├── sast_scanner.py                # Unified scanner: Semgrep + Bandit + Regex
-            ├── semgrep_runner.py              # Semgrep CLI wrapper & finding normalizer
-            ├── bandit_runner.py               # Bandit Python AST security scanner
-            ├── ruff_tool.py                   # Ruff fast linter (RuffTool BaseTool)
-            └── test_generator.py              # AST-driven pytest suite generator (TestGeneratorTool)
+├── tests/                              # pytest suite — parsers, engines, queue, MCP, sandbox
+│   └── eval/                           # Deterministic + LLM-as-judge evaluators
+│
+└── src/code_review_agent/
+    ├── main.py                         # PRCodeReviewFlow — CrewAI Flow orchestrator + CLI
+    ├── models.py                       # Pydantic schemas (Diff, Findings, SARIF, Telemetry)
+    ├── review_service.py               # Sync review API — rate limiting, zip/file/PR ingestion
+    ├── webhook_server.py               # FastAPI gateway — HMAC, SSE streaming, job persistence
+    ├── webhook_queue.py                # SQLite WAL queue — BEGIN IMMEDIATE, crash recovery
+    ├── mcp_server.py                   # MCP tool exposure (review_diff, scan_sast_patterns, …)
+    ├── llm_factory.py                  # Multi-provider LLM factory (Gemini/OpenAI/Anthropic/Groq)
+    ├── github_client.py                # GitHub REST API — diffs, inline reviews
+    ├── sarif_exporter.py               # OASIS SARIF v2.1.0 generator
+    ├── cache.py                        # SHA-256 content-hash memoization
+    ├── benchmarks.py                   # Precision/Recall/F1 ground-truth harness
+    │
+    ├── sandbox/
+    │   └── test_runner.py              # Isolated subprocess execution → evidence badges
+    │
+    ├── context_engine/
+    │   ├── code_graph.py               # Qualified-symbol AST indexer & caller resolver
+    │   ├── tree_sitter_indexer.py      # Multi-language indexer (JS/TS/Go/Java)
+    │   └── context_tool.py             # CodebaseContextTool — repo_root-scoped, lazy-indexed
+    │
+    ├── governance/rules_engine.py      # .code-review.yaml evaluator
+    ├── observability/                  # Telemetry, cost tracking, hierarchical trace tree
+    │
+    ├── crews/code_review_crew/
+    │   ├── crew.py                     # Agent/task assembly, repo_root threading
+    │   ├── tool_registry.py            # Declarative tool resolution from agents.yaml
+    │   └── config/{agents,tasks}.yaml  # Roles, skills, prompt contracts, JSON schemas
+    │
+    ├── eval/                           # Deterministic + G-Eval evaluators, EvalRunner
+    └── tools/                          # sast_scanner, semgrep_runner, bandit_runner, ruff_tool,
+                                         #   test_generator
 ```
 
 ---
 
-## 🚀 Quickstart & Installation
+## 🚀 Quickstart
 
-### 1. Prerequisites
-
-| Requirement | Version | Notes |
-|---|---|---|
-| **Python** | 3.10 – 3.13 | 3.12 recommended |
-| **Node.js & npm** | 18+ | Optional — frontend dev mode only |
-| **Gemini API Key** | — | [Get a free key at Google AI Studio](https://aistudio.google.com/) |
-| **Semgrep** | Latest | `pip install semgrep` — enhances SAST coverage (optional) |
-
-### 2. Clone & Install
+### Option A — Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/hamza1713/code-review-agent.git
-cd code-review-agent
+git clone https://github.com/hamza1713/AI-Code-Review-Agent.git
+cd AI-Code-Review-Agent
+cp .env.example .env   # add your GEMINI_API_KEY
+docker compose up --build -d
+```
 
-# Install all dependencies in editable mode
+Open **`http://localhost:8000`**. The multi-stage build compiles the React dashboard and serves it from the same container as the API — one command, one port.
+
+### Option B — Local Python + Node
+
+**Prerequisites:** Python 3.10–3.13 (3.12 recommended) · Node.js 18+ (frontend dev mode only) · a [Gemini API key](https://aistudio.google.com/) · Semgrep (`pip install semgrep`, optional — enhances SAST coverage)
+
+```bash
 pip install -e .
+cp .env.example .env   # add your GEMINI_API_KEY
 
-# Optional: add Semgrep for semantic analysis
-pip install semgrep
+# Terminal 1 — backend + dashboard
+scripts/dev-backend.sh      # or scripts\dev-backend.bat on Windows
+
+# Terminal 2 — frontend hot-reload (optional)
+scripts/dev-frontend.sh     # or scripts\dev-frontend.bat
 ```
 
-### 3. Configure Environment
+### Other modes
 
 ```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```ini
-# ── Required ────────────────────────────────────────────────────────────────
-GEMINI_API_KEY=AIzaSyYourGeminiAPIKeyHere
-
-# ── Optional: LLM Model Override ────────────────────────────────────────────
-LLM_MODEL=gemini/gemini-2.5-flash-lite
-MAX_TOKENS=4096
-
-# ── Optional: GitHub Integration ────────────────────────────────────────────
-GITHUB_TOKEN=ghp_your_github_personal_access_token
-GITHUB_WEBHOOK_SECRET=your_secure_webhook_hmac_secret
-
-# ── Optional: Serper (CVE/OWASP search for Security Engineer agent) ─────────
-SERPER_API_KEY=your_serper_api_key
-
-# ── Optional: Alternate LLM Providers ───────────────────────────────────────
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
----
-
-## 💻 Multi-Mode Usage Guide
-
-### Mode 1: Interactive Web Dashboard & Webhook Daemon
-
-```bash
-python run.py --server --port 8000
-```
-
-Open **`http://localhost:8000`**:
-- **4 Input Modes:** Paste Diff · Live GitHub PR URL · Single File · ZIP archive
-- **Annotated Code View:** Pulsing gutter markers, wavy underlines, in-flow suggestion diff cards
-- **Task Queue Hub:** Webhook Setup Wizard, connection validator, 1-click simulation
-- **Multi-Agent Trace:** Live decision tree, per-agent token usage, latency breakdown
-
-*(Optional) Frontend hot-reloading:*
-```bash
-# Terminal 1: Backend
-python run.py --server --port 8000
-
-# Terminal 2: Vite Dev Server (proxies API to :8000)
-cd frontend && npm install && npm run dev
-# → http://localhost:5173
-```
-
-### Mode 2: Review a Local Diff File (with SARIF Export)
-
-```bash
+# Review a local diff file, export SARIF
 python run.py --file samples/sql_injection_pr.txt --sarif results.sarif
-```
 
-### Mode 3: Review a Live GitHub Pull Request
-
-```bash
+# Review a live GitHub PR
 python run.py --pr "owner/repository/pull/42"
-```
 
-### Mode 4: Visualize the Flow Execution Graph
+# Pre-commit integration — reviews staged files, exits non-zero to block the commit
+python run.py path/to/staged_file.py
 
-```bash
+# Visualize the flow execution graph
 python run.py --plot
 ```
 
-### CLI Entrypoints (from `pyproject.toml`)
-
-| Command | Description |
+| CLI entrypoint | Description |
 |---|---|
-| `code-review-agent --file <diff>` | Review a local diff file |
-| `code-review-agent --pr <url>` | Review a live GitHub PR |
-| `code-review-agent --server` | Start FastAPI backend + dashboard |
-| `kickoff` | Start a review from `flow_state.json` |
-| `plot` | Render the CrewAI flow graph |
-| `review-server` | Start only the webhook/API server |
+| `code-review-agent --file <diff>` \| `--pr <url>` \| `--server` | Review a diff / live PR / start the API server |
+| `code-review-mcp` | Start the MCP server over stdio |
+| `review-server` | Webhook/API server only |
+| `eval-benchmarks` | Run the ground-truth benchmark suite |
+| `kickoff` / `plot` | Resume from `flow_state.json` / render the flow graph |
 
 ---
 
 ## 🤖 GitHub Actions CI/CD Integration
 
-Add automated multi-agent code reviews to any GitHub repository using [`action.yml`](action.yml):
+Add automated multi-agent reviews to any repository via [`action.yml`](action.yml) — this repo dogfoods the identical action on its own pull requests through [`.github/workflows/ai-code-review.yml`](.github/workflows/ai-code-review.yml):
 
 ```yaml
-name: "AI Multi-Agent Code Review"
-
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -496,369 +400,133 @@ jobs:
       contents: read
       pull-requests: write
       security-events: write
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Run AI Code Review Agent
-        uses: hamza1713/code-review-agent@v2.0.0
+      - uses: actions/checkout@v4
+      - uses: hamza1713/AI-Code-Review-Agent@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          sarif_output: "security_results.sarif"
-
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+          sarif_output: results.sarif
+      - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "security_results.sarif"
+          sarif_file: results.sarif
 ```
+
+### Pre-commit hook
+
+```yaml
+# .pre-commit-config.yaml, in a consuming repo
+repos:
+  - repo: https://github.com/hamza1713/AI-Code-Review-Agent
+    rev: main
+    hooks:
+      - id: ai-code-review
+```
+
+Staged files are converted to a synthetic diff and reviewed locally; the commit is blocked (non-zero exit) on an `ESCALATE` or `REQUEST CHANGES` verdict.
 
 ---
 
 ## 📜 Team Governance Engine (`.code-review.yaml`)
 
-Codify your engineering standards directly in your repository root. The governance engine validates schema via **Pydantic** and evaluates PR diffs deterministically — **zero LLM token cost**:
+Codify engineering standards in the repository root. Rules are validated against a Pydantic schema and evaluated deterministically — **zero LLM token cost, sub-millisecond per PR**:
 
 ```yaml
-version: "2.0"
+version: "1.0"
 
 rules:
   - id: "gov-no-raw-sql"
-    name: "Enforce Parameterized Queries"
-    severity: "BLOCKING"                          # → Forces ESCALATE verdict
-    pattern: "(?:db\\.query|cursor\\.execute)\\s*\\(\\s*f[\"']"
+    name: "Forbid Raw SQL String Interpolation"
+    severity: "BLOCKING"                                   # → contributes to ESCALATE
+    pattern: "db\\.(?:query|execute)\\s*\\(\\s*f[\"']"
     description: "Raw f-string SQL is vulnerable to injection (CWE-89)."
-    suggested_fix: "cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))"
-
-  - id: "gov-no-plaintext-passwords"
-    name: "Prohibit Plaintext Password Comparison"
-    severity: "BLOCKING"                          # → Forces ESCALATE verdict
-    pattern: "password\\s*==\\s*"
-    description: "Direct equality check bypasses cryptographic hashing (CWE-256)."
-    suggested_fix: "bcrypt.checkpw(plain.encode(), stored_hash.encode())"
+    suggested_fix: "db.query('SELECT * FROM users WHERE id = %s', (user_id,))"
 
   - id: "gov-no-print-statements"
-    name: "Disallow Debug Print Statements"
-    severity: "WARNING"                           # → Contributes to REQUEST CHANGES
-    pattern: "print\\s*\\("
-    description: "print() bypasses structured logging in production services."
-    suggested_fix: "logger.info(...) or logger.debug(...)"
-
-  - id: "gov-no-hardcoded-sleep"
-    name: "Prohibit Hardcoded sleep() Calls"
-    severity: "WARNING"
-    pattern: "time\\.sleep\\(\\d"
-    description: "Fixed sleep() is a performance anti-pattern."
-    suggested_fix: "Use asyncio.sleep() with exponential backoff or event.wait()"
-
-  - id: "gov-no-wildcard-imports"
-    name: "Prohibit Wildcard Imports"
-    severity: "WARNING"
-    pattern: "^from .+ import \\*"
-    description: "Wildcard imports pollute namespace and break static analysis."
-    suggested_fix: "Explicitly import only the symbols you need."
+    name: "Forbid Direct Print Statements"
+    severity: "WARNING"                                    # → contributes to REQUEST CHANGES
+    pattern: "(?<!#)\\bprint\\s*\\("
+    description: "print() bypasses structured logging in production code."
+    suggested_fix: "Use logger.info(...) or logger.debug(...)"
 ```
 
-**Severity → Verdict mapping (enforced by `governance-policy-enforcer` skill):**
+Test files, scripts, benchmarks, and `__main__` blocks are automatically exempted from non-security quality rules (print/sleep) — governance flags real drift, not your test fixtures.
 
 | Severity | Confidence Deduction | Verdict Impact |
 |---|---|---|
-| `BLOCKING` | `-10` per violation | Forces `ESCALATE` |
-| `WARNING` | `-5` per violation | Contributes to `REQUEST CHANGES` |
-| `INFO` | none | Added to `recommendations` only |
+| `BLOCKING` | −10 per violation | Contributes to `ESCALATE` |
+| `WARNING` | −5 per violation | Contributes to `REQUEST CHANGES` |
+| `INFO` | none | Surfaced in `recommendations` only |
 
 ---
 
-## 🎓 Agent Skills System
+## 🧪 Evaluation & Benchmarks
 
-The project uses a **12-skill reasoning protocol system** where each skill is a procedural capability assigned to a specific agent and task. Unlike tools (executable functions), skills teach agents **how to reason**.
+Two independent measurement layers, both zero-cost to run in CI:
 
-### How Skills Are Loaded at Runtime
+**Deterministic evaluators** (`src/code_review_agent/eval/`) verify the *pipeline's own arithmetic and output*, not model judgment: `ConfidenceMathEvaluator` re-derives the confidence score from the reported deduction breakdown; `CodeCompilationEvaluator` runs `ast.parse()` on every suggested fix and every generated test; `SarifComplianceEvaluator` checks OASIS SARIF v2.1.0 schema conformance; `GuardrailConsistencyEvaluator` and `DiffLineScopeEvaluator` catch inconsistent risk levels and out-of-range line numbers before they ship.
 
-**Step 1** — [`agents.yaml`](src/code_review_agent/crews/code_review_crew/config/agents.yaml) declares `assigned_skills` per agent:
-
-```yaml
-security_engineer:
-  assigned_tools:
-    - QuickPatternScannerTool
-    - SerperDevTool
-    - ScrapeWebsiteTool
-  assigned_skills:
-    - sast-vulnerability-auditor
-    - git-diff-and-patch-analyzer
-```
-
-**Step 2** — [`crew.py`](src/code_review_agent/crews/code_review_crew/crew.py) reads skills and injects them into the agent's LLM backstory context at crew build time:
-
-```python
-def _get_agent_skills(self, agent_name: str) -> List[str]:
-    return self.agents_config.get(agent_name, {}).get("assigned_skills", [])
-
-def _build_skill_context(self, skill_ids: List[str]) -> str:
-    """Builds [ACTIVE SKILLS] preamble injected into agent backstory."""
-    skill_list = "\n".join(f"  - [{s}]" for s in skill_ids)
-    return f"\n\n[ACTIVE SKILLS — Apply these reasoning protocols]\n{skill_list}\n"
-```
-
-**Step 3** — [`tasks.yaml`](src/code_review_agent/crews/code_review_crew/config/tasks.yaml) references skills explicitly in task descriptions so the agent knows which protocol to apply:
-
-```yaml
-review_security:
-  description: >
-    Apply your [sast-vulnerability-auditor] skill to inspect the pull request diff...
-    Using [git-diff-and-patch-analyzer]: Evaluate ONLY lines that begin with '+' (added lines)...
-```
-
-**Step 4** — [`skills.md`](skills.md) — the canonical catalog with full reasoning protocols, activation triggers, guardrails, and tool mappings for all 12 skills.
-
----
-
-## 🧪 AI Evaluation System
-
-The project ships a **dual-engine evaluation architecture** that measures agent quality at every stage of the lifecycle — from zero-cost offline CI gates to real-time production observability.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              AI EVALUATION ARCHITECTURE                                         │
-├────────────────────────────────┬────────────────────────────────┬────────────────────────────────┤
-│ 🔢 Deterministic Evaluators    │ 🤖 LLM-as-a-Judge (G-Eval)     │ 📡 Production Monitoring       │
-│ Zero cost · Instantaneous      │ Offline CI gate · DeepEval     │ Real-time · Langfuse           │
-├────────────────────────────────┼────────────────────────────────┼────────────────────────────────┤
-│ ConfidenceMathEvaluator        │ ProvenanceGroundingEvaluator   │ Langfuse Traces per Review     │
-│   Verifies confidence rubric   │   40% traceability             │   Evaluation score streaming   │
-│   arithmetic: 100 - deductions │   30% coverage balance         │   Token usage per agent span   │
-│   = reported confidence score  │   30% anti-hallucination       │   Latency & cost attribution   │
-│                                │                                │                                │
-│ CodeCompilationEvaluator       │ SecurityDeduplicationEvaluator │ Conditional activation:        │
-│   ast.parse() on every         │   40% deduplication quality    │   Only when LANGFUSE_PUBLIC_KEY │
-│   suggestion_code block and    │   30% rule attribution         │   + LANGFUSE_SECRET_KEY set.   │
-│   suggested_unit_tests suite   │   30% evidence fidelity        │   Zero impact on core path.    │
-│                                │                                │                                │
-│ GuardrailConsistencyEvaluator  │                                │                                │
-│   highest_risk == max(vulns)   │                                │                                │
-│   blocking=True when crit/high │                                │                                │
-│                                │                                │                                │
-│ SarifComplianceEvaluator       │                                │                                │
-│   OASIS SARIF v2.1.0 schema    │                                │                                │
-│   version, $schema, ruleId,    │                                │                                │
-│   message.text, artifact URI   │                                │                                │
-│                                │                                │                                │
-│ DiffLineScopeEvaluator         │                                │                                │
-│   Inline comment line numbers  │                                │                                │
-│   > 0 and files in parsed PR   │                                │                                │
-└────────────────────────────────┴────────────────────────────────┴────────────────────────────────┘
-```
-
-### Benchmark Suite — 12 Ground-Truth Cases
-
-| # | File | Category | Expected Verdict | CWE / Rule |
-|---|---|---|---|---|
-| 1 | `sql_injection.diff` | SECURITY | ESCALATE | CWE-89 |
-| 2 | `insecure_deserialization.diff` | SECURITY | ESCALATE | CWE-502 |
-| 3 | `plaintext_password.diff` | SECURITY | ESCALATE | CWE-256 |
-| 4 | `n_plus_one.diff` | QUALITY | REQUEST CHANGES | N+1 Pattern |
-| 5 | `swallowed_exception.diff` | QUALITY | REQUEST CHANGES | Error Handling |
-| 6 | `print_statements.diff` | GOVERNANCE | REQUEST CHANGES | gov-no-print-statements |
-| 7 | `wildcard_import.diff` | GOVERNANCE | REQUEST CHANGES | gov-no-wildcard-imports |
-| 8 | `breaking_signature.diff` | ARCHITECTURE | REQUEST CHANGES | API Compat |
-| 9 | `complex_multi_issue.diff` | COMPLEX | ESCALATE | CWE-89 + CWE-256 |
-| 10 | `clean_cosmetic.diff` | SECURITY | APPROVE | — |
-| 11 | `clean_formatting.diff` | QUALITY | APPROVE | — |
-| 12 | `clean_refactor.diff` | GOVERNANCE | APPROVE | — |
-
-**Benchmark Results (CI-measured):**
-
-| Category | Precision | Recall | F1 | Verdict Accuracy |
-|---|---|---|---|---|
-| SECURITY | ≥ 83% | ≥ 83% | ≥ 83% | **100%** |
-| GOVERNANCE | ≥ 83% | ≥ 83% | ≥ 83% | **100%** |
-| COMPLEX | 100% | 100% | 100% | **100%** |
-| QUALITY | Heuristic gap¹ | Heuristic gap¹ | — | **100%** |
-| ARCHITECTURE | Heuristic gap¹ | Heuristic gap¹ | — | **100%** |
-
-> ¹ N+1 ORM loops, swallowed exceptions, and breaking API signatures require LLM reasoning to detect — SAST regex patterns cannot catch them. Verdict accuracy remains 100% because the LLM agent correctly identifies these issues. The SAST Precision/Recall gap is documented as a known research boundary.
-
-### Running Evaluations
+**Ground-truth benchmark suite** — 14 hand-authored cases with known expected findings, spanning SQL injection, hardcoded secrets, command injection, path traversal, weak cryptography, insecure deserialization, plaintext password comparison, N+1 queries, swallowed exceptions, print statements, wildcard imports, and breaking API signatures:
 
 ```bash
-# 1. Install eval dependencies
 pip install -e ".[eval]"
-
-# 2. Run deterministic evaluator tests (no API key needed)
-pytest tests/eval/test_deterministic_evals.py -p no:langsmith -p no:playwright -v
-
-# 3. Run benchmark suite (Precision / Recall / F1 across all 12 cases)
-eval-benchmarks
-# or:
-python -m code_review_agent.benchmarks
-
-# 4. Run LLM-as-a-Judge tests (requires GEMINI_API_KEY)
-pytest tests/eval/test_agent_evals.py -p no:langsmith -v -m eval
-
-# 5. Run the full eval + benchmark suite together
-pytest tests/eval/ tests/test_benchmarks.py -p no:langsmith -p no:playwright -v
+eval-benchmarks                 # or: python -m code_review_agent.benchmarks
 ```
 
-### Production Monitoring with Langfuse
+**Latest measured results** (deterministic layer only — SAST + governance, no LLM call):
 
-Add these keys to your `.env` to activate production telemetry:
+| Category | Cases | Precision | Recall | F1 | Verdict Accuracy |
+|---|---|---|---|---|---|
+| SECURITY | 7 | 75.0% | 100% | 85.7% | 100% |
+| GOVERNANCE | 2 | 100% | 100% | 100% | 100% |
+| COMPLEX | 1 | 100% | 100% | 100% | 100% |
+| QUALITY | 3 | 100% | 0%¹ | 0%¹ | 100% |
+| ARCHITECTURE | 1 | 100% | 0%¹ | 0%¹ | 100% |
+| **Overall** | **14** | **84.2%** | **84.2%** | **84.2%** | **100%** |
 
-```ini
-# ── Optional: Langfuse Production Observability ──────────────────────────────
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=https://cloud.langfuse.com   # or self-hosted endpoint
-```
+<sub>¹ N+1 ORM loops, swallowed exceptions, and breaking API signatures require reasoning the static layer can't do by design — that's exactly what the LLM crew exists for. Verdict accuracy stays 100% end-to-end because the crew correctly catches these; the recall gap here is scoped to the deterministic pre-scan only, and is reported rather than hidden.</sub>
 
-When configured, each review run streams:
-- **Evaluation score** (`eval_score`) per trace
-- **Latency** (total end-to-end + per-agent breakdown)
-- **Token usage** (prompt / completion tokens per agent span)
-- **Verdict** and **confidence** metadata per review run
-
-The Langfuse client initializes only if both keys are present — it never crashes or degrades the core review flow if unconfigured or if the `langfuse` package is not installed.
+Run this suite after any prompt or regex-rule change — it's the regression gate that catches a "quick tweak" that silently breaks detection on a known case.
 
 ---
 
-## 🧪 Automated Test Suite
+## 🎨 Dashboard
 
-**86 unit and integration tests** covering 100% of deterministic parsers, security engines, AST graphs, grounding rubrics, eval invariants, benchmark suite, queue recovery, and rate limiters:
+- 🔴 **Pulsing gutter markers** by severity — `CRITICAL` / `WARNING` / `INFO`, with staggered mount animation
+- 📂 **In-flow expandable cards** — click a flagged line for the causal explanation and a 1-click GitHub suggestion diff
+- 🧪 **Evidence badges** inline with every finding — `REPRODUCED` / `PASSING` / `UNVERIFIED` / `HEURISTIC`
+- 📥 **Jobs Queue Monitor** — live webhook queue status, with full persisted review results on completion
+- 🛡️ **Non-dismissible scope note** — every response states plainly what was and wasn't checked
+
+---
+
+## 🧪 Testing
 
 ```bash
-# Run the complete test suite
-pytest -v tests/
-
-# Run a specific test file (disable slow plugins if needed)
-pytest tests/test_diff_parser.py -p no:langsmith -p no:playwright -v
+pytest -v tests/                              # full suite: parsers, engines, queue, sandbox, MCP
+pytest tests/eval/ tests/test_benchmarks.py    # evaluation + ground-truth benchmark only
+ruff check src/
 ```
 
-```
-============================= test session starts =============================
-platform win32 -- Python 3.12.5, pytest-8.4.1
-collected 86 items
-
-tests/test_tasks_grounding.py::test_tasks_yaml_contains_all_five_fixes        PASSED
-tests/test_tasks_grounding.py::test_deterministic_confidence_rubric            PASSED
-tests/test_bandit_runner.py::test_bandit_scans_vulnerable_diff                 PASSED
-tests/test_ruff_tool.py::test_ruff_detects_unused_import                       PASSED
-tests/test_semgrep_runner.py::test_parse_semgrep_json                          PASSED
-tests/test_tree_sitter_indexer.py::test_callers                                PASSED
-tests/test_pattern_scanner.py::test_detects_sqli                               PASSED
-tests/test_pattern_scanner.py::test_safe_code_no_fp                            PASSED
-tests/test_code_graph.py::test_qualified_symbols                               PASSED
-tests/test_code_graph.py::test_call_graph_isolation                            PASSED
-tests/test_test_generator.py::test_async_support                               PASSED
-tests/test_diff_parser.py::test_multi_hunk_mapping                             PASSED
-tests/test_rules_engine.py::test_fail_loudly_malformed                         PASSED
-tests/test_webhook_queue.py::test_crash_recovery                               PASSED
-tests/test_llm_resilience.py::test_repair_trailing_commas                      PASSED
-tests/eval/test_agent_evals.py::TestCustomGEvalMetrics::test_provenance_grounding_evaluator_interface  PASSED
-tests/eval/test_agent_evals.py::TestCustomGEvalMetrics::test_security_deduplication_evaluator_interface PASSED
-tests/eval/test_deterministic_evals.py::TestConfidenceMathEvaluator::test_breakdown_arithmetic_valid  PASSED
-tests/eval/test_deterministic_evals.py::TestCodeCompilationEvaluator::test_valid_inline_suggestions   PASSED
-tests/eval/test_deterministic_evals.py::TestGuardrailConsistencyEvaluator::test_guardrail_consistency_valid PASSED
-tests/eval/test_deterministic_evals.py::TestSarifComplianceEvaluator::test_valid_sarif_structure      PASSED
-tests/eval/test_deterministic_evals.py::TestEvalRunnerOrchestrator::test_eval_runner_full_pass        PASSED
-tests/test_benchmarks.py::TestBenchmarkSuite::test_deterministic_full_benchmark_metrics               PASSED
-tests/test_benchmarks.py::TestBenchmarkSuite::test_format_summary_table                               PASSED
-... (86 total)
-
-============================== 86 passed ==============================
-```
-
----
-
-## 📊 Sample Review Output & Cost Telemetry
-
-```
-============================================================
-📋 AUTOMATED CODE REVIEW REPORT
-============================================================
-Final Decision:   REQUEST CHANGES 🚨
-Confidence Score: 35/100
-Confidence Math:  100 (base)
-                  - 30 (critical: SQLi CWE-89 — auth.py:L15, matched_by: [B608, regex-sqli])
-                  - 15 (high: plaintext password comparison — auth.py:L18)
-                  - 10 (critical_issue: bare except swallowing errors — handler.py:L42)
-                  - 10 (gov-BLOCKING: gov-no-raw-sql violated)
-                  = 35
-
-Executive Summary
------------------
-Critical security vulnerabilities and team governance rule violations detected
-in app/user_auth.py. AST call graph analysis shows authenticate_user() is
-called by 3 downstream files (api/v1/auth.ts, routes/login.py, middleware/session.go).
-
-Key Findings
-------------
-1. [CRITICAL] SQL Injection (CWE-89) — app/user_auth.py:L15
-   Matched by: [bandit-B608, regex-sqli-heuristic]
-   f-string used directly in cursor.execute(). Attacker controls username → arbitrary SQL.
-
-2. [HIGH] Plaintext Password Comparison (CWE-256) — app/user_auth.py:L18
-   password == user.password bypasses bcrypt verification. Vulnerable to timing attacks.
-
-3. [BLOCKING GOVERNANCE] gov-no-raw-sql — app/user_auth.py:L15
-   Team policy prohibits raw SQL construction. Requires parameterized queries.
-
-1-Click Inline Suggestion (app/user_auth.py:L15-18)
-----------------------------------------------------
-```suggestion
-    cursor.execute(
-        "SELECT id, password_hash FROM users WHERE username = %s",
-        (username,)
-    )
-    user = cursor.fetchone()
-    if user and bcrypt.checkpw(password.encode("utf-8"), user["password_hash"].encode("utf-8")):
-        return True
-```
-
-------------------------------------------------------------
-📊 EXECUTION & COST TELEMETRY
-------------------------------------------------------------
-  Execution Latency   : 3.82s
-  LLM Model           : gemini/gemini-2.5-flash-lite
-  Prompt Tokens       : 2,420
-  Completion Tokens   : 580
-  Total Tokens        : 3,000
-  Estimated Cost      : $0.000225 USD
-  Semgrep/Bandit Hits : 2  (deduplicated from 3 raw findings)
-  Governance Flags    : 1  (BLOCKING)
-  Inline Suggestions  : 2
-  Active Skills Used  : sast-vulnerability-auditor, git-diff-and-patch-analyzer,
-                        tech-lead-verdict-synthesizer, governance-policy-enforcer
-------------------------------------------------------------
-✨ Multi-Agent Review Lifecycle Finished.
-```
+The suite covers diff parsing, the SAST/governance engines, the AST call graph, the durable webhook queue (including concurrent-claim safety), the MCP tool surface, and the sandbox test-execution runner — including a check that the sandbox's environment allowlist actually strips credential-shaped variables before a generated test ever runs. Note: `BanditRunner`/`RuffRunner` shell out to their CLI per scan; on hosts where subprocess cold-start is slow (heavy `site-packages`, AV process scanning), the full suite runs in several minutes rather than seconds — this doesn't affect correctness, only wall-clock time in CI logs.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-
-1. **Fork** the repository.
-2. **Create** a feature branch: `git checkout -b feature/your-feature`
-3. **Run** tests and linting:
-   ```bash
-   pytest -v tests/
-   ruff check src/
-   ```
-4. **Commit** your changes: `git commit -m "feat: your feature description"`
-5. **Push** and open a Pull Request — the AI Code Review Agent will automatically review it! 🤖
-
----
+1. Fork the repository and create a feature branch.
+2. `pytest -v tests/` and `ruff check src/` before opening a PR.
+3. Open the PR — the agent will review its own diff automatically via the dogfooded Action.
 
 ## 📄 License
 
-Distributed under the **Apache 2.0 License**. See [`LICENSE`](LICENSE) for details.
+Apache 2.0 — see [`LICENSE`](LICENSE).
 
 ---
 
 <div align="center">
 
-Built with ❤️ using [CrewAI Flows 2.0](https://crewai.com) · [Google Gemini](https://deepmind.google/technologies/gemini/) · [FastAPI](https://fastapi.tiangolo.com/) · [React 19](https://react.dev/)
+Built with [CrewAI Flows](https://crewai.com) · [Google Gemini](https://deepmind.google/technologies/gemini/) · [FastAPI](https://fastapi.tiangolo.com/) · [React 19](https://react.dev/) · [Model Context Protocol](https://modelcontextprotocol.io)
 
 </div>

@@ -22,16 +22,28 @@ import sys
 class BanditRunner:
     """Wrapper around Bandit for Python AST security scanning."""
 
-    @staticmethod
-    def is_available() -> bool:
-        """Check if Bandit is installed via CLI or Python package."""
+    _availability_cache: Optional[bool] = None
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """
+        Check if Bandit is installed via CLI or Python package.
+        Cached for the lifetime of the process — availability cannot change
+        mid-run, and the subprocess fallback below is expensive enough
+        (a full Python interpreter spin-up) that re-checking it on every
+        single SAST scan call materially slows down every review.
+        """
+        if cls._availability_cache is not None:
+            return cls._availability_cache
         if shutil.which("bandit") is not None:
+            cls._availability_cache = True
             return True
         try:
             res = subprocess.run([sys.executable, "-m", "bandit", "--version"], capture_output=True, text=True, timeout=5, check=False)
-            return res.returncode == 0
+            cls._availability_cache = res.returncode == 0
         except Exception:
-            return False
+            cls._availability_cache = False
+        return cls._availability_cache
 
     @classmethod
     def scan_diff(cls, raw_diff: str) -> List[SastFinding]:

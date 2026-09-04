@@ -93,11 +93,38 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         pattern=r"hashlib\.(?:md5|sha1)\s*\(",
         description="MD5 and SHA-1 are cryptographically broken for security verification.",
         fix_recommendation="Upgrade to SHA-256 (hashlib.sha256) or SHA-3 for hashing."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-PATH-001",
+        cwe="CWE-22",
+        name="Path Traversal / Arbitrary File Read",
+        severity="HIGH",
+        pattern=r"open\s*\(\s*(?:os\.path\.join\s*\([^)]*user|f[\"'].*?\{user.*?[\"'])",
+        description="Opening files using unsanitized user-controlled file paths can permit directory traversal.",
+        fix_recommendation="Sanitize file paths using os.path.basename or validate against an allowed directory with os.path.commonpath."
     )
 ]
 
 # Backwards compatibility alias
 SAST_RULES = SECURITY_PATTERN_RULES
+
+
+def is_safe_subprocess_call(text: str) -> bool:
+    """Determine if a subprocess invocation is safe from CWE-78 shell injection."""
+    if "os.system" in text:
+        return False
+    if re.search(r"shell\s*=\s*True", text, re.IGNORECASE):
+        return False
+    # Explicit shell=False is always safe from shell injection
+    if re.search(r"shell\s*=\s*False", text, re.IGNORECASE):
+        return True
+    # List arguments are safe from shell injection
+    if re.search(r"subprocess\.(?:call|run|Popen|check_output)\s*\(\s*\[", text):
+        return True
+    # If no string formatting, concatenation, or interpolation is used, Python defaults to shell=False
+    if not re.search(r"f[\"']|\s*\+\s*|%s|%\s*\(|\.format\s*\(", text):
+        return True
+    return False
 
 
 class QuickPatternScanner:
@@ -120,6 +147,8 @@ class QuickPatternScanner:
             # Check line-by-line
             for line_no, line_content in added_lines:
                 for rule in SECURITY_PATTERN_RULES:
+                    if rule.rule_id == "SEC-CMD-001" and is_safe_subprocess_call(line_content):
+                        continue
                     if re.search(rule.pattern, line_content, re.IGNORECASE):
                         findings.append(
                             SastFinding(
@@ -135,9 +164,11 @@ class QuickPatternScanner:
                             )
                         )
 
-            # Check multiline patches for patterns spanning lines
+            # Check multiline patches for patterns spanning lines (e.g. multi-line SQL queries)
             raw_patch = file_diff.raw_patch
             for rule in SECURITY_PATTERN_RULES:
+                if rule.rule_id == "SEC-CMD-001":
+                    continue
                 for match in re.finditer(rule.pattern, raw_patch, re.IGNORECASE):
                     matched_snippet = match.group(0).strip()
                     if not any(f.file_path == file_path and f.rule_id == rule.rule_id for f in findings):

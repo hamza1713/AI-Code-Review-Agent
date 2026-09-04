@@ -1,0 +1,35 @@
+name: AI Pull Request Review & SARIF Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ai-code-review:
+    name: Multi-Agent AI Code Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      # Dogfooding: this repo reviews its own pull requests through the exact
+      # same composite Action (./action.yml) that external consumers install.
+      # One source of truth for "how a review runs in CI" — see action.yml.
+      - name: Run AI Code Review Agent (self-hosted action)
+        uses: ./
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          sarif_output: results.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: ai-code-review-agent

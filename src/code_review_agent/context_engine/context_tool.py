@@ -31,28 +31,34 @@ class CodebaseContextTool(BaseTool):
     args_schema: Type[BaseModel] = CodebaseContextInput
 
     _indexer: Optional[CodeGraphIndexer] = None
+    _repo_root: Optional[str] = None
 
     def __init__(self, repo_root: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
-        self._indexer = CodeGraphIndexer(repo_root=repo_root)
-        self._indexer.index_repository()
+        self._repo_root = repo_root
+        self._indexer = None
+
+    def _get_indexer(self) -> CodeGraphIndexer:
+        """Lazily initialize and index the repository on first use."""
+        if self._indexer is None:
+            self._indexer = CodeGraphIndexer(repo_root=self._repo_root)
+            self._indexer.index_repository()
+        return self._indexer
 
     def _run(self, query_type: str, target: str) -> str:
         """Execute context query against indexed codebase."""
-        if not self._indexer:
-            return "Code Graph Indexer is not initialized."
-
+        indexer = self._get_indexer()
         query_type = query_type.strip().lower()
 
         if query_type == "find_callers":
-            impact = self._indexer.get_impacted_callers([target])
+            impact = indexer.get_impacted_callers([target])
             callers = impact.get(target, [])
             if not callers:
                 return f"No cross-file callers found for function '{target}' in repository."
             return f"Function '{target}' is called by: {', '.join(callers)}"
 
         elif query_type == "lookup_symbol":
-            sym = self._indexer.get_symbol_definition(target)
+            sym = indexer.get_symbol_definition(target)
             if not sym:
                 return f"Symbol '{target}' not found in indexed codebase."
             doc = f"\n  Docstring: {sym.docstring}" if sym.docstring else ""
@@ -63,6 +69,6 @@ class CodebaseContextTool(BaseTool):
             )
 
         elif query_type == "analyze_diff_impact":
-            return self._indexer.format_impact_context(target)
+            return indexer.format_impact_context(target)
 
         return f"Unknown query_type '{query_type}'. Use 'find_callers', 'lookup_symbol', or 'analyze_diff_impact'."

@@ -63,32 +63,40 @@ Below is the optimized, enterprise-grade repository layout for the project:
 
 ```
 AI-Code-Review-Agent/
-├── .github/                                # CI/CD and Automation Workflows
-│   └── workflows/
-│       └── ci.yml                          # Continuous Integration & Test Suite Workflow
+├── .github/workflows/
+│   ├── ci.yml                              # Test matrix (Python 3.10–3.12)
+│   └── ai-code-review.yml                  # Dogfoods action.yml on this repo's own PRs
 ├── action.yml                              # Reusable GitHub Action definition
 ├── .code-review.yaml                       # Codified Team Governance & Architectural Rules
+├── .pre-commit-hooks.yaml                  # pre-commit integration — blocks on ESCALATE
+├── .dockerignore
 ├── .env.example                            # Template for API keys and environment variables
 ├── .gitignore                              # Comprehensive ignore rules (builds, caches, DBs)
+├── Dockerfile                              # Multi-stage: frontend build → Python runtime
+├── docker-compose.yml
+├── LICENSE                                 # Apache 2.0
 ├── pyproject.toml                          # PEP 517/621 Build metadata, dependencies & scripts
 ├── README.md                               # Primary User & Enterprise Documentation
-├── skills.md                               # Standardized Agent Skills Catalog (12 Agent Skills)
 ├── run.py                                  # Quick development launcher script
-├── back.bat                                # Windows launcher for Backend FastAPI Gateway
-├── front.bat                               # Windows launcher for Frontend Vite Dev Server
+│
+├── scripts/                                # Cross-platform dev launchers
+│   ├── dev-backend.sh / .bat               # FastAPI gateway on :8000
+│   └── dev-frontend.sh / .bat              # Vite dev server on :3000
 │
 ├── docs/                                   # In-Depth System & Architecture Documentation
-│   └── ARCHITECTURE_AND_STRUCTURE.md      # Detailed Architecture & Directory Specification
+│   ├── ARCHITECTURE_AND_STRUCTURE.md       # This file
+│   └── SKILLS.md                           # Standardized Agent Skills Catalog (12 Agent Skills)
 │
 ├── samples/                                # Sample PR Diffs & Benchmark Data
 │   ├── simple_formatting_pr.txt            # Sample Cosmetic PR Diff (Fast-Path)
 │   ├── sql_injection_pr.txt                # Sample High-Risk PR Diff (Crew Review)
-│   └── benchmarks/                         # Ground-Truth Benchmarking Suite
+│   └── benchmarks/                         # 14-case Ground-Truth Benchmarking Suite
 │       ├── manifest.json                   # Ground-truth labels, CWEs, and expected verdicts
-│       ├── clean_code.diff                 # True Negative benchmark diff
-│       ├── sql_injection.diff              # SQLi True Positive benchmark diff
-│       ├── hardcoded_secret.diff           # Secret Leak True Positive benchmark diff
-│       └── command_injection.diff          # Command Injection True Positive benchmark diff
+│       ├── sql_injection.diff / hardcoded_secret.diff / command_injection.diff
+│       ├── insecure_deserialization.diff / plaintext_password.diff / weak_crypto.diff
+│       ├── path_traversal.diff / n_plus_one.diff / swallowed_exception.diff
+│       ├── print_statements.diff / wildcard_import.diff / breaking_signature.diff
+│       └── clean_code.diff / complex_multi_issue.diff
 │
 ├── notebooks/                              # Fine-Tuning & Experimentation
 │   └── finetune_code_review_peft.ipynb     # QLoRA / PEFT notebook for fine-tuning LLMs on PRs
@@ -107,14 +115,18 @@ AI-Code-Review-Agent/
 │       ├── github_client.py                # GitHub REST API Client (Diffs & Inline Reviews)
 │       ├── sarif_exporter.py               # OASIS SARIF v2.1.0 JSON Report Generator
 │       ├── webhook_server.py               # FastAPI Gateway (HMAC verification, REST API)
-│       ├── webhook_queue.py                # SQLite ACID WAL Task Queue with Worker Pool
+│       ├── webhook_queue.py                # SQLite ACID WAL Task Queue, BEGIN IMMEDIATE claims
+│       ├── mcp_server.py                   # Model Context Protocol server (5 tools)
 │       ├── benchmarks.py                   # Deterministic Benchmark Test Harness
+│       │
+│       ├── sandbox/                        # Empirical test-execution verification
+│       │   └── test_runner.py              # Isolated subprocess runner → evidence badges
 │       │
 │       ├── context_engine/                 # AST Code Graph & Repository Indexer
 │       │   ├── __init__.py
 │       │   ├── code_graph.py               # Call Graph Builder (Callers/Callees/Impact)
 │       │   ├── tree_sitter_indexer.py      # Multi-Language Tree-Sitter AST Indexer
-│       │   └── context_tool.py             # CrewAI BaseTool wrapper for AST context
+│       │   └── context_tool.py             # CrewAI BaseTool wrapper, repo_root-scoped & lazy
 │       │
 │       ├── governance/                     # Team Governance Rules Engine
 │       │   ├── __init__.py
@@ -124,7 +136,7 @@ AI-Code-Review-Agent/
 │       │   ├── __init__.py
 │       │   └── code_review_crew/
 │       │       ├── __init__.py
-│       │       ├── crew.py                 # CodeReviewCrew definition (@CrewBase)
+│       │       ├── crew.py                 # CodeReviewCrew definition (@CrewBase), repo_root threading
 │       │       ├── tool_registry.py        # Declarative Dynamic Tool Registry
 │       │       ├── config/
 │       │       │   ├── agents.yaml         # Agent Roles, Goals, Backstories & Tools
@@ -137,9 +149,11 @@ AI-Code-Review-Agent/
 │       │   ├── __init__.py
 │       │   ├── sast_scanner.py             # Unified Security Scanner (Semgrep+Bandit+Regex)
 │       │   ├── semgrep_runner.py           # Multi-Language Semgrep AST Runner
-│       │   ├── bandit_runner.py            # Python Bandit Security AST Runner
-│       │   ├── ruff_tool.py                # Ultra-Fast Ruff Linter Tool
+│       │   ├── bandit_runner.py            # Python Bandit Security AST Runner (cached availability)
+│       │   ├── ruff_tool.py                # Ultra-Fast Ruff Linter Tool (cached availability)
 │       │   └── test_generator.py           # AST Unit Test Generator Tool
+│       │
+│       ├── eval/                           # Deterministic + G-Eval evaluators, EvalRunner
 │       │
 │       └── observability/                  # Telemetry, Cost & Tracing
 │           ├── __init__.py
@@ -177,26 +191,29 @@ AI-Code-Review-Agent/
 │           └── VerdictBanner.tsx           # APPROVE / REQUEST CHANGES / ESCALATE banner
 │
 └── tests/                                  # Comprehensive Automated Test Suite (Pytest)
-    ├── conftest.py                         # Environment and path fixtures
+    ├── conftest.py                         # Fixtures — resets all process-lifetime caches per test
     ├── test_adaptive_chunking.py           # Token budgeting and chunking tests
     ├── test_api_review.py                  # Synchronous review API endpoint tests
     ├── test_bandit_runner.py               # Bandit static analysis tests
     ├── test_benchmarks.py                  # Ground-truth accuracy and recall benchmark tests
     ├── test_cache.py                       # Content-hash LRU caching tests
     ├── test_code_graph.py                  # AST symbol and call graph resolution tests
+    ├── test_context_root.py                # repo_root scoping — tools never leak into the agent's own repo
     ├── test_diff_parser.py                 # Git diff parsing and line mapping tests
     ├── test_llm_factory.py                 # Multi-provider LLM creation tests
     ├── test_llm_resilience.py              # Timeout, retry, and graceful fallback tests
+    ├── test_mcp_server.py                  # MCP tool surface tests
     ├── test_pattern_scanner.py             # Security pattern regex detection tests
     ├── test_ruff_tool.py                   # Ruff linter wrapper tests
     ├── test_rules_engine.py                # Governance YAML evaluation tests
+    ├── test_sandbox_runner.py              # Isolated sandbox execution & evidence badge tests
     ├── test_semgrep_runner.py              # Semgrep integration tests
     ├── test_tasks_grounding.py             # Anti-hallucination prompt constraint tests
     ├── test_test_generator.py              # Unit test generation tests
     ├── test_tool_registry.py               # Declarative tool resolution tests
     ├── test_tracer.py                      # Decision tree execution tracer tests
     ├── test_tree_sitter_indexer.py         # Tree-Sitter multi-language indexer tests
-    └── test_webhook_queue.py               # SQLite WAL queue, worker, and retry tests
+    └── test_webhook_queue.py               # SQLite WAL queue, worker, retry & concurrency tests
 ```
 
 ---

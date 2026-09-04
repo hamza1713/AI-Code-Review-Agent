@@ -1,1 +1,0 @@
-python run.py --server --port 8000

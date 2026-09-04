@@ -1,0 +1,8 @@
+--- a/handlers/file_server.py
++++ b/handlers/file_server.py
+@@ -15,4 +15,6 @@
+ import os
+
+ def read_user_file(user_dir: str, user_filename: str) -> str:
++    filepath = f"/data/storage/{user_filename}"
++    return open(f"/data/storage/{user_filename}").read()

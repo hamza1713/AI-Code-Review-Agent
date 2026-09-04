@@ -7,6 +7,7 @@ complexity issues, and code smells in milliseconds.
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Type
@@ -31,16 +32,25 @@ class RuffLintFinding(BaseModel):
 class RuffRunner:
     """Wrapper around Ruff CLI for fast Python linting."""
 
-    @staticmethod
-    def is_available() -> bool:
-        """Check if Ruff is available in PATH or Python environment."""
+    _availability_cache: Optional[bool] = None
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """
+        Check if Ruff is available in PATH or Python environment.
+        Cached for the process lifetime — see BanditRunner.is_available for why.
+        """
+        if cls._availability_cache is not None:
+            return cls._availability_cache
         if shutil.which("ruff") is not None:
+            cls._availability_cache = True
             return True
         try:
-            res = subprocess.run(["python", "-m", "ruff", "--version"], capture_output=True, text=True, check=False)
-            return res.returncode == 0
+            res = subprocess.run([sys.executable, "-m", "ruff", "--version"], capture_output=True, text=True, check=False)
+            cls._availability_cache = res.returncode == 0
         except Exception:
-            return False
+            cls._availability_cache = False
+        return cls._availability_cache
 
     @classmethod
     def scan_diff(cls, raw_diff: str) -> List[RuffLintFinding]:

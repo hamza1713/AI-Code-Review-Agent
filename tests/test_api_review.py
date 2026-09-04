@@ -268,6 +268,33 @@ def dangerous_function(cmd):
         assert "Rate limit exceeded" in response.json()["detail"]
         assert "Retry-After" in response.headers
 
+    def test_review_github_pr_url_success(self, mock_llm_flow):
+        """Verify that submitting a live GitHub PR URL fetches the diff and returns 200 OK without NameError (F1)."""
+        sample_diff = """diff --git a/app/calc.py b/app/calc.py
+--- a/app/calc.py
++++ b/app/calc.py
+@@ -1,3 +1,4 @@
+ def add(a, b):
++    return a + b
+"""
+        with patch("code_review_agent.review_service.GitHubClient") as mock_gh_class:
+            mock_gh_inst = MagicMock()
+            mock_gh_inst.fetch_pull_request_diff.return_value = sample_diff
+            mock_gh_class.return_value = mock_gh_inst
+            mock_gh_class.parse_pr_identifier.return_value = ("test-owner", "test-repo", 42)
+
+            response = client.post(
+                "/api/review",
+                json={"pr_url": "https://github.com/test-owner/test-repo/pull/42"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "verdict" in data
+            assert isinstance(data["confidence_score"], int)
+            mock_gh_class.parse_pr_identifier.assert_called_once_with("https://github.com/test-owner/test-repo/pull/42")
+            mock_gh_inst.fetch_pull_request_diff.assert_called_once_with("test-owner", "test-repo", 42)
+
     def test_ui_static_endpoints(self):
         """Verify that GET / and GET /ui serve the single-page HTML interface."""
         res_root = client.get("/")

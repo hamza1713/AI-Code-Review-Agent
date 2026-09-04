@@ -28,6 +28,7 @@ from code_review_agent.models import (
 from code_review_agent.main import PRCodeReviewFlow
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.context_engine.code_graph import CodeGraphIndexer
+from code_review_agent.github_client import GitHubClient
 
 
 # Resource Limits
@@ -260,21 +261,27 @@ class ReviewService:
         confidence = max(0, min(100, confidence))
 
         # 2. Determine Verdict
-        verdict = "APPROVE"
-        has_critical_sast = any(f.severity in ["CRITICAL", "HIGH"] for f in state.sast_findings)
-        has_blocking_rules = any(r.severity == "BLOCKING" for r in state.rule_violations)
-
-        final_upper = final_answer[:300].upper()
-        if "ESCALATE" in final_upper or has_critical_sast or has_blocking_rules:
-            verdict = "ESCALATE"
-            if confidence > 40 and has_critical_sast:
-                confidence = min(confidence, 30)
-        elif "REQUEST CHANGES" in final_upper or "REQUEST_CHANGES" in final_upper or len(state.sast_findings) > 0 or len(state.rule_violations) > 0:
-            verdict = "REQUEST CHANGES"
-            if confidence > 75:
-                confidence = 70
-        elif "APPROVE" in final_upper and not has_critical_sast and not has_blocking_rules:
-            verdict = "APPROVE"
+        if "verdict" in review_result and review_result["verdict"]:
+            verdict = str(review_result["verdict"]).upper()
+            if "REQUEST" in verdict:
+                verdict = "REQUEST CHANGES"
+        else:
+            final_upper = final_answer[:400].upper()
+            if "ESCALATE" in final_upper:
+                verdict = "ESCALATE"
+            elif "REQUEST CHANGES" in final_upper or "REQUEST_CHANGES" in final_upper:
+                verdict = "REQUEST CHANGES"
+            elif "APPROVE" in final_upper:
+                verdict = "APPROVE"
+            else:
+                has_critical_sast = any(f.severity in ["CRITICAL", "HIGH"] for f in state.sast_findings)
+                has_blocking_rules = any(r.severity == "BLOCKING" for r in state.rule_violations)
+                if has_critical_sast or has_blocking_rules:
+                    verdict = "ESCALATE"
+                elif state.sast_findings or state.rule_violations:
+                    verdict = "REQUEST CHANGES"
+                else:
+                    verdict = "APPROVE"
 
         # 3. Summary and Full Report
         full_report = final_answer or review_result.get("findings") or "Review completed successfully."
@@ -446,12 +453,12 @@ class ReviewService:
                 governance_violations=flow.state.rule_violations,
                 cross_file_impact=cross_file_summary,
                 generated_unit_tests=flow.state.generated_unit_tests or None,
+                test_execution=flow.state.test_execution,
                 inline_comments=flow.state.inline_comments,
                 telemetry=flow.state.telemetry,
                 trace=trace_data,
                 reviewed_diff=final_diff,
                 scope_note=(
-
                     "Scope Note: Review performed via heuristic regex pattern scanning, AST Code Graph indexer "
                     "(Python only), and governance rules engine. Not a full dataflow SAST or formal verification engine."
                 )
@@ -459,10 +466,31 @@ class ReviewService:
 
             return response
 
-
         finally:
             if temp_dir_obj:
                 try:
                     temp_dir_obj.cleanup()
                 except Exception:
                     pass
+
+    @classmethod
+    def build_review_response(cls, state: ReviewState) -> ReviewAPIResponse:
+        """Construct standard ReviewAPIResponse directly from a completed ReviewState."""
+        verdict, confidence, summary, full_report = cls.extract_verdict_and_confidence(state)
+        return ReviewAPIResponse(
+            verdict=verdict,
+            confidence_score=confidence,
+            summary=summary,
+            full_report=full_report,
+            pattern_findings_label="Quick Pattern Scanner (heuristic)",
+            pattern_findings=state.sast_findings,
+            governance_violations=state.rule_violations,
+            cross_file_impact=CrossFileImpactSummary(available=True, is_python=True, message=""),
+            generated_unit_tests=state.generated_unit_tests or None,
+            test_execution=state.test_execution,
+            inline_comments=state.inline_comments,
+            telemetry=state.telemetry,
+            trace=None,
+            reviewed_diff=state.pr_content,
+            scope_note="Scope Note: Review performed via heuristic regex pattern scanning and AST Code Graph indexer."
+        )

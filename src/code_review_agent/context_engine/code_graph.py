@@ -29,6 +29,12 @@ class CodeGraphIndexer:
     to prevent cross-file namespace collisions and inaccurate caller reporting.
     """
 
+    @classmethod
+    def clear_cache(cls):
+        """Thread-safe purge of the in-memory global AST index cache."""
+        with _INDEX_CACHE_LOCK:
+            _INDEX_CACHE.clear()
+
     def __init__(self, repo_root: Optional[str] = None):
         self.repo_root = Path(repo_root or ".").resolve()
         # qualified_name (e.g. "path/file.py:ClassName.func") -> SymbolInfo

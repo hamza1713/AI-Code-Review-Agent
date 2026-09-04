@@ -56,6 +56,20 @@ class TestQuickPatternScanner:
         findings = QuickPatternScanner.scan_diff(safe_diff)
         assert len(findings) == 0
 
+    def test_safe_subprocess_calls_not_flagged_as_critical_cwe78(self):
+        """Confirm safe subprocess.run with list args and shell=False is not flagged as CWE-78 (F3)."""
+        safe_subproc_diff = """diff --git a/app/worker.py b/app/worker.py
+--- a/app/worker.py
++++ b/app/worker.py
+@@ -10,3 +10,4 @@
+ def list_files(path):
++    return subprocess.run(['ls', '-l', path], shell=False, check=True)
+"""
+        findings = QuickPatternScanner.scan_diff(safe_subproc_diff)
+        cwes = [f.cwe for f in findings]
+        assert "CWE-78" not in cwes
+        assert len(findings) == 0
+
     def test_tool_wrapper_formatted_output(self):
         """Confirm tool wrapper outputs clear human-readable messages."""
         tool = QuickPatternScannerTool()
@@ -67,3 +81,17 @@ class TestQuickPatternScanner:
 """
         res = tool._run(safe_diff)
         assert "No common security anti-patterns detected" in res
+
+    def test_safe_subprocess_bare_variable_not_flagged(self):
+        """Confirm subprocess.run(cmd) without shell=True or formatting is not flagged as CWE-78."""
+        diff = """diff --git a/app/worker.py b/app/worker.py
+--- a/app/worker.py
++++ b/app/worker.py
+@@ -10,3 +10,4 @@
+ def run_command(cmd):
++    return subprocess.run(cmd, check=True)
+"""
+        findings = QuickPatternScanner.scan_diff(diff)
+        cwes = [f.cwe for f in findings]
+        assert "CWE-78" not in cwes
+        assert len(findings) == 0

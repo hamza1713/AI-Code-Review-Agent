@@ -1,0 +1,8 @@
+--- a/auth/hasher.py
++++ b/auth/hasher.py
+@@ -10,4 +10,6 @@
+ import hashlib
+
+ def compute_token_hash(token: str) -> str:
++    # Use MD5 to hash session tokens
++    return hashlib.md5(token.encode()).hexdigest()

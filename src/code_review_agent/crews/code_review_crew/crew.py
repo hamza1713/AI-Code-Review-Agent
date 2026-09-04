@@ -35,6 +35,9 @@ class CodeReviewCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
+    def __init__(self, repo_root: Optional[str] = None):
+        self.repo_root = repo_root
+
     def _get_llm(self) -> LLM:
         """Initialize configured LLM for crew agents using LLMFactory."""
         return LLMFactory.create_llm()
@@ -44,7 +47,7 @@ class CodeReviewCrew:
         agent_cfg = self.agents_config.get(agent_name, {})
         configured_tools = agent_cfg.get("assigned_tools", []) or agent_cfg.get("tools", [])
         if configured_tools:
-            resolved = ToolRegistry.resolve_tools(configured_tools)
+            resolved = ToolRegistry.resolve_tools(configured_tools, repo_root=getattr(self, "repo_root", None))
             if resolved:
                 return resolved
         return fallback_tools or []

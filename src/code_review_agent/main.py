@@ -61,7 +61,7 @@ class PRCodeReviewFlow(Flow[ReviewState]):
 
 
     def _call_llm_with_timeout(self, prompt: str, timeout_seconds: Optional[float] = None) -> str:
-        """Execute LLM call with strict timeout to prevent indefinite hanging."""
+        """Execute LLM call with strict timeout and record token telemetry."""
         timeout = timeout_seconds or float(os.environ.get("LLM_REQUEST_TIMEOUT", "60.0"))
         llm = self._get_llm()
 
@@ -69,7 +69,19 @@ class PRCodeReviewFlow(Flow[ReviewState]):
             future = executor.submit(llm.call, messages=prompt)
             try:
                 result = future.result(timeout=timeout)
-                return str(result)
+                res_str = str(result)
+
+                # Record token usage telemetry for router, fast-path, or standalone calls
+                prompt_toks = max(1, len(prompt) // 4)
+                comp_toks = max(1, len(res_str) // 4)
+                curr_prompt = self.state.tokens_used.get("prompt_tokens", 0) + prompt_toks
+                curr_comp = self.state.tokens_used.get("completion_tokens", 0) + comp_toks
+                self.state.tokens_used = {
+                    "prompt_tokens": curr_prompt,
+                    "completion_tokens": curr_comp,
+                    "total_tokens": curr_prompt + curr_comp
+                }
+                return res_str
             except concurrent.futures.TimeoutError as te:
                 logger.error(f"⏱️ LLM call timed out after {timeout}s")
                 raise TimeoutError(f"LLM call timed out after {timeout}s") from te
@@ -256,11 +268,22 @@ class PRCodeReviewFlow(Flow[ReviewState]):
             for r in self.state.rule_violations
         ]) or "All custom governance rules passed."
 
+        # Apply adaptive diff chunking if PR content exceeds LLM prompt budget (F8)
+        pr_diff_for_crew = self.state.pr_content
+        if len(self.state.pr_content) > 35000:
+            logger.info(f"📦 Diff size ({len(self.state.pr_content)} chars) exceeds budget; performing adaptive chunking...")
+            chunks = DiffParser.chunk_diff_adaptively(self.state.pr_content, max_tokens=6000)
+            if chunks:
+                summary_header = f"[Adaptive Diff Chunking: {len(chunks)} segments. Primary segments included below]\n\n"
+                pr_diff_for_crew = summary_header + "\n\n".join(c["diff_content"] for c in chunks[:3])
+                if len(chunks) > 3:
+                    pr_diff_for_crew += f"\n\n... [{len(chunks) - 3} additional diff segments omitted from agent prompt] ..."
+
         try:
-            code_review_crew = CodeReviewCrew().crew()
+            code_review_crew = CodeReviewCrew(repo_root=self.state.repo_root).crew()
             result = code_review_crew.kickoff(
                 inputs={
-                    "file_content": self.state.pr_content,
+                    "file_content": pr_diff_for_crew,
                     "code_graph_context": code_graph_str,
                     "sast_context": sast_context_str,
                     "rules_context": rules_context_str
@@ -283,9 +306,16 @@ class PRCodeReviewFlow(Flow[ReviewState]):
             # Extract suggested unit tests
             self.state.generated_unit_tests = findings_model.suggested_unit_tests or ""
 
-            # Record token metrics
+            # Accumulate token metrics across all lifecycle steps (F8)
             if hasattr(result, "token_usage") and result.token_usage:
-                self.state.tokens_used = dict(result.token_usage)
+                crew_tokens = dict(result.token_usage)
+                curr_prompt = self.state.tokens_used.get("prompt_tokens", 0) + crew_tokens.get("prompt_tokens", 0)
+                curr_comp = self.state.tokens_used.get("completion_tokens", 0) + crew_tokens.get("completion_tokens", 0)
+                self.state.tokens_used = {
+                    "prompt_tokens": curr_prompt,
+                    "completion_tokens": curr_comp,
+                    "total_tokens": curr_prompt + curr_comp
+                }
 
             logger.info(f" Multi-agent crew review completed (parsed: {is_success}). Generated {len(self.state.inline_comments)} inline comment(s).")
 
@@ -329,6 +359,73 @@ class PRCodeReviewFlow(Flow[ReviewState]):
     def make_final_decision(self):
         """Synthesize findings into an executive report, record telemetry, and submit to GitHub."""
         logger.info("🧐 Formulating final merge decision and executive review report...")
+
+        review_res = self.state.review_result or {}
+        structured_verdict = review_res.get("verdict")
+        confidence_val = review_res.get("confidence")
+
+        # ── Empirical Test Sandbox Execution (Phase 3) ──────────────────────
+        test_evidence_md = ""
+        if self.state.generated_unit_tests:
+            logger.info("🧪 Running generated unit tests in isolated subprocess sandbox...")
+            try:
+                from code_review_agent.sandbox.test_runner import SandboxTestRunner
+                test_exec = SandboxTestRunner.run_tests(
+                    test_code=self.state.generated_unit_tests,
+                    pr_content=self.state.pr_content,
+                    repo_root=self.state.repo_root,
+                    timeout_seconds=15.0
+                )
+                self.state.test_execution = test_exec
+                badge = f"[{test_exec.evidence_badge}]"
+                logger.info(f"🧪 Sandbox test outcome: {badge} - {test_exec.summary_message}")
+                test_evidence_md = (
+                    f"### 🧪 Empirical Test Evidence `{badge}`\n"
+                    f"- **Evidence Badge**: `{test_exec.evidence_badge}`\n"
+                    f"- **Execution Status**: `{test_exec.status}`\n"
+                    f"- **Runtime**: {test_exec.duration_seconds}s\n"
+                    f"- **Details**: {test_exec.summary_message}\n\n"
+                )
+            except Exception as e:
+                logger.warning(f"Could not execute sandbox tests: {e}")
+
+        # ── Deterministic Template Synthesis (F4) ──────────────────────────
+        # If Tech Lead produced a structured verdict & confidence, render Markdown directly.
+        # This eliminates the 4th LLM call, saves ~2000 tokens per review, and makes decisions reproducible.
+        if structured_verdict and confidence_val is not None:
+            logger.info(f"✨ Generating deterministic executive markdown from Tech Lead verdict: {structured_verdict} ({confidence_val}/100)")
+            findings_text = review_res.get("findings") or "Review completed successfully."
+            breakdown = review_res.get("confidence_breakdown") or ""
+            breakdown_line = f"\n*Calculation*: `{breakdown}`\n" if breakdown else ""
+            blocking_reasons = review_res.get("blocking_reasons") or []
+            blocking_block = ""
+            if blocking_reasons:
+                blocking_block = "### 🚫 Blocking Violations\n" + "\n".join(f"- {b}" for b in blocking_reasons) + "\n\n"
+
+            fixes = review_res.get("fix") or []
+            action_items = []
+            for item in fixes:
+                if isinstance(item, dict):
+                    action_items.append(f"- **{item.get('description', 'Fix')}**: {item.get('solutions', '')}")
+                else:
+                    action_items.append(f"- {item}")
+            if not action_items:
+                recs = review_res.get("recommendations") or []
+                for r in recs:
+                    action_items.append(f"- {r}")
+
+            action_items_md = "\n".join(action_items) or "- No critical actions required."
+
+            self.state.final_answer = (
+                f"# Pull Request Review Report\n\n"
+                f"**Final Decision**: {structured_verdict}\n\n"
+                f"**Confidence Score**: {confidence_val}/100{breakdown_line}\n\n"
+                f"### Executive Summary\n{findings_text}\n\n"
+                f"{blocking_block}"
+                f"{test_evidence_md}"
+                f"### Required Action Items\n{action_items_md}\n"
+            )
+            return
 
         prompt = (
             "Based on the following comprehensive analysis of the pull request, "
@@ -555,6 +652,16 @@ def cli_main():
         action="store_true",
         help="Generate flow graph visualization HTML"
     )
+    parser.add_argument(
+        "staged_files",
+        nargs="*",
+        help=(
+            "Optional list of file paths to review directly (no diff file needed). "
+            "Populated automatically by pre-commit via .pre-commit-hooks.yaml, which "
+            "passes staged filenames positionally. Exits non-zero on ESCALATE / "
+            "REQUEST CHANGES so the hook can block the commit."
+        )
+    )
 
     args = parser.parse_args()
 
@@ -563,6 +670,25 @@ def cli_main():
         start_server(port=args.port)
     elif args.plot:
         plot()
+    elif args.staged_files and not args.file and not args.pr:
+        # pre-commit integration: build a synthetic diff from staged files and
+        # exit non-zero on a blocking verdict so git aborts the commit.
+        from code_review_agent.review_service import ReviewService
+
+        combined_diff = "\n\n".join(
+            ReviewService.file_to_unified_diff(path, Path(path).read_text(encoding="utf-8", errors="replace"))
+            for path in args.staged_files
+            if Path(path).is_file()
+        )
+        if not combined_diff.strip():
+            logger.warning("No readable staged files to review; skipping.")
+            return
+
+        flow = kickoff(raw_diff=combined_diff, sarif_output=args.sarif)
+        verdict, confidence, _, _ = ReviewService.extract_verdict_and_confidence(flow.state)
+        logger.info(f"Pre-commit verdict: {verdict} (confidence {confidence}/100)")
+        if verdict in ("ESCALATE", "REQUEST CHANGES"):
+            sys.exit(1)
     else:
         file_target = args.file or ("samples/sql_injection_pr.txt" if not args.pr else None)
         kickoff(
