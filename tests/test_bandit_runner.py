@@ -14,6 +14,7 @@ class TestBanditRunner:
         """Confirm Bandit is detected as available."""
         assert BanditRunner.is_available() is True
 
+    @pytest.mark.slow
     def test_bandit_scans_vulnerable_diff(self):
         """Confirm Bandit detects high-risk vulnerabilities like exec / eval / hardcoded passwords."""
         vuln_diff = """diff --git a/app/tasks.py b/app/tasks.py
@@ -31,6 +32,7 @@ class TestBanditRunner:
         assert any("B102" in rid for rid in rule_ids)
         assert findings[0].analyzer_source == "bandit"
 
+    @pytest.mark.slow
     def test_bandit_on_safe_code(self):
         """Confirm Bandit produces no findings on safe math operations."""
         safe_diff = """diff --git a/app/math.py b/app/math.py

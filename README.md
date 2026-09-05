@@ -503,20 +503,28 @@ Run this suite after any prompt or regex-rule change — it's the regression gat
 
 ## 🧪 Testing
 
+The suite is split into two tiers so the everyday dev loop stays fast:
+
 ```bash
-pytest -v tests/                              # full suite: parsers, engines, queue, sandbox, MCP
-pytest tests/eval/ tests/test_benchmarks.py    # evaluation + ground-truth benchmark only
+pytest -v tests/            # default — excludes `slow`, runs in-process only, seconds not minutes
+pytest -v -m slow tests/    # subprocess-backed: bandit/ruff CLI calls, sandbox test execution
 ruff check src/
 ```
 
-The suite covers diff parsing, the SAST/governance engines, the AST call graph, the durable webhook queue (including concurrent-claim safety), the MCP tool surface, and the sandbox test-execution runner — including a check that the sandbox's environment allowlist actually strips credential-shaped variables before a generated test ever runs. Note: `BanditRunner`/`RuffRunner` shell out to their CLI per scan; on hosts where subprocess cold-start is slow (heavy `site-packages`, AV process scanning), the full suite runs in several minutes rather than seconds — this doesn't affect correctness, only wall-clock time in CI logs.
+**Why the split exists:** a handful of tests spawn a real OS subprocess — `BanditRunner`/`RuffRunner` shell out to their CLI per scan, and the sandbox runner (`sandbox/test_runner.py`) launches a nested `pytest` process to verify generated fixes. Subprocess cold-start time is host-load dependent: fast and reliable in isolation or on a clean CI runner, but progressively slower the more of them get stacked back-to-back in one run — on a loaded dev machine, that can push an individual test's timeout past what's fine when run alone. Rather than chase an ever-larger timeout number for the whole suite, these tests carry `@pytest.mark.slow` and run in their own pass (both tiers still gate CI — see [`ci.yml`](.github/workflows/ci.yml) — they're just no longer entangled with each other's timing).
+
+The default (fast) tier covers diff parsing, the SAST/governance engines, the AST call graph, the durable webhook queue (including concurrent-claim safety), and the MCP tool surface. The `slow` tier covers actual Bandit/Ruff CLI detection accuracy, the ground-truth benchmark suite, and the sandbox's real test execution — including a check that its environment allowlist strips credential-shaped variables (`GEMINI_API_KEY`, `GITHUB_TOKEN`, etc.) before a generated test ever runs.
+
+```bash
+pytest tests/eval/ -m eval    # LLM-as-judge evaluation tests (requires GEMINI_API_KEY)
+```
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repository and create a feature branch.
-2. `pytest -v tests/` and `ruff check src/` before opening a PR.
+2. `pytest -v tests/`, `pytest -v -m slow tests/`, and `ruff check src/` before opening a PR — CI runs both tiers.
 3. Open the PR — the agent will review its own diff automatically via the dogfooded Action.
 
 ## 📄 License

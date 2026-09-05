@@ -19,6 +19,7 @@ class TestBenchmarkSuite:
         assert "QUAL-001" in ids
         assert "GOV-001" in ids
 
+    @pytest.mark.slow
     def test_deterministic_sast_benchmark_metrics(self):
         runner = BenchmarkRunner()
         # Evaluate Security, Governance, and Complex scenarios
@@ -39,6 +40,7 @@ class TestBenchmarkSuite:
         # 240s gives real headroom above that observed range without being a no-op.
         assert metrics.duration_seconds < 240.0
 
+    @pytest.mark.slow
     def test_deterministic_full_benchmark_metrics(self):
         runner = BenchmarkRunner()
         metrics = runner.run_deterministic_benchmark()
@@ -50,6 +52,7 @@ class TestBenchmarkSuite:
         assert "SECURITY" in metrics.category_breakdown
         assert "QUALITY" in metrics.category_breakdown
 
+    @pytest.mark.slow
     def test_format_summary_table(self):
         runner = BenchmarkRunner()
         metrics = runner.run_sast_benchmark()

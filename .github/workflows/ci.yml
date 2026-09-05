@@ -27,6 +27,10 @@ jobs:
           pip install pytest pyyaml pydantic fastapi uvicorn httpx unidiff
           pip install -e .
 
-      - name: Run unit tests with pytest
+      - name: Run fast test suite
         run: |
           pytest -v tests/
+
+      - name: Run subprocess-backed test suite (bandit/ruff CLI, sandbox execution)
+        run: |
+          pytest -v -m slow tests/

@@ -25,6 +25,7 @@ class TestToolRegistry:
         assert len(tools) == 1
         assert "ruff" in tools[0].name.lower()
 
+    @pytest.mark.slow
     def test_crew_loads_tools_from_yaml(self):
         crew = CodeReviewCrew()
         senior_dev = crew.senior_developer()
