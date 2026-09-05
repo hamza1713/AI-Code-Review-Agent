@@ -14,6 +14,7 @@ class TestRuffTool:
         """Confirm Ruff is available in test environment."""
         assert RuffRunner.is_available() is True
 
+    @pytest.mark.slow
     def test_ruff_detects_unused_import(self):
         """Confirm Ruff flags F401 (unused import)."""
         diff_with_unused_import = """diff --git a/app/service.py b/app/service.py
@@ -29,6 +30,7 @@ class TestRuffTool:
         codes = [f.code for f in findings]
         assert "F401" in codes
 
+    @pytest.mark.slow
     def test_ruff_tool_wrapper_formatted_output(self):
         """Confirm RuffTool BaseTool outputs clear message to CrewAI agents."""
         tool = RuffTool()

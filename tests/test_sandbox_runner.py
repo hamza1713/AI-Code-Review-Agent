@@ -11,6 +11,7 @@ from code_review_agent.sandbox.test_runner import SandboxTestRunner
 class TestSandboxRunner:
     """Test suite for the isolated subprocess test execution sandbox."""
 
+    @pytest.mark.slow
     def test_sandbox_executes_passing_tests(self):
         """Verify passing test suite receives PASSING badge."""
         test_code = """
@@ -30,6 +31,7 @@ def test_string_formatting():
         assert result.failures == 0
         assert "passed" in result.summary_message.lower()
 
+    @pytest.mark.slow
     def test_sandbox_reproduces_failing_defect(self):
         """Verify failing test asserting a defect receives REPRODUCED badge."""
         test_code = """
@@ -55,6 +57,7 @@ def test_reproduce_bug():
         assert result.status == "SKIPPED"
         assert result.evidence_badge == "HEURISTIC"
 
+    @pytest.mark.slow
     def test_sandbox_timeout_safety(self):
         """Verify infinite loops or blocking calls are safely killed after timeout."""
         infinite_loop_test = """
@@ -78,6 +81,7 @@ def broken_syntax(
         assert result.status == "ERROR"
         assert result.evidence_badge == "UNVERIFIED"
 
+    @pytest.mark.slow
     def test_sandbox_blocks_host_environment_secrets(self, monkeypatch):
         """Verify host API keys and tokens are purged from the sandbox environment."""
         monkeypatch.setenv("GEMINI_API_KEY", "secret-gemini-key-123")
