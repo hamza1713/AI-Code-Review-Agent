@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist (tracked so Python backend can serve React UI on Render without Node)
 dist-ssr
 *.local
 

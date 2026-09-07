@@ -30,7 +30,7 @@ MANIFEST
 # Node & Frontend artifacts
 node_modules/
 frontend/node_modules/
-frontend/dist/
+# frontend/dist/ (tracked so Python backend can serve React UI on Render without Node)
 
 # SQLite databases & runtime queue
 *.db
