@@ -11,4 +11,4 @@ ruff>=0.3.0
 tree-sitter>=0.21.0
 bandit>=1.7.8
 mcp>=1.0.0
--e .\n
+-e .
