@@ -10,6 +10,7 @@ from .sast_scanner import (
 )
 from .semgrep_runner import SemgrepRunner
 from .bandit_runner import BanditRunner
+from .ast_security_scanner import ASTSecurityScanner
 from .ruff_tool import RuffRunner, RuffTool, RuffLintFinding
 from .test_generator import TestGeneratorTool
 
@@ -24,6 +25,7 @@ __all__ = [
     "UnifiedSecurityScannerTool",
     "SemgrepRunner",
     "BanditRunner",
+    "ASTSecurityScanner",
     "RuffRunner",
     "RuffTool",
     "RuffLintFinding",

@@ -5,7 +5,7 @@ into a unified vulnerability reporting pipeline before LLM reasoning.
 """
 
 import re
-from typing import List, Dict, Type, Any, Optional
+from typing import List, Dict, Type, Any, Optional, Tuple
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,7 @@ from code_review_agent.models import SastFinding, ParsedPR
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.tools.semgrep_runner import SemgrepRunner
 from code_review_agent.tools.bandit_runner import BanditRunner, is_safe_subprocess_call
+from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
 from code_review_agent.config import logger
 from code_review_agent.cache import memoize_by_content
 
@@ -189,6 +190,24 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         pattern=r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)",
         description="Bare except or except Exception with pass silently swallows unexpected errors and hides runtime bugs.",
         fix_recommendation="Catch specific exceptions and log the error: except SpecificError as e: logger.warning(f'... {e}')"
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-SQLI-004",
+        cwe="CWE-89",
+        name="SQL Query String Concatenation via Operator (+ / +=)",
+        severity="CRITICAL",
+        pattern=r"(?:query|sql|stmt)\s*(?:\+=|\+)\s*(?:['\"].*?['\"]\s*\+\s*)?[A-Za-z_]\w*",
+        description="Accumulating SQL query strings by concatenating untrusted variables directly with + or +=.",
+        fix_recommendation="Use parameterized queries instead of dynamically concatenating SQL strings."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-CMD-002",
+        cwe="CWE-78",
+        name="Command String Concatenation for Shell Execution",
+        severity="CRITICAL",
+        pattern=r"(?:cmd|command|exec_cmd|shell_cmd)\s*(?:\+=|=)\s*['\"][^'\"]*?['\"]\s*\+\s*[A-Za-z_]\w*",
+        description="Building operating system command string via concatenation with variables before shell execution.",
+        fix_recommendation="Pass arguments as a list to subprocess without shell=True: subprocess.run(['cmd', arg], check=True)"
     )
 ]
 
@@ -196,16 +215,104 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
 SAST_RULES = SECURITY_PATTERN_RULES
 
 
+def strip_line_comment(line: str) -> str:
+    """
+    Strip trailing and full-line comments from code lines while preserving
+    comment characters (#, //) inside string literals (e.g. 'https://...' or 'key_#123').
+    """
+    if not line:
+        return ""
+
+    in_single_quote = False
+    in_double_quote = False
+    escape = False
+    i = 0
+    n = len(line)
+
+    while i < n:
+        c = line[i]
+
+        if escape:
+            escape = False
+            i += 1
+            continue
+
+        if c == "\\":
+            escape = True
+            i += 1
+            continue
+
+        if c == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            i += 1
+            continue
+
+        if c == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            i += 1
+            continue
+
+        if not in_single_quote and not in_double_quote:
+            # Python / Shell comment: #
+            if c == "#":
+                return line[:i].rstrip()
+            # C / Java / JS / Go comment: //
+            if c == "/" and i + 1 < n and line[i + 1] == "/":
+                return line[:i].rstrip()
+            # Start of block comment: /*
+            if c == "/" and i + 1 < n and line[i + 1] == "*":
+                return line[:i].rstrip()
+
+        i += 1
+
+    return line
+
+
+def is_comment_or_docstring_line(line: str, in_docstring: bool) -> Tuple[bool, bool]:
+    """
+    Determine if a line is a comment or inside a multiline docstring.
+    Returns (is_comment, new_in_docstring_state).
+    """
+    s = line.strip()
+    if not s:
+        return False, in_docstring
+
+    # Check for docstring toggling: """ or '''
+    triple_double = s.count('"""')
+    triple_single = s.count("'''")
+
+    if triple_double % 2 == 1:
+        new_state = not in_docstring
+        return True, new_state
+    if triple_single % 2 == 1:
+        new_state = not in_docstring
+        return True, new_state
+
+    if in_docstring:
+        return True, True
+
+    # Single-line full docstring e.g. """docstring here"""
+    if (s.startswith('"""') and s.endswith('"""') and len(s) >= 6) or \
+       (s.startswith("'''") and s.endswith("'''") and len(s) >= 6):
+        return True, False
+
+    # Full line comment
+    if s.startswith("#") or s.startswith("//") or s.startswith("/*") or s.startswith("*"):
+        return True, in_docstring
+
+    return False, in_docstring
+
+
 class QuickPatternScanner:
     """
-    Performs fast heuristic regex pattern scanning on PR diffs.
+    Performs fast heuristic regex pattern scanning on PR diffs with comment & docstring filtering.
     Identifies common security anti-patterns and high-risk code constructs.
     """
 
     @staticmethod
     @memoize_by_content("quick_pattern")
     def scan_diff(raw_diff: str) -> List[SastFinding]:
-        """Scan all added lines in a unified diff for known security patterns."""
+        """Scan all added lines in a unified diff for known security patterns with comment filtering."""
         parsed_pr = DiffParser.parse_diff(raw_diff)
         findings: List[SastFinding] = []
 
@@ -213,12 +320,21 @@ class QuickPatternScanner:
             file_path = file_diff.target_file
             added_lines = DiffParser.extract_added_lines_with_numbers(file_diff)
 
-            # Check line-by-line
+            # Check line-by-line with comment stripping
+            in_docstring = False
             for line_no, line_content in added_lines:
+                is_comm, in_docstring = is_comment_or_docstring_line(line_content, in_docstring)
+                if is_comm:
+                    continue
+
+                code_part = strip_line_comment(line_content)
+                if not code_part.strip():
+                    continue
+
                 for rule in SECURITY_PATTERN_RULES:
-                    if rule.rule_id == "SEC-CMD-001" and is_safe_subprocess_call(line_content):
+                    if rule.rule_id == "SEC-CMD-001" and is_safe_subprocess_call(code_part):
                         continue
-                    if re.search(rule.pattern, line_content, re.IGNORECASE):
+                    if re.search(rule.pattern, code_part, re.IGNORECASE):
                         findings.append(
                             SastFinding(
                                 rule_id=rule.rule_id,
@@ -227,19 +343,33 @@ class QuickPatternScanner:
                                 severity=rule.severity,
                                 file_path=file_path,
                                 line_number=line_no,
-                                snippet=line_content.strip(),
+                                snippet=code_part.strip(),
                                 fix_recommendation=rule.fix_recommendation,
                                 analyzer_source="regex"
                             )
                         )
 
-            # Check multiline patches for patterns spanning lines (e.g. multi-line SQL queries)
+            # Check multiline patches after cleaning comments/docstrings
             raw_patch = file_diff.raw_patch
+            clean_patch_lines = []
+            in_doc = False
+            for l in raw_patch.splitlines():
+                content_only = l[1:] if l.startswith(("+", "-", " ")) else l
+                is_c, in_doc = is_comment_or_docstring_line(content_only, in_doc)
+                prefix = l[:1] if l.startswith(("+", "-", " ")) else ""
+                if is_c:
+                    clean_patch_lines.append(prefix)
+                else:
+                    clean_patch_lines.append(prefix + strip_line_comment(content_only))
+            cleaned_patch = "\n".join(clean_patch_lines)
+
             for rule in SECURITY_PATTERN_RULES:
                 if rule.rule_id == "SEC-CMD-001":
                     continue
-                for match in re.finditer(rule.pattern, raw_patch, re.IGNORECASE):
+                for match in re.finditer(rule.pattern, cleaned_patch, re.IGNORECASE):
                     matched_snippet = match.group(0).strip()
+                    if not matched_snippet:
+                        continue
                     if not any(f.file_path == file_path and f.rule_id == rule.rule_id for f in findings):
                         first_line = matched_snippet.splitlines()[0].lstrip("+- ").strip()
                         line_no = next((ln for ln, content in added_lines if first_line and first_line in content), 1)
@@ -283,7 +413,15 @@ class UnifiedSecurityScanner:
                 seen_keys.add(key)
                 all_findings.append(f)
 
-        # 2. Bandit AST scan (if available)
+        # 2. AST Constant Folding & Variable Indirection Scanner (Python AST)
+        ast_findings = ASTSecurityScanner.scan_diff(raw_diff)
+        for f in ast_findings:
+            key = (f.file_path, f.line_number, f.rule_id)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_findings.append(f)
+
+        # 3. Bandit AST scan (if available)
         if BanditRunner.is_available():
             bandit_findings = BanditRunner.scan_diff(raw_diff)
             for f in bandit_findings:
