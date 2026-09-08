@@ -5,6 +5,7 @@ and parses the structured JSON results into normalized SastFinding objects.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,34 @@ from code_review_agent.config import logger
 
 
 import sys
+
+def is_safe_subprocess_call(text: str) -> bool:
+    """
+    Determine if a subprocess invocation is safe from CWE-78 shell injection.
+    Safe calls:
+    - Lists of arguments without shell=True or /bin/sh wrapper
+    - Explicit shell=False
+    - Invocations without shell=True and without string interpolation/concatenation
+    """
+    if not text:
+        return True
+    if "os.system" in text:
+        return False
+    if re.search(r"shell\s*=\s*True", text, re.IGNORECASE):
+        return False
+    # Check for shell wrapper in command list (e.g. ["/bin/sh", "-c", ...])
+    if re.search(r"['\"](?:/bin/)?(?:ba)?sh['\"]\s*,\s*['\"]-c['\"]", text):
+        return False
+    # Explicit shell=False is always safe from shell injection
+    if re.search(r"shell\s*=\s*False", text, re.IGNORECASE):
+        return True
+    # List arguments are safe from shell injection
+    if re.search(r"subprocess\.(?:call|run|Popen|check_output)\s*\(\s*\[", text):
+        return True
+    # If no string formatting, concatenation, or interpolation is used, Python defaults to shell=False
+    if not re.search(r"f[\"']|\s*\+\s*|%s|%\s*\(|\.format\s*\(", text):
+        return True
+    return False
 
 class BanditRunner:
     """Wrapper around Bandit for Python AST security scanning."""
@@ -95,7 +124,13 @@ class BanditRunner:
                 file_map[dest.name] = target_rel
 
             try:
-                cmd = [sys.executable, "-m", "bandit", "-r", str(tmp_path), "-f", "json", "-q"]
+                cmd = [
+                    sys.executable, "-m", "bandit",
+                    "-r", str(tmp_path),
+                    "-f", "json",
+                    "-q",
+                    "-s", "B401,B402,B403,B404,B405,B406,B407,B408,B409,B410,B411,B412,B413"
+                ]
                 res = subprocess.run(
                     cmd,
                     capture_output=True,
@@ -119,6 +154,18 @@ class BanditRunner:
             results = data.get("results", [])
             for item in results:
                 test_id = item.get("test_id", "B000")
+
+                # 1. Skip B4xx import blacklist notices (importing a library is not an exploit on its own)
+                if test_id.startswith("B4"):
+                    continue
+
+                code = item.get("code", "")
+
+                # 2. Skip B603 (subprocess_without_shell_equals_true) and B607 (start_process_with_partial_path)
+                # when the invocation is safe from CWE-78 command injection (list arguments, shell=False)
+                if test_id in ("B603", "B607") and is_safe_subprocess_call(code):
+                    continue
+
                 test_name = item.get("test_name", "bandit_check")
                 issue_text = item.get("issue_text", "")
                 issue_severity = item.get("issue_severity", "MEDIUM").upper()
@@ -126,7 +173,6 @@ class BanditRunner:
                 cwe_id = cwe_info.get("id")
                 cwe = f"CWE-{cwe_id}" if cwe_id else "CWE-Security"
 
-                code = item.get("code", "")
                 line_number = item.get("line_number", 1)
                 raw_filename = item.get("filename", "")
                 abs_filename = str(Path(raw_filename).resolve()) if raw_filename else ""

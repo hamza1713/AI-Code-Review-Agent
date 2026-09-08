@@ -39,10 +39,10 @@ from code_review_agent.models import SastFinding, RuleViolation, TestExecutionRe
 CANONICAL_SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]  # ascending
 _SEV_RANK = {s: i for i, s in enumerate(CANONICAL_SEVERITIES)}
 
-# Bounded-score parameters (documented in module docstring / README).
-_WEIGHT = {"CRITICAL": 25, "HIGH": 15, "MEDIUM": 8, "LOW": 3, "INFO": 1}
-_CEILING = {"CRITICAL": 60, "HIGH": 75, "MEDIUM": 88, "LOW": 95, "INFO": 98, "NONE": 100}
-_FLOOR = {"CRITICAL": 5, "HIGH": 20, "MEDIUM": 40, "LOW": 60, "INFO": 85, "NONE": 100}
+# Bounded-score parameters (calibrated non-saturating scoring).
+_WEIGHT = {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "LOW": 2, "INFO": 1}
+_CEILING = {"CRITICAL": 65, "HIGH": 78, "MEDIUM": 88, "LOW": 95, "INFO": 98, "NONE": 100}
+_FLOOR = {"CRITICAL": 15, "HIGH": 25, "MEDIUM": 45, "LOW": 65, "INFO": 85, "NONE": 100}
 _DECAY = 0.5  # geometric decay → the k-th defect of a severity penalizes half as much
 
 # Adjacency window (lines) within which same-root-cause signals merge (import + call, etc.).
@@ -65,9 +65,13 @@ _CWE_SEVERITY: Dict[str, str] = {
     "CWE-918": "HIGH",      # SSRF
     "CWE-319": "HIGH",      # cleartext transmission
     "CWE-295": "HIGH",      # improper cert validation / disabled TLS verify
+    "CWE-732": "HIGH",      # incorrect permission assignment (world-writable 0o777)
     "CWE-327": "MEDIUM",    # broken/weak crypto
     "CWE-326": "MEDIUM",    # inadequate encryption strength
     "CWE-330": "MEDIUM",    # weak randomness
+    "CWE-20": "MEDIUM",     # improper input validation
+    "CWE-703": "LOW",       # improper exception handling / silent swallow
+    "CWE-390": "LOW",       # detection of error condition without action
 }
 
 # ── CWE correction rules (rule 6) — detect the real defect from evidence text ─
@@ -79,6 +83,11 @@ _CWE_CORRECTIONS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"os\.system\s*\(|subprocess\.[a-z_]+\([^)]*shell\s*=\s*True", re.I), "CWE-78"),
     (re.compile(r"hashlib\.(?:md5|sha1)\s*\(", re.I), "CWE-327"),
     (re.compile(r"(?:SELECT|INSERT|UPDATE|DELETE)\b.*?(?:\{|\+|%\s*\()", re.I | re.S), "CWE-89"),
+    (re.compile(r"os\.chmod\s*\([^,]+,\s*(?:0o?777|0o?666)", re.I), "CWE-732"),
+    (re.compile(r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)", re.I), "CWE-703"),
+    (re.compile(r"random\.(?:choice|random|randint|randrange)", re.I), "CWE-330"),
+    (re.compile(r"check_hostname\s*=\s*False|verify_mode\s*=\s*ssl\.CERT_NONE|verify\s*=\s*False", re.I), "CWE-295"),
+    (re.compile(r"open\s*\(\s*os\.path\.join", re.I), "CWE-22"),
 ]
 
 # Governance rule_id keywords → the security CWE they proxy (else pure style).
@@ -282,16 +291,29 @@ class SynthesisReconciler:
         return signals
 
     @staticmethod
-    def _correct_cwe(cwe: Optional[str], evidence: str) -> Optional[str]:
+    def _normalize_cwe(cwe: Optional[str]) -> Optional[str]:
+        """Normalize CWE string so it consistently has exactly one CWE- prefix."""
+        if not cwe:
+            return None
+        cleaned = cwe.strip().upper()
+        while cleaned.startswith("CWE-"):
+            cleaned = cleaned[4:]
+        return f"CWE-{cleaned}" if cleaned else None
+
+    @classmethod
+    def _correct_cwe(cls, cwe: Optional[str], evidence: str) -> Optional[str]:
         """Rule 6: assign the CWE that matches the defect, correcting inherited mislabels."""
         for pattern, corrected in _CWE_CORRECTIONS:
             if pattern.search(evidence or ""):
                 return corrected
-        return (cwe or "").strip().upper() or None
+        return cls._normalize_cwe(cwe)
 
     @classmethod
     def _signal_severity(cls, sig: _Signal) -> str:
         """Rule 2: ONE severity from the documented rubric (impact-based), not analyzer copy."""
+        # Bandit low-severity informational / partial-path warnings should never escalate to CRITICAL
+        if any(bid in sig.source for bid in ("B603", "B607", "B110")):
+            return "LOW"
         if sig.cwe and sig.cwe in _CWE_SEVERITY:
             return _CWE_SEVERITY[sig.cwe]
         if sig.is_governance:

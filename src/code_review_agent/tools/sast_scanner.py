@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from code_review_agent.models import SastFinding, ParsedPR
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.tools.semgrep_runner import SemgrepRunner
-from code_review_agent.tools.bandit_runner import BanditRunner
+from code_review_agent.tools.bandit_runner import BanditRunner, is_safe_subprocess_call
 from code_review_agent.config import logger
 from code_review_agent.cache import memoize_by_content
 
@@ -99,32 +99,101 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-22",
         name="Path Traversal / Arbitrary File Read",
         severity="HIGH",
-        pattern=r"open\s*\(\s*(?:os\.path\.join\s*\([^)]*user|f[\"'].*?\{user.*?[\"'])",
-        description="Opening files using unsanitized user-controlled file paths can permit directory traversal.",
-        fix_recommendation="Sanitize file paths using os.path.basename or validate against an allowed directory with os.path.commonpath."
+        # open(os.path.join(<...>, <identifier>)) — a variable last segment is likely
+        # caller-controlled; all-literal joins (…, "config.json") don't match. Also catches
+        # f-string and concatenated user paths.
+        pattern=(
+            r"open\s*\(\s*os\.path\.join\s*\([^)]*,\s*[A-Za-z_]\w*\s*\)"
+            r"|open\s*\(\s*[A-Za-z_]\w*\s*\+\s*[A-Za-z_]\w*"
+            r"|open\s*\(\s*f[\"'].*?\{.*?\}.*?[\"']"
+        ),
+        description="Opening files using an unsanitized, caller-controlled file path can permit directory traversal (e.g. '../../etc/passwd').",
+        fix_recommendation="Resolve and validate the path against an allowed base directory: base=os.path.realpath(base_dir); target=os.path.realpath(os.path.join(base, name)); assert target.startswith(base + os.sep)."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-TLS-001",
+        cwe="CWE-295",
+        name="Disabled TLS Certificate Verification",
+        severity="HIGH",
+        pattern=(
+            r"check_hostname\s*=\s*False"
+            r"|verify_mode\s*=\s*(?:ssl\.)?CERT_NONE"
+            r"|ssl\._create_unverified_context\s*\("
+            r"|(?:^|[^\w.])verify\s*=\s*False"
+        ),
+        description="TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-middle attacks on encrypted connections.",
+        fix_recommendation="Keep verification enabled: use ssl.create_default_context() with check_hostname=True and CERT_REQUIRED, or pass verify=True (or a CA bundle path) to the HTTP client."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-PASS-001",
+        cwe="CWE-259",
+        name="Hardcoded Password String",
+        severity="HIGH",
+        pattern=r"(?:db_password|password|passwd|pwd)\s*=\s*['\"][^'\"]{4,}['\"]",
+        description="Hardcoded password string detected in assignment.",
+        fix_recommendation="Load passwords from environment variables or a secrets manager."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-SQLI-003",
+        cwe="CWE-89",
+        name="SQL Query String Formatting (% / format)",
+        severity="CRITICAL",
+        pattern=(
+            r"['\"][^'\"]*?(?:SELECT|INSERT|UPDATE|DELETE)[^'\"]*?['\"]\s*%\s*[A-Za-z_(\[]"
+            r"|['\"][^'\"]*?(?:SELECT|INSERT|UPDATE|DELETE)[^'\"]*?['\"]\s*\.format\s*\("
+        ),
+        description="String formatting (% or .format()) used directly in SQL query construction. Allows SQL injection.",
+        fix_recommendation="Use parameterized queries: cursor.execute('SELECT * FROM users WHERE name = ?', (username,))"
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-EVAL-001",
+        cwe="CWE-95",
+        name="Dynamic Code Evaluation (eval / exec)",
+        severity="CRITICAL",
+        pattern=r"(?:^|[^\w.])(?:eval|exec)\s*\([^)]+\)",
+        description="Direct use of eval() or exec() to dynamically execute code/expressions. Enables arbitrary code execution if inputs are untrusted.",
+        fix_recommendation="Use ast.literal_eval() for parsing data structures, or avoid dynamic evaluation."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-RAND-001",
+        cwe="CWE-330",
+        name="Insecure Pseudo-Random Generator for Security",
+        severity="MEDIUM",
+        pattern=r"(?:^|[^\w.])random\.(?:choice|random|randint|randrange|choices)\s*\(",
+        description="Standard pseudo-random number generator (random module) used for generating tokens, keys, or security values.",
+        fix_recommendation="Use secrets module for cryptographic or security tokens: secrets.token_hex() or secrets.choice()."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-YAML-001",
+        cwe="CWE-502",
+        name="Unsafe YAML Deserialization (yaml.load)",
+        severity="HIGH",
+        pattern=r"yaml\.load\s*\([^)]*(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)",
+        description="Unsafe yaml.load() allows arbitrary object deserialization and remote code execution.",
+        fix_recommendation="Use yaml.safe_load() or specify Loader=yaml.SafeLoader."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-PERM-001",
+        cwe="CWE-732",
+        name="Permissive File Permissions (chmod 0777)",
+        severity="HIGH",
+        pattern=r"os\.chmod\s*\([^,]+,\s*(?:0o?777|0o?666|stat\.S_IRWXU\s*\|\s*stat\.S_IRWXG\s*\|\s*stat\.S_IRWXO)\)",
+        description="Overly permissive file mask (0o777 / 0o666) grants read/write/execute permissions to all system users.",
+        fix_recommendation="Restrict permissions to owner only (e.g. 0o600 or 0o700): os.chmod(path, 0o600)."
+    ),
+    SecurityPatternRule(
+        rule_id="SEC-EXCEPT-001",
+        cwe="CWE-703",
+        name="Silent Exception Swallow",
+        severity="LOW",
+        pattern=r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)",
+        description="Bare except or except Exception with pass silently swallows unexpected errors and hides runtime bugs.",
+        fix_recommendation="Catch specific exceptions and log the error: except SpecificError as e: logger.warning(f'... {e}')"
     )
 ]
 
 # Backwards compatibility alias
 SAST_RULES = SECURITY_PATTERN_RULES
-
-
-def is_safe_subprocess_call(text: str) -> bool:
-    """Determine if a subprocess invocation is safe from CWE-78 shell injection."""
-    if "os.system" in text:
-        return False
-    if re.search(r"shell\s*=\s*True", text, re.IGNORECASE):
-        return False
-    # Explicit shell=False is always safe from shell injection
-    if re.search(r"shell\s*=\s*False", text, re.IGNORECASE):
-        return True
-    # List arguments are safe from shell injection
-    if re.search(r"subprocess\.(?:call|run|Popen|check_output)\s*\(\s*\[", text):
-        return True
-    # If no string formatting, concatenation, or interpolation is used, Python defaults to shell=False
-    if not re.search(r"f[\"']|\s*\+\s*|%s|%\s*\(|\.format\s*\(", text):
-        return True
-    return False
 
 
 class QuickPatternScanner:
@@ -172,6 +241,8 @@ class QuickPatternScanner:
                 for match in re.finditer(rule.pattern, raw_patch, re.IGNORECASE):
                     matched_snippet = match.group(0).strip()
                     if not any(f.file_path == file_path and f.rule_id == rule.rule_id for f in findings):
+                        first_line = matched_snippet.splitlines()[0].lstrip("+- ").strip()
+                        line_no = next((ln for ln, content in added_lines if first_line and first_line in content), 1)
                         findings.append(
                             SastFinding(
                                 rule_id=rule.rule_id,
@@ -179,7 +250,7 @@ class QuickPatternScanner:
                                 description=f"{rule.name}: {rule.description}",
                                 severity=rule.severity,
                                 file_path=file_path,
-                                line_number=1,
+                                line_number=line_no,
                                 snippet=matched_snippet,
                                 fix_recommendation=rule.fix_recommendation,
                                 analyzer_source="regex"
