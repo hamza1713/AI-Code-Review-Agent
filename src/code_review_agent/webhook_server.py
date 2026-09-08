@@ -4,6 +4,7 @@ Validates HMAC SHA-256 signatures, enqueues review jobs into a persistent task q
 and executes asynchronous multi-agent reviews with retries and crash recovery.
 """
 
+import os
 import asyncio
 import hmac
 import hashlib
@@ -11,16 +12,17 @@ import json
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, Request, Header, HTTPException, Query, File, UploadFile, Form
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from pydantic import BaseModel
+from fastapi import FastAPI, Request, Header, HTTPException, Query, File, UploadFile, Form, BackgroundTasks
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 
 from code_review_agent.config import get_webhook_secret, logger
-from code_review_agent.github_client import GitHubClient
 from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
 from code_review_agent.models import ReviewAPIResponse
+from code_review_agent.bot import CommandRouter
 from code_review_agent.review_service import (
     ReviewService,
     RateLimitExceeded,
@@ -68,6 +70,45 @@ def verify_github_signature(payload_body: bytes, signature_header: Optional[str]
     ).hexdigest()
 
     return hmac.compare_digest(expected_signature, signature_header)
+
+
+def _bot_allowed_associations() -> set:
+    """Author associations permitted to run non-help bot commands (configurable)."""
+    raw = os.getenv("BOT_ALLOWED_ASSOCIATIONS", "OWNER,MEMBER,COLLABORATOR")
+    return {a.strip().upper() for a in raw.split(",") if a.strip()}
+
+
+def _is_authorized_commenter(comment: Dict[str, Any], command_name: str) -> bool:
+    """
+    Decide whether a PR commenter may run a given slash command.
+
+    `/help` is read-only and free, so anyone may run it. Every other command spends
+    LLM tokens and/or writes to the PR with the bot's token, so it is restricted to
+    trusted author associations (repo owner, org member, or collaborator by default).
+    """
+    if command_name == "help":
+        return True
+    association = (comment.get("author_association") or "NONE").upper()
+    return association in _bot_allowed_associations()
+
+
+def _bot_identities() -> set:
+    """Usernames whose comments are the bot's own — skipped to avoid feedback loops."""
+    raw = f"{os.getenv('BOT_GITHUB_LOGIN', '')},{os.getenv('BOT_BOT_USERNAMES', '')}"
+    return {u.strip().lower() for u in raw.split(",") if u.strip()}
+
+
+def _username_authorized(username: str, command_name: str) -> bool:
+    """
+    Authorize a slash command by username allowlist. GitLab and Bitbucket webhooks do
+    not carry GitHub's author_association, so trusted users are listed in BOT_ALLOWED_USERS.
+    `/help` is always allowed; every other command is refused when the allowlist is unset
+    (fail closed), so an unconfigured deployment can't be abused for LLM cost or writes.
+    """
+    if command_name == "help":
+        return True
+    allow = {u.strip().lower() for u in os.getenv("BOT_ALLOWED_USERS", "").split(",") if u.strip()}
+    return bool(allow) and (username or "").lower() in allow
 
 
 @app.get("/health")
@@ -179,9 +220,26 @@ async def trigger_test_webhook():
 
 
 
+class BotCommandRequest(BaseModel):
+    command: str
+    pr_url: Optional[str] = None
+    raw_diff: Optional[str] = None
+    repo_root: Optional[str] = None
+    auto_post: bool = False
+
+
+class BotCommandResponse(BaseModel):
+    command: str
+    status: str
+    response_markdown: str
+    action_taken: str
+    metadata: Dict[str, Any] = {}
+
+
 @app.post("/webhook/github")
 async def github_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_github_event: Optional[str] = Header(None),
     x_hub_signature_256: Optional[str] = Header(None)
 ):
@@ -192,10 +250,58 @@ async def github_webhook(
         logger.error("GitHub webhook signature verification failed.")
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-    if x_github_event != "pull_request":
-        return {"status": "ignored", "reason": f"Event '{x_github_event}' is not a pull_request event."}
-
     payload = json.loads(body_bytes.decode("utf-8"))
+
+    # 1. Handle PR comments & Slash Commands
+    if x_github_event == "issue_comment":
+        action = payload.get("action", "")
+        if action != "created":
+            return {"status": "ignored", "reason": f"Comment action '{action}' does not require processing."}
+
+        issue = payload.get("issue", {})
+        if "pull_request" not in issue:
+            return {"status": "ignored", "reason": "Comment is on an issue, not a pull request."}
+
+        comment = payload.get("comment", {})
+        user = comment.get("user", {})
+        login = user.get("login", "")
+        # Feedback-loop guard: skip GitHub App bots and this bot's own account.
+        own_login = os.getenv("BOT_GITHUB_LOGIN", "").strip().lower()
+        if user.get("type") == "Bot" or "[bot]" in login.lower() or (own_login and login.lower() == own_login):
+            return {"status": "ignored", "reason": "Bot/self comment ignored to avoid feedback loop."}
+
+        comment_body = comment.get("body", "").strip()
+        if not CommandRouter.is_bot_command(comment_body):
+            return {"status": "ignored", "reason": "Comment is not a slash command."}
+
+        cmd, _ = CommandRouter.parse_command(comment_body)
+
+        # Authorization: only trusted associations may run cost-bearing / writing commands.
+        if not _is_authorized_commenter(comment, cmd):
+            logger.warning(
+                f"Rejected '/{cmd}' from '{login}' "
+                f"(association={comment.get('author_association')}) — not authorized."
+            )
+            return {"status": "ignored", "reason": "Commenter is not authorized to run this command."}
+
+        pr_html_url = issue.get("pull_request", {}).get("html_url") or issue.get("html_url")
+        logger.info(f"🤖 Queuing PR slash command '/{cmd}' for {pr_html_url}...")
+
+        # Run off the request path: slash commands do GitHub + LLM work (a full /review
+        # can take minutes). GitHub expects the webhook to be acknowledged within
+        # seconds or it retries the delivery — which would re-trigger the command.
+        background_tasks.add_task(
+            CommandRouter.dispatch,
+            command_text=comment_body,
+            pr_url=pr_html_url,
+            auto_post=True,
+        )
+        return {"status": "accepted", "command": cmd, "message": "Command accepted and processing in the background."}
+
+    # 2. Handle PR lifecycle reviews
+    if x_github_event != "pull_request":
+        return {"status": "ignored", "reason": f"Event '{x_github_event}' is not handled."}
+
     action = payload.get("action", "")
 
     # Trigger only on actionable PR lifecycle events
@@ -216,7 +322,233 @@ async def github_webhook(
             "message": f"PR #{pull_number} review job durably enqueued (ID: {job_id})"
         }
 
+    # Handle PR merged -> record accepted suggestions into Team Memory (Phase 3)
+    if action == "closed":
+        pr_data = payload.get("pull_request", {})
+        if pr_data.get("merged"):
+            repo_data = payload.get("repository", {})
+            owner = repo_data.get("owner", {}).get("login", "")
+            repo = repo_data.get("name", "")
+            pull_number = pr_data.get("number") or payload.get("number")
+            logger.info(f"🎓 PR #{pull_number} merged in {owner}/{repo}! Queuing learning loop...")
+            from code_review_agent.learning.suggestion_tracker import SuggestionTracker
+            background_tasks.add_task(
+                SuggestionTracker().process_merged_pr,
+                owner=owner,
+                repo=repo,
+                pr_number=pull_number
+            )
+            return {
+                "status": "accepted",
+                "action": "closed",
+                "merged": True,
+                "message": f"PR #{pull_number} merge processed; conventions recorded into Team Memory."
+            }
+
     return {"status": "ignored", "reason": f"Action '{action}' does not require automated review."}
+
+
+@app.post("/webhook/gitlab")
+async def gitlab_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_gitlab_event: Optional[str] = Header(None),
+    x_gitlab_token: Optional[str] = Header(None)
+):
+    """Receive and process GitLab webhook events (Merge Requests and Notes)."""
+    expected_token = os.environ.get("GITLAB_WEBHOOK_SECRET") or os.environ.get("GITLAB_TOKEN")
+    if expected_token and x_gitlab_token != expected_token:
+        logger.error("GitLab webhook token verification failed.")
+        raise HTTPException(status_code=401, detail="Invalid GitLab webhook token")
+
+    body_bytes = await request.body()
+    payload = json.loads(body_bytes.decode("utf-8"))
+
+    # 1. Handle MR comments & Slash Commands
+    if x_gitlab_event == "Note Hook" or payload.get("object_kind") == "note":
+        note_data = payload.get("object_attributes", {})
+        note_body = note_data.get("note", "").strip()
+        author = payload.get("user", {}).get("username", "")
+        if author.lower() in _bot_identities():
+            return {"status": "ignored", "reason": "Bot/self note ignored to avoid feedback loop."}
+        if not CommandRouter.is_bot_command(note_body):
+            return {"status": "ignored", "reason": "Note is not a slash command."}
+
+        mr_data = payload.get("merge_request", {})
+        mr_url = mr_data.get("url") or payload.get("project", {}).get("web_url")
+        cmd, _ = CommandRouter.parse_command(note_body)
+        if not _username_authorized(author, cmd):
+            logger.warning(f"Rejected GitLab '/{cmd}' from '{author}' — not in BOT_ALLOWED_USERS.")
+            return {"status": "ignored", "reason": "Commenter is not authorized to run this command."}
+        logger.info(f"🤖 Processing GitLab slash command '/{cmd}' for {mr_url}...")
+
+        background_tasks.add_task(
+            CommandRouter.dispatch,
+            command_text=note_body,
+            pr_url=mr_url,
+            auto_post=True,
+        )
+        return {"status": "accepted", "command": cmd, "message": "Command scheduled for execution."}
+
+    # 2. Handle Merge Request lifecycle
+    if x_gitlab_event == "Merge Request Hook" or payload.get("object_kind") == "merge_request":
+        mr_attrs = payload.get("object_attributes", {})
+        action = mr_attrs.get("action", "")
+        project_data = payload.get("project", {})
+        project_path = project_data.get("path_with_namespace", "")
+        mr_iid = mr_attrs.get("iid")
+        mr_identifier = f"{project_path}/merge_requests/{mr_iid}"
+
+        if action in ("open", "reopen", "update"):
+            job_id = queue.enqueue(pr_identifier=mr_identifier, payload=payload)
+            return {
+                "status": "accepted",
+                "job_id": job_id,
+                "mr": mr_identifier,
+                "action": action,
+                "message": f"GitLab MR !{mr_iid} review job enqueued (ID: {job_id})"
+            }
+
+        if action == "merge" or mr_attrs.get("state") == "merged":
+            from code_review_agent.learning.suggestion_tracker import SuggestionTracker
+            parts = project_path.split("/")
+            owner = parts[0] if parts else "gitlab"
+            repo = parts[1] if len(parts) > 1 else "project"
+            background_tasks.add_task(
+                SuggestionTracker().process_merged_pr,
+                owner=owner,
+                repo=repo,
+                pr_number=mr_iid,
+                platform="gitlab",
+            )
+            return {"status": "accepted", "action": "merged", "message": "Conventions recorded into Team Memory."}
+
+    return {"status": "ignored", "reason": f"GitLab event '{x_gitlab_event}' ignored."}
+
+
+@app.post("/webhook/bitbucket")
+async def bitbucket_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_event_key: Optional[str] = Header(None)
+):
+    """Receive and process Bitbucket Cloud webhook events."""
+    # Bitbucket Cloud does not sign webhooks, so authenticate via a shared secret placed
+    # in the configured webhook URL (…/webhook/bitbucket?token=SECRET). Fail closed when a
+    # secret is configured; warn (like the GitHub path) when it is not.
+    bb_secret = os.environ.get("BITBUCKET_WEBHOOK_SECRET")
+    if bb_secret:
+        if request.query_params.get("token") != bb_secret:
+            logger.error("Bitbucket webhook token verification failed.")
+            raise HTTPException(status_code=401, detail="Invalid Bitbucket webhook token")
+    else:
+        logger.warning("BITBUCKET_WEBHOOK_SECRET is not configured; accepting unauthenticated Bitbucket webhook.")
+
+    body_bytes = await request.body()
+    payload = json.loads(body_bytes.decode("utf-8"))
+
+    # 1. Handle PR comments & Slash Commands
+    if x_event_key == "pullrequest:comment_created":
+        comment = payload.get("comment", {})
+        content = comment.get("content", {}).get("raw", "").strip()
+        actor = payload.get("actor", {})
+        author = actor.get("nickname") or actor.get("username") or actor.get("display_name", "")
+        if (author or "").lower() in _bot_identities():
+            return {"status": "ignored", "reason": "Bot/self comment ignored to avoid feedback loop."}
+        if not CommandRouter.is_bot_command(content):
+            return {"status": "ignored", "reason": "Comment is not a slash command."}
+
+        pr_data = payload.get("pullrequest", {})
+        pr_url = pr_data.get("links", {}).get("html", {}).get("href")
+        cmd, _ = CommandRouter.parse_command(content)
+        if not _username_authorized(author, cmd):
+            logger.warning(f"Rejected Bitbucket '/{cmd}' from '{author}' — not in BOT_ALLOWED_USERS.")
+            return {"status": "ignored", "reason": "Commenter is not authorized to run this command."}
+        logger.info(f"🤖 Processing Bitbucket slash command '/{cmd}' for {pr_url}...")
+
+        background_tasks.add_task(
+            CommandRouter.dispatch,
+            command_text=content,
+            pr_url=pr_url,
+            auto_post=True,
+        )
+        return {"status": "accepted", "command": cmd, "message": "Command scheduled for execution."}
+
+    # 2. Handle PR lifecycle
+    if x_event_key in ("pullrequest:created", "pullrequest:updated"):
+        pr_data = payload.get("pullrequest", {})
+        repo_data = payload.get("repository", {})
+        repo_full = repo_data.get("full_name", "")
+        pr_id = pr_data.get("id")
+        pr_identifier = f"{repo_full}/pull-requests/{pr_id}"
+
+        job_id = queue.enqueue(pr_identifier=pr_identifier, payload=payload)
+        return {
+            "status": "accepted",
+            "job_id": job_id,
+            "pr": pr_identifier,
+            "action": x_event_key,
+            "message": f"Bitbucket PR #{pr_id} review job enqueued (ID: {job_id})"
+        }
+
+    if x_event_key == "pullrequest:fulfilled":
+        pr_data = payload.get("pullrequest", {})
+        repo_data = payload.get("repository", {})
+        repo_full = repo_data.get("full_name", "")
+        parts = repo_full.split("/")
+        owner = parts[0] if parts else "bitbucket"
+        repo = parts[1] if len(parts) > 1 else "repo"
+        pr_id = pr_data.get("id")
+        from code_review_agent.learning.suggestion_tracker import SuggestionTracker
+        background_tasks.add_task(
+            SuggestionTracker().process_merged_pr,
+            owner=owner,
+            repo=repo,
+            pr_number=pr_id
+        )
+        return {"status": "accepted", "action": "fulfilled", "message": "Conventions recorded into Team Memory."}
+
+    return {"status": "ignored", "reason": f"Bitbucket event '{x_event_key}' ignored."}
+
+
+@app.get("/api/benchmark/metrics")
+def get_benchmark_metrics():
+    """Retrieve calculated benchmark accuracy, precision, recall, and F1 scores."""
+    from code_review_agent.benchmarks import BenchmarkRunner
+    try:
+        runner = BenchmarkRunner()
+        metrics = runner.run_deterministic_benchmark()
+        return {
+            "status": "success",
+            "metrics": metrics.model_dump()
+        }
+    except Exception as e:
+        logger.error(f"Error computing benchmark metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to calculate benchmark metrics: {str(e)}")
+
+
+
+@app.post("/api/bot/command", response_model=BotCommandResponse)
+async def execute_bot_command(request_data: BotCommandRequest):
+    """
+    Execute a PR slash command (/describe, /ask, /improve, /compliance, /help, /review).
+    Enables triggering bot commands via REST API from the web UI, CLI, or testing tools.
+    """
+    result = CommandRouter.dispatch(
+        command_text=request_data.command,
+        pr_url=request_data.pr_url,
+        raw_diff=request_data.raw_diff,
+        repo_root=request_data.repo_root,
+        auto_post=request_data.auto_post
+    )
+    return BotCommandResponse(
+        command=result.command,
+        status=result.status,
+        response_markdown=result.response_markdown,
+        action_taken=result.action_taken,
+        metadata=result.metadata
+    )
+
 
 
 @app.post("/api/review", response_model=ReviewAPIResponse)

@@ -332,6 +332,18 @@ class ReviewState(BaseModel):
         default="",
         description="Pre-computed Governance rules context string"
     )
+    team_memory_context: str = Field(
+        default="",
+        description="Pre-computed learned team conventions and best practices context"
+    )
+    ticket_context: str = Field(
+        default="",
+        description="Pre-computed ticket details and acceptance criteria context"
+    )
+    ticket_compliance: Optional[Any] = Field(
+        default=None,
+        description="Requirement fulfillment and intent verification against linked ticket"
+    )
     inline_comments: List[InlineComment] = Field(
         default_factory=list,
         description="Line-level inline review comments generated for GitHub"
@@ -429,6 +441,10 @@ class ReviewAPIResponse(BaseModel):
     cross_file_impact: CrossFileImpactSummary = Field(
         default_factory=CrossFileImpactSummary,
         description="Cross-file AST impact analysis results"
+    )
+    ticket_compliance: Optional[Any] = Field(
+        default=None,
+        description="Ticket compliance verification result"
     )
     generated_unit_tests: Optional[str] = Field(
         default=None,

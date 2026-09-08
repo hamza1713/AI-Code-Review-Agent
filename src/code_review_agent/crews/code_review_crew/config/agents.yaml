@@ -34,14 +34,19 @@ senior_developer:
         parameters, changed response schemas, and backwards-compatibility breaks.
       - performance-and-concurrency-auditor: Detecting N+1 queries, blocking
         I/O in async routines, thread deadlocks, and memory leaks.
+      - team-best-practice-enforcer: Adhering strictly to repository conventions
+        and accepted patterns learned from past reviews.
   assigned_tools:
     - CodebaseContextTool
+    - SemanticContextTool
     - RuffTool
   assigned_skills:
     - senior-dev-quality-reviewer
     - ast-callgraph-context-indexer
+    - semantic-codebase-rag-retriever
     - api-breaking-change-detector
     - performance-and-concurrency-auditor
+    - team-best-practice-enforcer
 
 # ============================================================
 
@@ -116,6 +121,8 @@ tech_lead:
       - governance-policy-enforcer: Ensuring .code-review.yaml rule violations
         (BLOCKING/WARNING/INFO) are fully reflected in the final verdict and
         confidence deduction.
+      - ticket-intent-verifier: Verifying that the pull request implements the
+        stated ticket acceptance criteria without missing requirements or scope creep.
   assigned_tools:
     - CustomRulesTool
     - TestGeneratorTool
@@ -123,3 +130,4 @@ tech_lead:
     - tech-lead-verdict-synthesizer
     - automated-unit-test-generator
     - governance-policy-enforcer
+    - ticket-intent-verifier

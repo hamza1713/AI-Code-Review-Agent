@@ -15,9 +15,9 @@
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**A multi-agent code intelligence platform that combines deterministic static analysis, repository-wide AST call-graph memory, codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them.**
+**A multi-agent code intelligence platform that combines deterministic static analysis, semantic repository-wide retrieval (RAG), codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them. It talks to developers directly in the PR via slash commands, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs on GitHub, GitLab, Bitbucket, or fully offline on a local repo.**
 
-[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Evaluation & Benchmarks](#-evaluation--benchmarks) • [Repository Structure](#-repository-structure)
+[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Benchmarks](#-evaluation--benchmarks) • [Future Updates](#-future-updates)
 
 </div>
 
@@ -60,12 +60,17 @@ This system is built on two ideas most reviewers skip:
                                           flaws in milliseconds before any LLM call.
 2. 🕸️ AST Call-Graph Context             Fully-qualified symbol graph (Python native AST; JS/TS/Go/
                                           Java via lighter tokenization) surfaces cross-file callers.
-3. 📜 Codified Governance                .code-review.yaml rules evaluate deterministically — no
+3. 🧠 Semantic RAG Retrieval             AST-boundary chunks embedded (Gemini or offline hashing),
+                                          re-ranked and injected — the crew reasons about code the
+                                          diff never touches, across repos.
+4. 🧑‍🏫 Team Memory & Ticket Context      Learned conventions and the PR's linked-ticket acceptance
+                                          criteria are injected as grounding for the review.
+5. 📜 Codified Governance                .code-review.yaml rules evaluate deterministically — no
                                           prompt drift, no LLM call, sub-millisecond.
-4. 🤖 Multi-Agent Crew                   Senior Developer + Security Engineer run in parallel; Tech
+6. 🤖 Multi-Agent Crew                   Senior Developer + Security Engineer run in parallel; Tech
                                           Lead synthesizes a grounded verdict with a mathematical
                                           confidence rubric — every claim traces to an upstream finding.
-5. 🧪 Empirical Verification (sandbox)   Generated regression tests execute against the PR code in
+7. 🧪 Empirical Verification (sandbox)   Generated regression tests execute against the PR code in
                                           an isolated subprocess. The badge reflects what actually ran.
 ```
 
@@ -83,19 +88,32 @@ This system is built on two ideas most reviewers skip:
 │ • Ruff ultra-fast linter      │ • Cross-file caller impact map    │ • REPRODUCED/PASSING/         │
 │ • 7-rule regex fallback       │ • Per-target repo_root scoping    │   UNVERIFIED/HEURISTIC badge  │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 📜 Codified Governance Engine │ 🤖 MCP Server (5 Tools)           │ 💬 Live GitHub Integration    │
-│ • YAML-defined team policies  │ • review_diff, scan_sast_patterns │ • Real-time diff ingestion    │
-│ • BLOCKING/WARNING/INFO       │ • check_governance_rules          │ • Line-level inline comments  │
-│ • Deterministic, zero LLM cost│ • find_impacted_callers           │ • 1-click GitHub suggestions  │
-│                               │ • generate_unit_tests             │ • Reusable CI/CD GitHub Action│
+│ 🧠 Semantic Codebase RAG      │ 💬 Interactive PR Bot             │ 🧑‍🏫 Team Memory Learning Loop │
+│ • AST-boundary chunk embedding│ • /describe /ask /improve         │ • Learns accepted suggestions │
+│ • Gemini 3072-dim OR offline  │   /compliance /ticket /review     │   verified against merged diff│
+│   zero-dep hashing embedder   │ • /memory /learn /benchmark /help │ • Injected as few-shot context│
+│ • Re-rank + noise filter +    │ • Author-association authz +      │ • Per-repo best-practices wiki│
+│   cross-repo retrieval        │   feedback-loop guards            │   (.cache/team_memory)        │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 🎯 Ticket & Intent Compliance │ 🌐 Multi-Platform Git Engine      │ 🤖 MCP Server (8 Tools)       │
+│ • Parses GitHub/Jira/Linear   │ • GitHub · GitLab · Bitbucket     │ • review_diff, scan_sast_...  │
+│   keys (security-token safe)  │ • Local air-gapped (local://)     │ • check_governance_rules      │
+│ • Acceptance-criteria audit   │ • Unified adapter interface +     │ • find_impacted_callers       │
+│ • COMPLIANT / PARTIAL / NON   │   webhooks (GH/GL/BB)             │ • query_semantic_context,     │
+│   compliance card             │                                    │   get_team_memory, verify_...  │
+├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
+│ 📜 Codified Governance Engine │ 🧪 Empirical Test Evidence        │ 💬 Live PR Integration        │
+│ • YAML-defined team policies  │ • Generated pytest runs in sandbox│ • Real-time diff ingestion    │
+│ • BLOCKING/WARNING/INFO       │ • REPRODUCED/PASSING/UNVERIFIED/  │ • Line-level inline comments  │
+│ • Deterministic, zero LLM cost│   HEURISTIC evidence badge        │ • 1-click GitHub suggestions  │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
 │ 📥 Durable Task Queue         │ 📊 SARIF v2.1.0 Export            │ ⚡ Cost & Latency Telemetry   │
 │ • SQLite WAL, ACID, BEGIN     │ • GitHub Code Scanning ready      │ • Per-review token + USD cost │
 │   IMMEDIATE (multi-process    │ • Reviews persisted & queryable   │ • SHA-256 memoization cache   │
-│   claim-safe)                 │   via GET /jobs/{id}/result       │ • Hierarchical decision trace │
-│ • Crash/orphan-job recovery   │                                    │                               │
+│   claim-safe), platform-      │   via GET /jobs/{id}/result       │ • Hierarchical decision trace │
+│   agnostic worker             │                                    │                               │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 🎓 12-Skill Agent System      │ 🔒 Output Guardrails              │ 🐳 One-Command Deployment     │
+│ 🎓 Skill-Based Agent System   │ 🔒 Output Guardrails              │ 🐳 One-Command Deployment     │
 │ • Reasoning protocols per     │ • Provenance-grounded findings    │ • Multi-stage Docker build    │
 │   agent, injected at build    │ • Risk-level consistency check    │   (frontend + backend)        │
 │   time from agents.yaml       │ • Deduplication enforcement       │ • docker compose up --build   │
@@ -108,24 +126,25 @@ This system is built on two ideas most reviewers skip:
 
 ```mermaid
 graph TD
-    A[Pull Request Ingestion<br/>Webhook · CLI · Web Dashboard · MCP · CI Action] --> B[Diff Parser & Token-Budget Chunker]
+    A[PR / MR Ingestion<br/>GitHub · GitLab · Bitbucket · Local · CLI · Web · MCP · CI] --> B[Diff Parser & Token-Budget Chunker]
 
-    subgraph Layer1 [Layer 1 — Deterministic Pre-Scan]
+    subgraph Layer1 [Layer 1 — Deterministic Pre-Scan & Context]
         B --> C[Unified SAST Scanner<br/>Semgrep + Bandit + Ruff + Regex]
         B --> D[AST Code Graph<br/>Python native AST · repo_root-scoped]
+        B --> R[Semantic RAG Engine<br/>embed · re-rank · cross-repo retrieval]
         B --> E[Governance Rules Engine<br/>.code-review.yaml]
     end
 
-    C & D & E --> F{Dynamic Router}
+    C & D & R & E --> F{Dynamic Router}
     F -->|Cosmetic, zero violations| G[Fast-Path Review]
     F -->|Critical SAST or BLOCKING rule<br/>— hard override, no LLM vote| H[Multi-Agent Crew]
 
     subgraph Layer2 [Layer 2 — Multi-Agent Crew]
-        H --> I[Senior Developer Agent<br/>quality, cross-file risk, breaking changes]
-        H --> J[Security Engineer Agent<br/>OWASP/CWE, dedup across scanners]
+        H --> I[Senior Developer Agent<br/>quality · cross-file risk · RAG · team memory]
+        H --> J[Security Engineer Agent<br/>OWASP/CWE · dedup · RAG]
         I --> K[Provenance Guardrails<br/>every claim traces to an upstream finding]
         J --> K
-        K --> L[Tech Lead Agent<br/>confidence rubric, verdict, pytest suite]
+        K --> L[Tech Lead Agent<br/>confidence rubric · verdict · pytest · ticket audit]
     end
 
     G --> M[Executive Report]
@@ -133,9 +152,11 @@ graph TD
     L --> S[🧪 Sandbox Test Runner<br/>executes generated pytest suite in isolation]
     S --> M
 
-    subgraph Layer3 [Layer 3 — Delivery]
+    subgraph Layer3 [Layer 3 — Delivery & Interaction]
         M --> N[SARIF v2.1.0 Exporter]
-        M --> O[GitHub Review + Inline Suggestions]
+        M --> O[Platform Review + Inline Suggestions<br/>GitHub / GitLab / Bitbucket / Local]
+        M --> BOT[Interactive PR Bot<br/>slash commands]
+        M --> MEM[Team Memory Learning Loop<br/>on merge]
         M --> P[React Dashboard with Evidence Badges]
         M --> Q[Telemetry & Cost Tracker]
     end
@@ -180,6 +201,9 @@ code-review-mcp   # starts the MCP server over stdio
 | `check_governance_rules(diff, repo_root=None)` | Validate a diff against `.code-review.yaml` |
 | `find_impacted_callers(target_identifiers, repo_root=None)` | AST call-graph query — who calls this function? |
 | `generate_unit_tests(function_signature, module_path)` | Generate a pytest suite for a function signature |
+| `query_semantic_context(diff, repo_root=None)` | Semantic RAG retrieval — related code across the repo for a change |
+| `get_team_memory(repo_id)` | The repository's learned team conventions (best-practices wiki) |
+| `verify_ticket_compliance(pr_diff, ticket_id, ticket_description, …)` | Audit a diff against a ticket's acceptance criteria |
 
 Add it to your client's MCP config (e.g. Claude Code's `.mcp.json`):
 
@@ -190,6 +214,70 @@ Add it to your client's MCP config (e.g. Claude Code's `.mcp.json`):
   }
 }
 ```
+
+---
+
+## 🧠 Semantic Codebase Context (RAG)
+
+The reviewer doesn't just see the diff — it retrieves the code the diff *doesn't* touch. The repository (and, optionally, sibling repos) is chunked along **AST symbol boundaries** using the existing call-graph indexer, embedded, and stored in a cosine-similarity index. For each PR, the changed code becomes a query; the engine retrieves the most relevant definitions, **re-ranks** them with a lexical overlap bonus, filters noise (drops the PR's own changed lines, off-language chunks) and diversifies across files, then injects the result into the Senior Developer and Security Engineer prompts.
+
+- **Pluggable, degrades gracefully.** `RAG_EMBEDDER=hashing` (default) is a zero-dependency, offline, deterministic feature-hashing embedder — the whole pipeline indexes and retrieves with no model download. `RAG_EMBEDDER=gemini` uses `gemini-embedding-001` (3072-dim); `sentence-transformers` runs a local neural model. A missing model falls back to hashing with a warning — a review is never blocked.
+- **Provenance-safe cache.** The persisted index records which embedder built it and re-indexes automatically if you switch, so a stale index never silently returns nothing.
+- **Cross-repo.** Set `RAG_REPO_ROOTS` to index sibling services, so a change in one service is reviewed against callers and patterns in another.
+
+```bash
+RAG_ENABLED=true
+RAG_EMBEDDER=hashing        # or: gemini | sentence-transformers
+# RAG_REPO_ROOTS=/path/to/service-b,/path/to/shared-libs
+```
+
+---
+
+## 💬 Interactive PR Bot & Slash Commands
+
+Talk to the reviewer directly in a PR/MR comment. Commands run **off the request path** (the webhook is acknowledged in milliseconds, so the platform never times out and re-delivers) and repo-aware commands clone the PR into an **isolated checkout** so RAG/AST/governance index the real codebase — never the server's working directory.
+
+| Command | What it does |
+|---|---|
+| `/describe` | Generates a PR summary + walkthrough table + Mermaid diagram; **merges** into the description non-destructively (keeps the author's text, idempotent on re-run) |
+| `/ask <question>` | RAG + AST-grounded Q&A about the PR and codebase |
+| `/improve` | 1-click GitHub `suggestion` blocks for detected issues |
+| `/compliance` | Deterministic `.code-review.yaml` check — zero token cost |
+| `/ticket` | Audits the PR against its linked ticket's acceptance criteria |
+| `/memory` · `/learn <rule>` | Show / teach repository conventions (team memory) |
+| `/benchmark` | Runs the ground-truth benchmark and posts the scorecard |
+| `/review` · `/help` | Full multi-agent review · command catalog |
+
+**Security by default:** non-`/help` commands are gated by author association (`OWNER`/`MEMBER`/`COLLABORATOR` on GitHub, a `BOT_ALLOWED_USERS` allowlist on GitLab/Bitbucket — **fail closed** when unset), and the bot ignores its own comments to prevent feedback loops. GitHub webhooks are HMAC-verified; GitLab uses a secret token; Bitbucket authenticates via a secret in the webhook URL.
+
+---
+
+## 🧑‍🏫 Team Memory & Learning Loop
+
+The reviewer gets better at *your* codebase over time. When a PR merges, the platform fetches its review comments and promotes a suggestion into the repository's best-practices wiki **only if that suggestion's code actually landed in the merged diff** — merging is not treated as blanket acceptance, so the memory never fills with ignored suggestions. Learned conventions are injected as few-shot grounding into future reviews, and reinforced (with a counter) each time they recur. Developers can also teach rules directly with `/learn`.
+
+Stored per-repo under `.cache/team_memory/{repo}.json`. Works on GitHub today; GitLab/Bitbucket use the same verified-acceptance path via their adapters.
+
+---
+
+## 🎯 Ticket & Intent Compliance
+
+Beyond "is the code good?", the platform checks "does this PR do what it was asked to?". It parses the linked ticket from the PR (GitHub `Fixes #123`, Jira `PROJ-101`, Linear `ENG-45`, or the branch name — with security identifiers like `CWE-89`/`CVE-2023-…` explicitly excluded from misdetection), fetches the issue's acceptance criteria, and audits the diff against each one — flagging unmet requirements and scope creep in a 🟢 COMPLIANT / 🟡 PARTIAL / 🔴 NON-COMPLIANT card. The LLM audit runs **only on the COMPLEX path** (never taxing the sub-second fast-path) and through the flow's bounded timeout wrapper. GitHub issues are fetched live; Jira/Linear are detected (fetching those APIs is on the roadmap).
+
+---
+
+## 🌐 Multi-Platform Support
+
+One unified `GitPlatformClient` interface, four adapters — the bot, review flow, and durable queue worker are all **platform-agnostic**:
+
+| Platform | PR/MR review | Slash commands | Merge learning | Webhook |
+|---|:--:|:--:|:--:|:--:|
+| **GitHub** (cloud + Enterprise) | ✅ | ✅ | ✅ full | HMAC-verified |
+| **GitLab** (cloud + self-hosted) | ✅ | ✅ | ✅ | token |
+| **Bitbucket** Cloud | ✅ | ✅ | ⚠️ merge hook on roadmap | URL secret |
+| **Local** (air-gapped, `local://.`) | ✅ | ✅ | n/a | writes `REVIEW.md` |
+
+The **local air-gapped adapter** runs the full review on a local repo with no tokens, no network, and no hosting platform — it reads the working-tree diff via the git CLI and writes `REVIEW.md` / `REVIEW_NOTES.md`. Useful for regulated or offline environments.
 
 ---
 
@@ -313,7 +401,30 @@ AI-Code-Review-Agent/
     ├── context_engine/
     │   ├── code_graph.py               # Qualified-symbol AST indexer & caller resolver
     │   ├── tree_sitter_indexer.py      # Multi-language indexer (JS/TS/Go/Java)
-    │   └── context_tool.py             # CodebaseContextTool — repo_root-scoped, lazy-indexed
+    │   ├── context_tool.py             # CodebaseContextTool — repo_root-scoped, lazy-indexed
+    │   └── semantic/                   # 🧠 Semantic RAG engine
+    │       ├── embeddings.py           #   Gemini / hashing / sentence-transformers embedders
+    │       ├── vector_store.py         #   Cosine index + provenance-stamped persistence
+    │       ├── engine.py               #   AST-chunk → embed → re-rank → noise-filter → inject
+    │       └── semantic_tool.py        #   SemanticContextTool (CrewAI)
+    │
+    ├── bot/                            # 💬 Interactive PR bot
+    │   ├── command_router.py           #   Slash-command parsing & dispatch (platform-agnostic)
+    │   └── checkout.py                 #   Isolated per-platform PR checkout for RAG/AST
+    │
+    ├── learning/                       # 🧑‍🏫 Team memory & learning loop
+    │   ├── team_memory.py              #   Best-practices wiki store (per-repo)
+    │   └── suggestion_tracker.py       #   Verified-acceptance learning on merge
+    │
+    ├── compliance/                     # 🎯 Ticket & intent compliance
+    │   ├── ticket_parser.py            #   GitHub/Jira/Linear key extraction
+    │   ├── ticket_fetcher.py           #   Acceptance-criteria retrieval
+    │   └── intent_engine.py            #   PR-vs-criteria audit + compliance card
+    │
+    ├── platform/                       # 🌐 Multi-platform Git engine
+    │   ├── base.py                     #   GitPlatformClient interface + normalized DTOs
+    │   ├── factory.py                  #   URL/identifier → adapter resolution
+    │   └── {github,gitlab,bitbucket,local_git}_adapter.py
     │
     ├── governance/rules_engine.py      # .code-review.yaml evaluator
     ├── observability/                  # Telemetry, cost tracking, hierarchical trace tree
@@ -513,11 +624,40 @@ ruff check src/
 
 **Why the split exists:** a handful of tests spawn a real OS subprocess — `BanditRunner`/`RuffRunner` shell out to their CLI per scan, and the sandbox runner (`sandbox/test_runner.py`) launches a nested `pytest` process to verify generated fixes. Subprocess cold-start time is host-load dependent: fast and reliable in isolation or on a clean CI runner, but progressively slower the more of them get stacked back-to-back in one run — on a loaded dev machine, that can push an individual test's timeout past what's fine when run alone. Rather than chase an ever-larger timeout number for the whole suite, these tests carry `@pytest.mark.slow` and run in their own pass (both tiers still gate CI — see [`ci.yml`](.github/workflows/ci.yml) — they're just no longer entangled with each other's timing).
 
-The default (fast) tier covers diff parsing, the SAST/governance engines, the AST call graph, the durable webhook queue (including concurrent-claim safety), and the MCP tool surface. The `slow` tier covers actual Bandit/Ruff CLI detection accuracy, the ground-truth benchmark suite, and the sandbox's real test execution — including a check that its environment allowlist strips credential-shaped variables (`GEMINI_API_KEY`, `GITHUB_TOKEN`, etc.) before a generated test ever runs.
+The default (fast) tier covers diff parsing, the SAST/governance engines, the AST call graph, the **semantic RAG engine** (embedders, vector store, retrieval), the **interactive bot** (command routing, cross-platform authz), the **team-memory learning loop** (verified-acceptance learning), **ticket compliance** (parsing, intent audit), the **platform adapters** (GitHub/GitLab/Bitbucket/local + the platform-agnostic queue worker), the durable webhook queue (including concurrent-claim safety), and the MCP tool surface. The `slow` tier covers actual Bandit/Ruff CLI detection accuracy, the ground-truth benchmark suite, and the sandbox's real test execution — including a check that its environment allowlist strips credential-shaped variables (`GEMINI_API_KEY`, `GITHUB_TOKEN`, etc.) before a generated test ever runs.
 
 ```bash
 pytest tests/eval/ -m eval    # LLM-as-judge evaluation tests (requires GEMINI_API_KEY)
 ```
+
+---
+
+## 🔭 Future Updates
+
+The roadmap below is grouped by theme. Several items are about running comfortably on **multi-replica production infrastructure** rather than a single machine — the current defaults (local SQLite, local `.cache/` files, in-process rate limiter) are deliberately simple and portable, and the work is to make each one pluggable behind a shared backend without changing the developer experience.
+
+### Scale-out & shared state (highest priority for production)
+- **Shared job queue** — make the durable queue backend pluggable (Postgres / Redis) so multiple worker replicas can process reviews concurrently. Today's SQLite WAL queue is single-node.
+- **Shared team memory & RAG index** — move `TeamMemoryStore` and the semantic index off local `.cache/*.json` to a shared store (object storage / DB / managed vector DB), so every replica sees the same learned conventions and index instead of diverging per node.
+- **Shared rate limiter** — replace the in-process per-IP limiter with a distributed one (Redis) so limits hold across replicas.
+- **Durable slash commands** — route bot commands through the durable queue (not FastAPI `BackgroundTasks`) so an in-flight `/review` survives a restart and scales horizontally.
+
+### Managed vector search & embeddings
+- **Managed vector DB backend** (Qdrant / LanceDB / pgvector) behind the existing `VectorStore` interface, for large mono-repos where the in-memory cosine store is no longer ideal.
+- **Default to a strong code-embedding model** — the pluggable embedder already supports Gemini and sentence-transformers; ship a benchmarked code-aware default while keeping the offline hashing fallback.
+
+### Deeper platform & learning parity
+- **Bitbucket merge-learning hook** — add the `pullrequest:fulfilled` webhook branch (GitHub & GitLab already learn on merge).
+- **Jira / Linear fetchers** — ticket keys are already parsed; add authenticated API clients so their acceptance criteria are fetched, not just detected.
+- **Stronger acceptance signal** — augment the "suggested code landed in the merged diff" heuristic with GraphQL resolved-thread / reaction state for higher-precision learning.
+- **Platform-native inline comments** — post true line-anchored review comments on GitLab/Bitbucket (currently summarized as a discussion note).
+
+### Reviewer intelligence
+- **Incremental review** — review only what changed since the last push, not the whole diff each time.
+- **Confidence calibration from outcomes** — feed merged-vs-reverted signals back into the confidence rubric.
+- **Expanded language depth** — richer native AST (beyond Python) for the call-graph and chunker.
+
+> These are intended directions, not commitments or dates. Contributions toward any of them are welcome — see below.
 
 ---
 

@@ -42,6 +42,8 @@ analyze_code_quality:
        a 1-click replacement 'suggestion_code' for each issue.
 
     PR content: \n{file_content}
+    Semantic Codebase Context (retrieved outside diff): \n{semantic_context}
+    Learned Team Conventions & Best Practices: \n{team_memory_context}
   expected_output: >
     A JSON object containing:
     - 'critical_issues': An array of strings describing mandatory fixes.
@@ -97,6 +99,7 @@ review_security:
 
     PR content: \n{file_content}
     Security Pattern Findings (pre-computed): \n{sast_context}
+    Semantic Codebase Context (retrieved outside diff): \n{semantic_context}
   expected_output: >
     A JSON object containing:
     - 'security_vulnerabilities': An array of deduplicated objects each with
@@ -138,6 +141,7 @@ summarize_findings:
     Start at 100. Apply deductions:
       - Subtract 30 for each 'critical' risk_level vulnerability in security_vulnerabilities that remains unresolved.
       - Subtract 15 for each 'high' risk_level vulnerability.
+      - Subtract 15 if stated ticket acceptance criteria in {ticket_context} are unmet or non-compliant.
       - Subtract 10 for each critical_issue from analyze_code_quality,
         OR each BLOCKING governance rule violation.
       - Subtract 5 for each minor_issue, or 'medium'/'low' vulnerability,
@@ -148,8 +152,9 @@ summarize_findings:
       - ESCALATE   : Any 'critical' vulnerability (SQLi, Auth Bypass, RCE, etc.)
                      OR any BLOCKING governance rule violation.
       - REQUEST CHANGES : confidence < 85, OR actionable defects exist,
+                          OR ticket criteria are unmet,
                           OR WARNING governance rules fail without justification.
-      - APPROVE    : confidence >= 85 AND zero blocking/critical defects.
+      - APPROVE    : confidence >= 85 AND zero blocking/critical defects AND ticket criteria met.
 
     Consolidate a unified list of prioritized 'fix' items with clear technical
     solutions and explanations.

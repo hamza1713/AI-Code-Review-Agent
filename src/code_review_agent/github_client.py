@@ -65,6 +65,7 @@ class GitHubClient:
             data = resp.json()
             return {
                 "title": data.get("title", ""),
+                "body": data.get("body") or "",
                 "author": data.get("user", {}).get("login", ""),
                 "base_sha": data.get("base", {}).get("sha", ""),
                 "head_sha": data.get("head", {}).get("sha", ""),
@@ -135,3 +136,71 @@ class GitHubClient:
                 return fallback_resp.json()
 
             return resp.json()
+
+    def post_issue_comment(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+        body: str
+    ) -> Dict[str, Any]:
+        """Post a markdown comment to an issue or pull request discussion thread."""
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{issue_number}/comments"
+        payload = {"body": body}
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"Failed to post comment to {url}: [{resp.status_code}] {resp.text}"
+                )
+            return resp.json()
+
+    def update_pull_request_description(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        body: str,
+        title: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Update the PR description body and optionally title."""
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pull_number}"
+        payload: Dict[str, Any] = {"body": body}
+        if title:
+            payload["title"] = title
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.patch(url, json=payload)
+            if resp.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"Failed to update PR description at {url}: [{resp.status_code}] {resp.text}"
+                )
+            return resp.json()
+
+    def fetch_issue(self, owner: str, repo: str, issue_number: int) -> Dict[str, Any]:
+        """Fetch title, body, state, and labels for an issue."""
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{issue_number}"
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.get(url)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to fetch issue from {url}: [{resp.status_code}] {resp.text}"
+                )
+            return resp.json()
+
+    def list_pull_request_review_comments(
+        self, owner: str, repo: str, pull_number: int, per_page: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        List inline review comments on a PR — these are the comments that carry
+        ```suggestion blocks. Used by the learning loop to find candidate suggestions
+        whose acceptance is then verified against the merged diff.
+        """
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pull_number}/comments"
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.get(url, params={"per_page": per_page})
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to list review comments from {url}: [{resp.status_code}] {resp.text}"
+                )
+            return resp.json()
+

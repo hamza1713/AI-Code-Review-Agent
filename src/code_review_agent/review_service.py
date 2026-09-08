@@ -297,18 +297,29 @@ class ReviewService:
         file_bytes: Optional[bytes] = None,
         zip_bytes: Optional[bytes] = None,
         pr_url: Optional[str] = None,
-        client_ip: str = "127.0.0.1"
+        repo_root: Optional[str] = None,
+        client_ip: str = "127.0.0.1",
+        bypass_limits: bool = False
     ) -> ReviewAPIResponse:
         """
         Execute synchronous in-browser review for raw diff, uploaded file, uploaded zip, or live GitHub PR.
         Enforces resource limits, rate limiting, and returns structured ReviewAPIResponse.
+
+        `repo_root`, when provided (e.g. the bot's temporary PR checkout), is used as the
+        working tree for RAG/AST/governance context. Zip and single-file uploads override
+        it with their own extracted temp directory.
+
+        `bypass_limits` skips per-IP rate limiting and the pasted-diff size cap. It is for
+        trusted internal callers only — the durable webhook worker, whose diffs come from
+        an authenticated platform fetch, not untrusted user input — so a busy queue of
+        real PRs is never throttled as if it were one abusive client.
         """
-        # 1. Rate Limiting Check
-        rate_limiter.check_rate_limit(client_ip)
+        # 1. Rate Limiting Check (skipped for trusted internal callers)
+        if not bypass_limits:
+            rate_limiter.check_rate_limit(client_ip)
 
         # 2. Ingest and normalize inputs into unified diff and optional repo_root
         temp_dir_obj: Optional[tempfile.TemporaryDirectory] = None
-        repo_root: Optional[str] = None
         final_diff = ""
 
         try:
@@ -347,7 +358,7 @@ class ReviewService:
 
             elif raw_diff:
                 # Handle Pasted Raw Diff
-                if len(raw_diff) > MAX_DIFF_CHARS:
+                if not bypass_limits and len(raw_diff) > MAX_DIFF_CHARS:
                     raise InputValidationError(
                         f"Pasted diff length ({len(raw_diff)} chars) exceeds maximum allowable limit of {MAX_DIFF_CHARS} chars."
                     )
@@ -454,6 +465,7 @@ class ReviewService:
                 cross_file_impact=cross_file_summary,
                 generated_unit_tests=flow.state.generated_unit_tests or None,
                 test_execution=flow.state.test_execution,
+                ticket_compliance=flow.state.ticket_compliance,
                 inline_comments=flow.state.inline_comments,
                 telemetry=flow.state.telemetry,
                 trace=trace_data,

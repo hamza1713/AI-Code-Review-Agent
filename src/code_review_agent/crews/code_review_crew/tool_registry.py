@@ -15,7 +15,7 @@ from code_review_agent.tools import (
     RuffTool,
     UnifiedSecurityScannerTool,
 )
-from code_review_agent.context_engine import CodebaseContextTool
+from code_review_agent.context_engine import CodebaseContextTool, SemanticContextTool
 from code_review_agent.governance import CustomRulesTool
 from code_review_agent.tools.test_generator import TestGeneratorTool
 
@@ -54,6 +54,15 @@ class ToolRegistry:
         cls.register(
             "codebase_context",
             lambda repo_root=None, **kwargs: CodebaseContextTool(repo_root=repo_root)
+        )
+
+        cls.register(
+            "SemanticContextTool",
+            lambda repo_root=None, **kwargs: SemanticContextTool(repo_root=repo_root)
+        )
+        cls.register(
+            "semantic_context",
+            lambda repo_root=None, **kwargs: SemanticContextTool(repo_root=repo_root)
         )
 
         cls.register("RuffTool", lambda **kwargs: RuffTool())

@@ -340,7 +340,7 @@ class WebhookWorker:
             if self.handler:
                 result = self.handler(job["payload"])
             else:
-                result = self._default_execute_review(job["payload"])
+                result = self._default_execute_review(job["payload"], pr_id)
 
             result_str = None
             if result is not None:
@@ -360,26 +360,59 @@ class WebhookWorker:
         finally:
             self._semaphore.release()
 
-    def _default_execute_review(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Default handler running PRCodeReviewFlow."""
-        from code_review_agent.main import PRCodeReviewFlow
+    def _default_execute_review(self, payload: Dict[str, Any], pr_identifier: str) -> Dict[str, Any]:
+        """
+        Platform-agnostic default review handler.
+
+        Resolves the platform (GitHub / GitLab / Bitbucket / local) from the enqueued
+        identifier — not the payload shape — fetches the diff via that client, reviews it
+        against a real repo checkout, and posts the verdict back through the same client.
+        This makes the durable queue work uniformly across hosting platforms.
+        """
+        import urllib.parse
+        from contextlib import ExitStack
         from code_review_agent.review_service import ReviewService
+        from code_review_agent.platform.factory import get_platform_client
+        from code_review_agent.bot.checkout import temporary_pr_checkout
 
-        pr_data = payload.get("pull_request", {})
-        repo_data = payload.get("repository", {})
+        client, ident = get_platform_client(pr_identifier)
+        owner, repo, pull_number = ident.owner_or_project, ident.repo_or_slug, ident.pr_id
 
-        owner = repo_data.get("owner", {}).get("login", "")
-        repo = repo_data.get("name", "")
-        pull_number = pr_data.get("number")
+        diff = client.fetch_pull_request_diff(owner, repo, pull_number)
+        if not diff or not diff.strip():
+            raise ValueError(f"No diff content available for {pr_identifier}")
+        meta = client.fetch_pull_request_metadata(owner, repo, pull_number)
 
-        if not owner or not repo or not pull_number:
-            raise ValueError(f"Missing required PR fields (owner/repo/pull_number) in payload")
+        with ExitStack() as stack:
+            if ident.platform == "local":
+                repo_root = str(getattr(client, "repo_dir", "."))
+            else:
+                host = urllib.parse.urlparse(ident.raw_identifier).netloc or None if "://" in ident.raw_identifier else None
+                repo_root = stack.enter_context(
+                    temporary_pr_checkout(
+                        owner, repo,
+                        head_sha=meta.head_sha, head_ref=meta.head_ref,
+                        platform=ident.platform, host=host,
+                    )
+                )
+            # bypass_limits: trusted internal path — no per-IP throttling or paste-size cap.
+            response = ReviewService.execute_review(raw_diff=diff, repo_root=repo_root, bypass_limits=True)
 
-        pr_identifier = f"{owner}/{repo}/pull/{pull_number}"
-        flow = PRCodeReviewFlow()
-        flow.state.pr_url = pr_identifier
-        flow.kickoff(inputs={"id": f"pr_review_{owner}_{repo}_{pull_number}"})
+        # Post the verdict back through the resolving platform client.
+        verdict = (response.verdict or "").upper()
+        if "APPROVE" in verdict:
+            event = "APPROVE"
+        elif "REQUEST" in verdict or "ESCALATE" in verdict:
+            event = "REQUEST_CHANGES"
+        else:
+            event = "COMMENT"
+        try:
+            client.post_pull_request_review(
+                owner=owner, repo=repo, pull_number=pull_number,
+                event=event, body=response.full_report,
+                commit_id=meta.head_sha or None, comments=response.inline_comments,
+            )
+        except Exception as post_err:
+            logger.error(f"Could not post review for {pr_identifier}: {post_err}")
 
-        # Build structured ReviewAPIResponse dict and return for persistence
-        review_response = ReviewService.build_review_response(flow.state)
-        return review_response.model_dump()
+        return response.model_dump()

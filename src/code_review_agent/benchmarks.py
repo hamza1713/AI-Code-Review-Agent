@@ -9,12 +9,19 @@ import time
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from pydantic import BaseModel, Field
 
 from code_review_agent.config import logger
-from code_review_agent.tools import SastEngine, RuffRunner
+from code_review_agent.tools import SastEngine
 from code_review_agent.governance import RulesEngine
-from code_review_agent.diff_parser import DiffParser
 
 
 class BenchmarkMetric(BaseModel):
@@ -287,22 +294,164 @@ class BenchmarkRunner:
 
         return "\n".join(lines)
 
+    @classmethod
+    def generate_markdown_report(cls, metric: BenchmarkMetric, output_path: Optional[str] = None) -> str:
+        """
+        Generate a comprehensive, publication-ready benchmark evaluation report
+        with LaTeX formulas, confusion matrix, Qodo comparison, and Shields.io badges.
+        """
+        f1_pct = metric.f1_score * 100
+        prec_pct = metric.precision * 100
+        rec_pct = metric.recall * 100
+        acc_pct = metric.verdict_accuracy * 100
+
+        lines = [
+            "# 🎯 Code Review Ground-Truth Benchmark Report",
+            "",
+            f"[![Benchmark F1](https://img.shields.io/badge/Benchmark_F1-{f1_pct:.1f}%25-brightgreen)](#) "
+            f"[![Verdict Accuracy](https://img.shields.io/badge/Verdict_Accuracy-{acc_pct:.1f}%25-success)](#) "
+            f"[![Deterministic SAST](https://img.shields.io/badge/Deterministic_Grounding-Compiler--Grade-blue)](#) "
+            f"[![Test Cases](https://img.shields.io/badge/Evaluated_Cases-{metric.total_test_cases}-orange)](#)",
+            "",
+            "## Executive Summary",
+            f"The AI Code Review Agent was evaluated against **{metric.total_test_cases} curated ground-truth pull requests** "
+            "spanning Security Vulnerabilities (OWASP Top 10, CWE-89, CWE-78, CWE-798, CWE-502), Architecture & Governance "
+            "Violations (.code-review.yaml), and Clean PR Control Cases.",
+            "",
+            f"- **Overall F1 Score**: **`{f1_pct:.1f}%`** (Precision: `{prec_pct:.1f}%`, Recall: `{rec_pct:.1f}%`)",
+            f"- **Merge Verdict Accuracy**: **`{acc_pct:.1f}%`** (Correct APPROVE vs REQUEST CHANGES decisions)",
+            f"- **Benchmark Runtime**: `{metric.duration_seconds:.3f}s` across all {metric.total_test_cases} test cases",
+            "",
+            "---",
+            "",
+            "## 🥊 Positioning vs Qodo Merge",
+            "",
+            f"> ⚠️ **Not a head-to-head benchmark.** Our F1 of **`{f1_pct:.1f}%`** is measured on *this "
+            "project's own 14-case ground-truth suite*. Qodo's reported **`60.1%`** was measured on a "
+            "different, independent dataset. The two numbers are **not directly comparable** and one "
+            "should not be subtracted from the other — treat our score as an internal quality signal, "
+            "not proof of superiority. The rows below are genuine *architectural* differences.",
+            "",
+            "| Dimension | Our Platform | Qodo Merge |",
+            "| :--- | :--- | :--- |",
+            "| **Pre-Scan Grounding** | Compiler-grade SAST + AST call-graph | LLM heuristics |",
+            "| **Empirical Test Verification** | Subprocess sandbox runs generated pytest | Generation only |",
+            "| **Air-Gapped Offline Support** | Native local Git adapter | Cloud-only |",
+            "",
+            "---",
+            "",
+            "## 🧮 Mathematical Evaluation Metrics",
+            "",
+            "Metrics are computed using standard information retrieval and classification formulations:",
+            "",
+            "$$\\text{Precision} = \\frac{TP}{TP + FP} = \\frac{" + str(metric.true_positives) + "}{" + str(metric.true_positives + metric.false_positives) + "} = " + f"{metric.precision:.4f}" + "$$",
+            "",
+            "$$\\text{Recall} = \\frac{TP}{TP + FN} = \\frac{" + str(metric.true_positives) + "}{" + str(metric.true_positives + metric.false_negatives) + "} = " + f"{metric.recall:.4f}" + "$$",
+            "",
+            "$$F_1 = 2 \\cdot \\frac{\\text{Precision} \\cdot \\text{Recall}}{\\text{Precision} + \\text{Recall}} = " + f"{metric.f1_score:.4f}" + "$$",
+            "",
+            "### 2×2 Confusion Matrix",
+            "",
+            "| | Actually Vulnerable / Defective | Actually Clean |",
+            "| :--- | :---: | :---: |",
+            f"| **Predicted Flagged** | **True Positive (TP)**: `{metric.true_positives}` | **False Positive (FP)**: `{metric.false_positives}` |",
+            f"| **Predicted Clean** | **False Negative (FN)**: `{metric.false_negatives}` | **True Negative (TN)**: `{metric.true_negatives}` |",
+            "",
+            "---",
+            "",
+            "## 📊 Domain Category Breakdown",
+            "",
+            "| Category | Test Cases | Precision | Recall | F1 Score | Verdict Accuracy |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: |"
+        ]
+
+        for cat, stats in metric.category_breakdown.items():
+            lines.append(
+                f"| **{cat}** | {stats['total_cases']} | {stats['precision']*100:.1f}% | "
+                f"{stats['recall']*100:.1f}% | **{stats['f1_score']*100:.1f}%** | {stats['verdict_accuracy']*100:.1f}% |"
+            )
+
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 📋 Comprehensive Case Audit",
+            "",
+            "| ID | Test Case Name | Category | Expected | Detected | TP | FP | FN | Verdict Match |",
+            "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+        ])
+
+        for d in metric.details:
+            match_icon = "✅ PASS" if d["verdict_correct"] else "❌ FAIL"
+            lines.append(
+                f"| `{d['id']}` | {d['name']} | `{d.get('category', 'N/A')}` | {d['expected_issues_count']} | "
+                f"{d['detected_findings_count']} | {d['tp']} | {d['fp']} | {d['fn']} | {match_icon} |"
+            )
+
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 🔁 Reproducibility Command",
+            "To reproduce this benchmark report from source code:",
+            "```bash",
+            "python -m code_review_agent.benchmarks --publish",
+            "```",
+            "",
+            f"<sub>Generated automatically by AI Code Review Agent Benchmark Engine • Duration: {metric.duration_seconds:.3f}s</sub>"
+        ])
+
+        report_content = "\n".join(lines)
+        if output_path:
+            out_file = Path(output_path)
+            out_file.write_text(report_content, encoding="utf-8")
+            logger.info(f"📄 Published benchmark report to {out_file}")
+
+        return report_content
+
+    @classmethod
+    def publish_report(
+        cls,
+        metrics: Optional[BenchmarkMetric] = None,
+        output_file: Optional[str] = None,
+        output_path: Optional[Any] = None,
+        repo_root: Optional[str] = None
+    ) -> Tuple[str, BenchmarkMetric]:
+        """Run benchmarks (or use provided metrics) and publish output markdown report."""
+        if output_path:
+            target_path = Path(output_path)
+        else:
+            filename = output_file or "BENCHMARK_REPORT.md"
+            root = Path(repo_root) if repo_root else Path.cwd()
+            target_path = root / filename
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if metrics is None:
+            runner = cls()
+            metrics = runner.run_deterministic_benchmark()
+
+        report_md = cls.generate_markdown_report(metrics, output_path=str(target_path))
+        return report_md, metrics
+
+
 
 def main():
-    """CLI entrypoint for running the deterministic benchmark suite."""
-    if hasattr(sys.stdout, "reconfigure"):
-        try:
-            sys.stdout.reconfigure(encoding="utf-8")
-        except Exception:
-            pass
+    """CLI entrypoint for running and publishing the benchmark suite."""
+    import argparse
+    parser = argparse.ArgumentParser(description="AI Code Review Agent Benchmark Suite")
+    parser.add_argument("--publish", action="store_true", help="Generate and save BENCHMARK_REPORT.md")
+    parser.add_argument("--output", default="BENCHMARK_REPORT.md", help="Output file path for benchmark report")
+    args = parser.parse_args()
+
     runner = BenchmarkRunner()
     metrics = runner.run_deterministic_benchmark()
-    try:
+
+    if args.publish:
+        report_md, _ = BenchmarkRunner.publish_report(output_file=args.output)
+        print(f"✅ Benchmark report successfully published to {args.output}!")
+        print(f"Overall F1: {metrics.f1_score * 100:.1f}% | Accuracy: {metrics.verdict_accuracy * 100:.1f}%")
+    else:
         print(BenchmarkRunner.format_summary_table(metrics))
-    except UnicodeEncodeError:
-        # Fallback to ascii
-        table = BenchmarkRunner.format_summary_table(metrics).encode("ascii", "replace").decode("ascii")
-        print(table)
 
 
 if __name__ == "__main__":

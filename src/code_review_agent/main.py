@@ -35,7 +35,7 @@ from code_review_agent.llm_factory import LLMFactory
 
 from code_review_agent.models import ReviewState, InlineComment, SastFinding, RuleViolation, SummarizedFindingsJSON
 from code_review_agent.diff_parser import DiffParser
-from code_review_agent.tools import QuickPatternScanner, SastEngine
+from code_review_agent.tools import SastEngine
 from code_review_agent.sarif_exporter import SarifExporter
 from code_review_agent.github_client import GitHubClient
 from code_review_agent.context_engine import CodeGraphIndexer
@@ -43,6 +43,8 @@ from code_review_agent.governance import RulesEngine
 from code_review_agent.observability import TelemetryTracker
 from code_review_agent.crews.code_review_crew.crew import CodeReviewCrew
 from code_review_agent.flow_parser import RobustLLMOutputParser
+from code_review_agent.learning import TeamMemoryStore
+from code_review_agent.compliance import TicketParser, TicketFetcher, IntentComplianceEngine
 
 
 class PRCodeReviewFlow(Flow[ReviewState]):
@@ -168,6 +170,29 @@ class PRCodeReviewFlow(Flow[ReviewState]):
                 f"(+{self.state.parsed_pr.total_added}/-{self.state.parsed_pr.total_deleted}). "
                 f"SAST: {len(self.state.sast_findings)}, Rule Violations: {len(self.state.rule_violations)}"
             )
+
+            # 5. Load repository Team Memory (Best Practices)
+            repo_id = "default_repo"
+            if self.state.pr_url:
+                try:
+                    owner, repo, _ = GitHubClient.parse_pr_identifier(self.state.pr_url)
+                    repo_id = f"{owner}/{repo}"
+                except Exception:
+                    repo_id = self.state.pr_url.replace("https://github.com/", "")
+            elif self.state.repo_root:
+                repo_id = Path(self.state.repo_root).name
+
+            try:
+                mem_store = TeamMemoryStore()
+                self.state.team_memory_context = mem_store.format_team_memory_prompt(repo_id)
+            except Exception as mem_err:
+                logger.warning(f"Notice loading team memory for {repo_id}: {mem_err}")
+                self.state.team_memory_context = "No team conventions loaded."
+
+            # Ticket & intent compliance is deferred to the COMPLEX crew path
+            # (see _evaluate_ticket_compliance) so the sub-second fast-path never
+            # pays for its LLM call, and that call inherits the flow's timeout.
+
         except Exception as e:
             logger.warning(f"Diff parsing / Pre-scan warning: {e}")
 
@@ -248,13 +273,81 @@ class PRCodeReviewFlow(Flow[ReviewState]):
 
         logger.info(" Fast-path review complete.")
 
+    def _evaluate_ticket_compliance(self):
+        """
+        Parse a linked ticket, fetch its acceptance criteria, and audit the PR against
+        them. Runs only on the COMPLEX path so the fast-path never pays for it, and
+        routes the LLM call through the flow's timeout+telemetry wrapper (rather than an
+        unbounded raw call). Populates state.ticket_context and state.ticket_compliance.
+        """
+        try:
+            pr_title = self.state.pr_metadata.get("title", "")
+            pr_body = self.state.pr_metadata.get("body", "")
+            branch = self.state.pr_metadata.get("head_ref")
+            ticket_refs = TicketParser.extract_ticket_references(title=pr_title, body=pr_body, branch=branch)
+            if not ticket_refs:
+                self.state.ticket_context = "No linked ticket detected for this PR."
+                return
+
+            repo_full_name = None
+            if self.state.pr_url:
+                try:
+                    owner, repo, _ = GitHubClient.parse_pr_identifier(self.state.pr_url)
+                    repo_full_name = f"{owner}/{repo}"
+                except Exception:
+                    repo_full_name = None
+
+            ticket_details = TicketFetcher.fetch_ticket(
+                ticket_refs[0], repo_full_name=repo_full_name, pr_body=pr_body
+            )
+            files_list = [f.target_file for f in self.state.parsed_pr.files] if self.state.parsed_pr else []
+            report = IntentComplianceEngine.evaluate(
+                ticket=ticket_details,
+                pr_diff=self.state.pr_content,
+                files_changed=files_list,
+                llm_call=lambda p: self._call_llm_with_timeout(p, timeout_seconds=45.0),
+            )
+            self.state.ticket_compliance = report
+            self.state.ticket_context = (
+                f"Ticket: {ticket_details.ticket_id} - {ticket_details.title}\n"
+                f"Acceptance Criteria:\n" + "\n".join(f"- {c}" for c in ticket_details.acceptance_criteria)
+            )
+            logger.info(f"🎯 Ticket compliance evaluated for {ticket_details.ticket_id}: {report.status}")
+        except Exception as tick_err:
+            logger.warning(f"Ticket compliance check notice: {tick_err}")
+            self.state.ticket_context = "Ticket compliance check not available."
+
     @listen("COMPLEX")
     def full_crew_review(self):
         """Dispatches multi-agent crew with AST context, security pattern findings, and team rules."""
         logger.info("🚀 Deploying Multi-Agent Code Review Crew (Senior Dev, Security Eng, Tech Lead)...")
 
+        # Ticket & intent compliance — COMPLEX path only, behind the flow's LLM timeout.
+        self._evaluate_ticket_compliance()
+
         # Format AST Call Graph context
         code_graph_str = self._code_graph.format_impact_context(self.state.pr_content) if self._code_graph else "No AST call graph available."
+
+        semantic_str = "No semantically related code found in the indexed repositories."
+        # Semantic RAG retrieval — surface related code from across the codebase
+        # (and optional sibling repos) that the diff itself cannot show. Enabled by
+        # default; any failure degrades to the AST-only context above.
+        if os.environ.get("RAG_ENABLED", "true").strip().lower() not in ("0", "false", "no"):
+            try:
+                from code_review_agent.context_engine import SemanticContextEngine
+
+                repo_roots = [self.state.repo_root or "."]
+                extra = os.environ.get("RAG_REPO_ROOTS", "").strip()
+                if extra:
+                    repo_roots += [p for p in extra.replace(os.pathsep, ",").split(",") if p.strip()]
+
+                rag_engine = SemanticContextEngine(repo_roots=repo_roots)
+                rag_engine.index()
+                semantic_str = rag_engine.format_semantic_context(self.state.pr_content, top_k=8)
+                code_graph_str = f"{code_graph_str}\n\n{semantic_str}"
+                logger.info(f"🧠 Injected semantic RAG context from {len(repo_roots)} repo(s).")
+            except Exception as e:
+                logger.warning(f"Semantic RAG retrieval unavailable ({e}); continuing with AST-only context.")
 
         # Format Security Pattern Findings context
         sast_context_str = "\n".join([
@@ -286,7 +379,10 @@ class PRCodeReviewFlow(Flow[ReviewState]):
                     "file_content": pr_diff_for_crew,
                     "code_graph_context": code_graph_str,
                     "sast_context": sast_context_str,
-                    "rules_context": rules_context_str
+                    "rules_context": rules_context_str,
+                    "semantic_context": semantic_str,
+                    "team_memory_context": self.state.team_memory_context or "No team conventions recorded yet.",
+                    "ticket_context": self.state.ticket_context or "No ticket linked.",
                 }
             )
 
@@ -499,6 +595,10 @@ class PRCodeReviewFlow(Flow[ReviewState]):
                 f"> ⚠️ *This report was generated using static analysis only. "
                 f"Re-run after resolving `GEMINI_API_KEY` network connectivity for full multi-agent AI review.*"
             )
+
+        # Append Ticket & Intent Compliance card if evaluated
+        if self.state.ticket_compliance and getattr(self.state.ticket_compliance, "summary_markdown", None):
+            self.state.final_answer += f"\n\n---\n{self.state.ticket_compliance.summary_markdown}"
 
         # 1. Stop Telemetry & Record Metrics
         if self._telemetry_tracker:
