@@ -72,6 +72,9 @@ This system is built on two ideas most reviewers skip:
                                           confidence rubric — every claim traces to an upstream finding.
 7. 🧪 Empirical Verification (sandbox)   Generated regression tests execute against the PR code in
                                           an isolated subprocess. The badge reflects what actually ran.
+8. 🧮 Deterministic Reconciliation       A final deterministic stage dedups findings, assigns one
+                                          severity per defect, corrects CWEs, labels test badges
+                                          honestly, and computes a bounded, non-saturating score.
 ```
 
 ---
@@ -336,6 +339,22 @@ Senior Developer and Security Engineer tasks run **async in parallel**; Tech Lea
 
 ---
 
+## 🧮 Deterministic Final Synthesis (reconciliation)
+
+The last stage is not the LLM — it's a **deterministic reconciler** ([`synthesis/reconciler.py`](src/code_review_agent/synthesis/reconciler.py)) that takes the raw analyzer output (regex + Bandit/SAST + governance) plus the sandbox test result and produces one internally consistent report. It owns the report's headline verdict, score, and counts; the agent crew's narrative is shown as *advisory*. It enforces a fixed contract:
+
+1. **Deduplicate before counting.** Findings sharing a root cause (same file + CWE within an adjacency window — so a Bandit import warning + the call-site hit + a custom rule collapse to one defect) merge into a single finding with a `sources[]` list. Every count equals the length of the deduplicated list — no invented totals.
+2. **One severity per defect,** assigned from a documented impact/exploitability rubric (keyed on the corrected CWE), never copied from whichever analyzer fired. The same defect never appears as CRITICAL in one place and LOW in another.
+3. **Honest test-evidence semantics.** A generated test that asserts a vulnerability *is present* is `confirms_vulnerability` — a **pass on it confirms the defect** (🔴 VULNERABILITY CONFIRMED), never a reassuring green. Only a `confirms_fix` (POST-FIX) test that passes earns 🟢 FIX VERIFIED.
+4. **Governance scoped to production.** Production-only style rules (`print`, `sleep`, wildcard imports) are downgraded to INFO inside test files, examples, scripts, and `if __name__ == "__main__":` guards, and a WARNING is never relabeled CRITICAL. Low-severity items never drive the top-line verdict.
+5. **A bounded, non-saturating score.** Instead of an additive model that underflows to 0 for anything moderately bad, the score is a **worst-severity ceiling minus diminishing per-defect penalties**, floored so typical PRs stay informative — 1 vs 2 criticals are distinguishable (e.g. 35 vs 22), and the terms trace to listed findings.
+6. **CWEs corrected** to match the actual defect (`eval()` on input is CWE-95, not the firing rule's CWE-78).
+7. **An explicit limitations note** — pattern/Bandit static analysis has no dataflow/taint tracking; it plainly states the classes it can't reliably catch (second-order injection, SSRF, disabled TLS verification, many path-traversal variants, auth-logic flaws, races). Absence of a finding is not proof of safety.
+
+Deterministic analysis can **override** the LLM: a confirmed CRITICAL or a BLOCKING rule escalates regardless of what the crew concluded (the final verdict is the stricter of the two).
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -425,6 +444,9 @@ AI-Code-Review-Agent/
     │   ├── base.py                     #   GitPlatformClient interface + normalized DTOs
     │   ├── factory.py                  #   URL/identifier → adapter resolution
     │   └── {github,gitlab,bitbucket,local_git}_adapter.py
+    │
+    ├── synthesis/                      # 🧮 Deterministic final synthesis
+    │   └── reconciler.py               #   dedup · one-severity · honest badges · bounded score
     │
     ├── governance/rules_engine.py      # .code-review.yaml evaluator
     ├── observability/                  # Telemetry, cost tracking, hierarchical trace tree

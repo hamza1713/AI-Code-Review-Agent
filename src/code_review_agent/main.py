@@ -33,7 +33,7 @@ from crewai.flow import Flow, listen, start, router, or_, persist
 from code_review_agent.config import get_github_token, get_model_name, logger
 from code_review_agent.llm_factory import LLMFactory
 
-from code_review_agent.models import ReviewState, InlineComment, SastFinding, RuleViolation, SummarizedFindingsJSON
+from code_review_agent.models import ReviewState, SummarizedFindingsJSON
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.tools import SastEngine
 from code_review_agent.sarif_exporter import SarifExporter
@@ -461,7 +461,6 @@ class PRCodeReviewFlow(Flow[ReviewState]):
         confidence_val = review_res.get("confidence")
 
         # ── Empirical Test Sandbox Execution (Phase 3) ──────────────────────
-        test_evidence_md = ""
         if self.state.generated_unit_tests:
             logger.info("🧪 Running generated unit tests in isolated subprocess sandbox...")
             try:
@@ -475,15 +474,44 @@ class PRCodeReviewFlow(Flow[ReviewState]):
                 self.state.test_execution = test_exec
                 badge = f"[{test_exec.evidence_badge}]"
                 logger.info(f"🧪 Sandbox test outcome: {badge} - {test_exec.summary_message}")
-                test_evidence_md = (
-                    f"### 🧪 Empirical Test Evidence `{badge}`\n"
-                    f"- **Evidence Badge**: `{test_exec.evidence_badge}`\n"
-                    f"- **Execution Status**: `{test_exec.status}`\n"
-                    f"- **Runtime**: {test_exec.duration_seconds}s\n"
-                    f"- **Details**: {test_exec.summary_message}\n\n"
-                )
             except Exception as e:
                 logger.warning(f"Could not execute sandbox tests: {e}")
+
+        # ── Deterministic Final Synthesis (authoritative) ──────────────────
+        # Reconcile the raw analyzer findings + test result into ONE consistent view:
+        # deduplicated findings, one severity per defect, honest test-evidence semantics,
+        # production-scoped governance, corrected CWEs, and a bounded non-saturating score.
+        # This owns the report's headline verdict/score/counts; the crew narrative is advisory.
+        reconciled_md = ""
+        reconciled_verdict = None
+        try:
+            from code_review_agent.synthesis import SynthesisReconciler
+            reconciled = SynthesisReconciler.reconcile(
+                sast_findings=self.state.sast_findings,
+                rule_violations=self.state.rule_violations,
+                test_execution=self.state.test_execution,
+                generated_tests=self.state.generated_unit_tests,
+                pr_content=self.state.pr_content,
+            )
+            reconciled_md = reconciled.to_markdown()
+            reconciled_verdict = reconciled.verdict
+            logger.info(
+                f"🧮 Reconciled: {reconciled.findings_count} finding(s), verdict {reconciled.verdict}, "
+                f"score {reconciled.score}/100."
+            )
+        except Exception as recon_err:
+            logger.warning(f"Synthesis reconciler unavailable ({recon_err}); using crew narrative only.")
+
+        def _more_severe(a: Optional[str], b: Optional[str]) -> str:
+            # Deterministic escalation can override the LLM; take the stricter of the two.
+            order = {"APPROVE": 0, "REQUEST CHANGES": 1, "ESCALATE": 2}
+            best, rank = "APPROVE", -1
+            for v in (a, b):
+                if v and order.get(v.upper() if isinstance(v, str) else "", -1) > rank:
+                    best, rank = v, order.get(v.upper(), -1)
+            return best if rank >= 0 else "REQUEST CHANGES"
+
+        recon_header = (reconciled_md + "\n\n---\n\n") if reconciled_md else ""
 
         # ── Deterministic Template Synthesis (F4) ──────────────────────────
         # If Tech Lead produced a structured verdict & confidence, render Markdown directly.
@@ -512,13 +540,18 @@ class PRCodeReviewFlow(Flow[ReviewState]):
 
             action_items_md = "\n".join(action_items) or "- No critical actions required."
 
+            final_decision = _more_severe(reconciled_verdict, structured_verdict)
+            # Note: the reconciled section above owns the authoritative verdict/score and the
+            # honest empirical-test badge; the crew's confidence is shown as advisory only, and
+            # the raw sandbox badge is intentionally omitted here to avoid a misleading signal.
             self.state.final_answer = (
                 f"# Pull Request Review Report\n\n"
-                f"**Final Decision**: {structured_verdict}\n\n"
-                f"**Confidence Score**: {confidence_val}/100{breakdown_line}\n\n"
+                f"{recon_header}"
+                f"## 🧠 Agent Analysis (advisory)\n\n"
+                f"**Final Decision**: {final_decision}\n\n"
+                f"**Agent confidence (advisory)**: {confidence_val}/100{breakdown_line}\n\n"
                 f"### Executive Summary\n{findings_text}\n\n"
                 f"{blocking_block}"
-                f"{test_evidence_md}"
                 f"### Required Action Items\n{action_items_md}\n"
             )
             return
@@ -542,7 +575,7 @@ class PRCodeReviewFlow(Flow[ReviewState]):
         )
 
         try:
-            self.state.final_answer = self._call_llm_with_timeout(prompt, timeout_seconds=60.0)
+            self.state.final_answer = recon_header + self._call_llm_with_timeout(prompt, timeout_seconds=60.0)
             logger.info("✅ Final decision LLM call succeeded.")
         except Exception as llm_err:
             logger.error(f"Final decision LLM call failed or timed out: {llm_err}. Building deterministic report from pre-scan data.")
@@ -563,6 +596,9 @@ class PRCodeReviewFlow(Flow[ReviewState]):
                 verdict_line = "APPROVE"
                 confidence = 90
 
+            # Reconciled deterministic verdict takes precedence when stricter.
+            verdict_line = _more_severe(reconciled_verdict, verdict_line)
+
             findings_rows = "\n".join([
                 f"| `{f.file_path}` | {f.line_number} | **{f.severity}** | **{f.rule_id}**: {f.description} |"
                 for f in self.state.sast_findings
@@ -581,6 +617,7 @@ class PRCodeReviewFlow(Flow[ReviewState]):
 
             self.state.final_answer = (
                 f"# Pull Request Review Report\n\n"
+                f"{recon_header}"
                 f"## 1. Final Decision\n**{verdict_line}**\n\n"
                 f"## 2. Confidence Score\n**{confidence}**\n\n"
                 f"## 3. Executive Summary\n"
