@@ -16,16 +16,20 @@ class GitHubClient:
     """Client for interacting with GitHub Pull Requests API."""
 
     def __init__(self, token: Optional[str] = None):
-        self.token = token or get_github_token()
+        tok = token or get_github_token()
+        # Filter dummy/placeholder tokens
+        if tok and any(p in tok.lower() for p in ["your_github", "your_token", "placeholder", "ghp_your"]):
+            tok = None
+        self.token = tok
         self.base_url = "https://api.github.com"
 
-    def _get_headers(self, accept: str = "application/vnd.github.v3+json") -> Dict[str, str]:
+    def _get_headers(self, accept: str = "application/vnd.github.v3+json", include_auth: bool = True) -> Dict[str, str]:
         """Build standard GitHub authorization headers."""
         headers = {
             "Accept": accept,
             "User-Agent": "AI-Code-Review-Agent/2.0",
         }
-        if self.token:
+        if self.token and include_auth:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
 
@@ -35,16 +39,23 @@ class GitHubClient:
         Parse PR URLs or shorthand formats into (owner, repo, pull_number).
         Supports:
           - https://github.com/owner/repo/pull/42
+          - https://github.com/owner/repo/pull/42?utm_source=...
           - owner/repo/pull/42
           - owner/repo/42
           - owner/repo#42
         """
-        pr_identifier = pr_identifier.strip()
-        match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_identifier)
+        clean = pr_identifier.strip()
+        # Strip query parameters or URL anchors (e.g. ?utm_source=... or #issuecomment-...)
+        if "?" in clean:
+            clean = clean.split("?")[0]
+        if "#" in clean and not re.search(r"^[^/]+/[^/#]+#\d+$", clean):
+            clean = clean.split("#")[0]
+
+        match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", clean)
         if match:
             return match.group(1), match.group(2), int(match.group(3))
 
-        match = re.search(r"^([^/]+)/([^/#]+)(?:/pull/|/|#)(\d+)$", pr_identifier)
+        match = re.search(r"^([^/]+)/([^/#]+)(?:/pull/|/|#)(\d+)$", clean)
         if match:
             return match.group(1), match.group(2), int(match.group(3))
 
@@ -58,6 +69,11 @@ class GitHubClient:
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pull_number}"
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             resp = client.get(url)
+            # If 401 Unauthorized occurs due to an expired or bad token on a public repo, fallback to unauthenticated
+            if resp.status_code == 401 and self.token:
+                logger.warning(f"GitHub token rejected with 401 for {url}; retrying unauthenticated for public repository...")
+                resp = client.get(url, headers=self._get_headers(include_auth=False))
+
             if resp.status_code != 200:
                 raise RuntimeError(
                     f"Failed to fetch PR metadata from {url}: [{resp.status_code}] {resp.text}"
@@ -76,16 +92,33 @@ class GitHubClient:
             }
 
     def fetch_pull_request_diff(self, owner: str, repo: str, pull_number: int) -> str:
-        """Fetch raw unified diff for a pull request."""
+        """Fetch raw unified diff for a pull request with multi-layer fallback for public repositories."""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pull_number}"
         headers = self._get_headers(accept="application/vnd.github.v3.diff")
-        with httpx.Client(headers=headers, timeout=45.0) as client:
+        with httpx.Client(headers=headers, timeout=45.0, follow_redirects=True) as client:
             resp = client.get(url)
-            if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Failed to fetch PR diff from {url}: [{resp.status_code}] {resp.text}"
-                )
-            return resp.text
+            # Fallback 1: If 401 Unauthorized (e.g. invalid/expired token on public repo), retry unauthenticated
+            if resp.status_code == 401 and self.token:
+                logger.warning(f"GitHub token rejected with 401 for {url}; retrying unauthenticated API request...")
+                resp = client.get(url, headers=self._get_headers(accept="application/vnd.github.v3.diff", include_auth=False))
+
+            if resp.status_code == 200 and resp.text.strip():
+                return resp.text
+
+            # Fallback 2: Direct public web diff endpoint (works reliably for all public PRs without API token)
+            direct_diff_url = f"https://github.com/{owner}/{repo}/pull/{pull_number}.diff"
+            logger.info(f"Attempting direct public PR diff fetch from {direct_diff_url}...")
+            resp_direct = client.get(
+                direct_diff_url,
+                headers={"User-Agent": "AI-Code-Review-Agent/2.0"},
+                follow_redirects=True
+            )
+            if resp_direct.status_code == 200 and resp_direct.text.strip():
+                return resp_direct.text
+
+            raise RuntimeError(
+                f"Failed to fetch PR diff from {url}: [{resp.status_code}] {resp.text}"
+            )
 
     def post_pull_request_review(
         self,
