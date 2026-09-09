@@ -6,6 +6,7 @@ properly accept and respect target repository root context (F2).
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 import pytest
 
 from code_review_agent.context_engine.context_tool import CodebaseContextTool
@@ -52,10 +53,11 @@ def test_tool_registry_resolves_with_repo_root():
 def test_crew_passes_repo_root_to_agent_tools():
     """Verify CodeReviewCrew constructor stores repo_root and passes it to tools."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        crew = CodeReviewCrew(repo_root=tmpdir)
-        assert crew.repo_root == tmpdir
+        with patch("code_review_agent.crews.code_review_crew.crew.LLMFactory.create_llm", return_value="gpt-4o"):
+            crew = CodeReviewCrew(repo_root=tmpdir)
+            assert crew.repo_root == tmpdir
 
-        dev_tools = crew._get_agent_tools('senior_developer')
-        context_tools = [t for t in dev_tools if isinstance(t, CodebaseContextTool)]
-        for ct in context_tools:
-            assert ct._repo_root == tmpdir
+            dev_tools = crew._get_agent_tools('senior_developer')
+            context_tools = [t for t in dev_tools if isinstance(t, CodebaseContextTool)]
+            for ct in context_tools:
+                assert ct._repo_root == tmpdir

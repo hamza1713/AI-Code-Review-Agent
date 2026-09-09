@@ -6,6 +6,8 @@ import math
 import pytest
 from unittest.mock import patch
 
+genai = pytest.importorskip("google.generativeai")
+
 from code_review_agent.context_engine.semantic.embeddings import (
     GeminiEmbedder,
     get_embedder,

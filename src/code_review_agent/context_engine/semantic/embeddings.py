@@ -167,11 +167,13 @@ class GeminiEmbedder(Embedder):
     dimension = 3072
 
     def __init__(self, model_name: Optional[str] = None, api_key: Optional[str] = None):
-        import google.generativeai as genai  # noqa: PLC0415
-
         key = api_key or get_gemini_api_key()
         if not key:
             raise ValueError("GEMINI_API_KEY is required for GeminiEmbedder.")
+        try:
+            import google.generativeai as genai  # noqa: PLC0415
+        except ImportError:
+            raise ValueError("google-generativeai package is required for GeminiEmbedder.")
         genai.configure(api_key=key)
         self._genai = genai
         self.model_name = model_name or os.getenv("RAG_EMBEDDING_MODEL", "models/gemini-embedding-001")
