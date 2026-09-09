@@ -11,12 +11,10 @@ Skill → Agent Assignments (from config/agents.yaml):
                        governance-policy-enforcer
 """
 
-import os
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any
 from crewai import Agent, Crew, Process, Task, LLM
 
 from crewai.project import CrewBase, agent, crew, task
-from crewai_tools import SerperDevTool, ScrapeWebsiteTool
 
 from code_review_agent.llm_factory import LLMFactory
 from code_review_agent.crews.code_review_crew.tool_registry import ToolRegistry

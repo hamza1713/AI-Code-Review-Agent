@@ -100,6 +100,33 @@ _GOV_CWE_HINTS: List[Tuple[str, str]] = [
 # Governance rule_id keywords that are production-only STYLE rules (rule 4 scoping).
 _STYLE_RULE_KEYWORDS = ("print", "sleep", "wildcard", "import", "logging", "log", "todo", "naming", "format")
 
+# Bandit import-blacklist tests (B401–B415): the *import* of a risky module is context,
+# not a sink — it must never inherit the sink's severity. It is folded into the real use
+# finding if one exists, else surfaced as INFO. Matched on the BANDIT-<id> rule id.
+_IMPORT_BLACKLIST_IDS = tuple(f"B4{n:02d}" for n in range(1, 16))
+_IMPORT_LINE = re.compile(r"^\s*(?:import|from)\s")
+
+# Low-confidence Bandit heuristics that should never escalate to a high severity:
+# B603 (subprocess w/o shell=True), B607 (partial executable path), B110 (try/except/pass).
+_LOW_CONFIDENCE_IDS = ("B603", "B607", "B110")
+
+
+def _is_safe_subprocess(snippet: str) -> bool:
+    """
+    True if a subprocess snippet is not shell-injectable (list args or shell=False, no
+    string interpolation). Kept inline so the reconciler stays free of the tools/crewai
+    import chain; mirrors tools.bandit_runner.is_safe_subprocess_call.
+    """
+    text = snippet or ""
+    if "os.system" in text or re.search(r"shell\s*=\s*True", text, re.I):
+        return False
+    if re.search(r"shell\s*=\s*False", text, re.I):
+        return True
+    if re.search(r"subprocess\.(?:call|run|Popen|check_output)\s*\(\s*\[", text):
+        return True
+    # No f-string / concatenation / %-format → Python defaults to shell=False (safe).
+    return not re.search(r"f[\"']|\s\+\s|%s|%\s*\(|\.format\s*\(", text)
+
 # Path fragments that are NOT production code (production-only rules don't apply).
 _NON_PROD_PATH = re.compile(
     r"(^|/)(tests?|test|examples?|samples?|scripts?|benchmarks?|fixtures?|conftest)(/|\.|_|$)"
@@ -121,6 +148,10 @@ class _Signal:
     is_governance: bool = False
     gov_severity: Optional[str] = None  # BLOCKING/WARNING/INFO for governance
     is_style_rule: bool = False
+    rule_id: str = ""
+    snippet: str = ""
+    is_import: bool = False       # a risky *import* (context, not a sink)
+    is_low_conf: bool = False     # a low-confidence Bandit heuristic (B603/B607/B110)
 
 
 class ReconciledFinding(BaseModel):
@@ -232,8 +263,13 @@ class SynthesisReconciler:
         pr_content: str = "",
     ) -> ReconciledReport:
         signals = cls._collect_signals(sast_findings or [], rule_violations or [], pr_content)
-        clusters = cls._cluster(signals)
-        findings = [cls._merge_cluster(c) for c in clusters]
+        # Risky imports are folded into the real use-finding they belong to (regardless of
+        # line distance — imports sit at the top of the file, uses far below), so an import
+        # never becomes its own inflated finding. Everything else clusters by adjacency.
+        imports = [s for s in signals if s.is_import]
+        clusters = cls._cluster([s for s in signals if not s.is_import])
+        cls._fold_imports(clusters, imports)
+        findings = [f for f in (cls._merge_cluster(c) for c in clusters) if f is not None]
         # Stable order: severity desc, then file, then line.
         findings.sort(key=lambda f: (-_SEV_RANK[f.severity], f.file, f.line))
 
@@ -263,10 +299,15 @@ class SynthesisReconciler:
 
         for f in sast:
             cwe = cls._correct_cwe(f.cwe, f"{f.description} {f.snippet} {f.rule_id}")
+            rid = (f.rule_id or "").upper()
+            snippet = f.snippet or ""
+            is_import = bool(_IMPORT_LINE.match(snippet)) or any(b in rid for b in _IMPORT_BLACKLIST_IDS)
+            is_low_conf = any(b in rid for b in _LOW_CONFIDENCE_IDS)
             signals.append(_Signal(
                 file=f.file_path, line=f.line_number, cwe=cwe,
                 source=(f.analyzer_source or f.rule_id or "sast"),
                 description=f.description, fix=f.fix_recommendation, raw_severity=f.severity,
+                rule_id=rid, snippet=snippet, is_import=is_import, is_low_conf=is_low_conf,
             ))
 
         for v in governance:
@@ -311,8 +352,11 @@ class SynthesisReconciler:
     @classmethod
     def _signal_severity(cls, sig: _Signal) -> str:
         """Rule 2: ONE severity from the documented rubric (impact-based), not analyzer copy."""
-        # Bandit low-severity informational / partial-path warnings should never escalate to CRITICAL
-        if any(bid in sig.source for bid in ("B603", "B607", "B110")):
+        # A risky import is context, not a sink → never inherits the sink's severity.
+        if sig.is_import:
+            return "INFO"
+        # Low-confidence Bandit heuristics (partial path, subprocess w/o shell) never escalate.
+        if sig.is_low_conf:
             return "LOW"
         if sig.cwe and sig.cwe in _CWE_SEVERITY:
             return _CWE_SEVERITY[sig.cwe]
@@ -352,25 +396,60 @@ class SynthesisReconciler:
             return a.cwe == b.cwe
         return True
 
-    @classmethod
-    def _merge_cluster(cls, cluster: List[_Signal]) -> ReconciledFinding:
-        """Emit ONE consolidated finding from a cluster of same-root-cause signals."""
-        # Canonical CWE: prefer a known, specific security CWE.
-        cwes = [s.cwe for s in cluster if s.cwe]
-        canonical_cwe = next((c for c in cwes if c in _CWE_SEVERITY), (cwes[0] if cwes else None))
-
-        # Rebuild a representative signal to derive the single severity from the rubric.
-        rep = _Signal(
-            file=cluster[0].file, line=min(s.line for s in cluster), cwe=canonical_cwe,
-            source="", description="", fix="", raw_severity=cluster[0].raw_severity,
-            is_governance=all(s.is_governance for s in cluster),
-            gov_severity=next((s.gov_severity for s in cluster if s.gov_severity), None),
+    @staticmethod
+    def _cluster_cwe(cluster: List[_Signal]) -> Optional[str]:
+        """Canonical CWE of a cluster, preferring a known security CWE from its use (non-import) signals."""
+        use_cwes = [s.cwe for s in cluster if s.cwe and not s.is_import]
+        all_cwes = [s.cwe for s in cluster if s.cwe]
+        return next(
+            (c for c in use_cwes if c in _CWE_SEVERITY),
+            next((c for c in all_cwes if c in _CWE_SEVERITY), (all_cwes[0] if all_cwes else None)),
         )
-        severity = cls._signal_severity(rep)
+
+    @classmethod
+    def _fold_imports(cls, clusters: List[List[_Signal]], imports: List[_Signal]) -> None:
+        """Fold each risky import into the same-file, same-CWE use cluster it belongs to
+        (regardless of distance). Imports with no matching use become their own INFO finding."""
+        for imp in imports:
+            target = None
+            for c in clusters:
+                if all(s.is_import for s in c):
+                    continue  # don't fold one lone import into another
+                if c and c[0].file == imp.file and imp.cwe and cls._cluster_cwe(c) == imp.cwe:
+                    target = c
+                    break
+            if target is not None:
+                target.append(imp)
+            else:
+                clusters.append([imp])
+
+    @classmethod
+    def _merge_cluster(cls, cluster: List[_Signal]) -> Optional[ReconciledFinding]:
+        """Emit ONE consolidated finding, or None to drop a spurious low-confidence warning."""
+        canonical_cwe = cls._cluster_cwe(cluster)
+        non_import = [s for s in cluster if not s.is_import]
+
+        if not non_import:
+            # A lone risky import with no dangerous use in the diff — informational only.
+            severity = "INFO"
+        elif all(s.is_low_conf for s in non_import):
+            # Low-confidence subprocess heuristics on a provably-safe call are spurious → drop.
+            subprocess_lc = [s for s in non_import if any(b in s.rule_id for b in ("B603", "B607"))]
+            if subprocess_lc and len(subprocess_lc) == len(non_import) and all(_is_safe_subprocess(s.snippet) for s in subprocess_lc):
+                return None
+            severity = "LOW"
+        else:
+            rep = _Signal(
+                file=cluster[0].file, line=min(s.line for s in non_import), cwe=canonical_cwe,
+                source="", description="", fix="", raw_severity=non_import[0].raw_severity,
+                is_governance=all(s.is_governance for s in non_import),
+                gov_severity=next((s.gov_severity for s in non_import if s.gov_severity), None),
+            )
+            severity = cls._signal_severity(rep)
 
         sources = sorted({s.source for s in cluster if s.source})
-        line = min(s.line for s in cluster)
-        description = next((s.description for s in cluster if s.description), "Security/quality defect")
+        line = min(s.line for s in (non_import or cluster))
+        description = next((s.description for s in (non_import or cluster) if s.description), "Security/quality defect")
         fix = next((s.fix for s in cluster if s.fix), "Review and remediate the flagged code.")
         blocking = severity == "CRITICAL" or any(
             s.is_governance and (s.gov_severity == "BLOCKING") for s in cluster

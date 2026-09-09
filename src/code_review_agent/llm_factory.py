@@ -4,7 +4,6 @@ Abstracts multi-provider LLM creation (Gemini, OpenAI, Anthropic, Groq, Ollama)
 using CrewAI and LiteLLM unified interfaces with graceful fallback and environment resolution.
 """
 
-import os
 from typing import Optional, Dict, Any
 from crewai import LLM
 

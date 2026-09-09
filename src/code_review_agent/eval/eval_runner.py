@@ -9,9 +9,6 @@ from pydantic import BaseModel, Field
 
 from code_review_agent.models import (
     ReviewState,
-    SummarizedFindingsJSON,
-    ReviewSecurityJSON,
-    CodeQualityJSON,
 )
 from code_review_agent.eval.deterministic_evaluators import (
     ConfidenceMathEvaluator,

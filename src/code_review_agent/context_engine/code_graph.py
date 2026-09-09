@@ -10,9 +10,9 @@ import re
 import time
 import threading
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple, Any
+from typing import Dict, List, Set, Optional, Tuple
 
-from code_review_agent.models import SymbolInfo, CodeGraphSummary, ParsedPR
+from code_review_agent.models import SymbolInfo, CodeGraphSummary
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.config import logger
 
@@ -107,12 +107,6 @@ class CodeGraphIndexer:
             symbols_count=len(self.symbols),
             impacted_callers={}
         )
-
-    @classmethod
-    def clear_cache(cls):
-        """Clear global code graph cache."""
-        with _INDEX_CACHE_LOCK:
-            _INDEX_CACHE.clear()
 
     def _index_file(self, file_path: Path):
         """Parse symbols, scopes, and function calls from a file (Python, JS, TS, Go, Java)."""

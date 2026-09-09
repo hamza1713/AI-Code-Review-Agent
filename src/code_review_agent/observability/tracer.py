@@ -9,7 +9,6 @@ import uuid
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
 
-from code_review_agent.config import logger
 
 
 class TraceNode(BaseModel):

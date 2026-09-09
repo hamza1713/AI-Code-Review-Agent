@@ -6,15 +6,13 @@ validates Pydantic schemas, and provides structured graceful fallbacks when LLM 
 
 import json
 import re
-from typing import Type, TypeVar, Optional, Tuple, Any, Dict, List, Callable
+from typing import Type, TypeVar, Optional, Tuple, Any, Dict, Callable
 from pydantic import BaseModel, ValidationError
 
 from code_review_agent.models import (
     SummarizedFindingsJSON,
     CodeQualityJSON,
-    ReviewSecurityJSON,
-    InlineComment,
-    Fix
+    ReviewSecurityJSON
 )
 from code_review_agent.config import logger
 

@@ -125,7 +125,7 @@ AI-Code-Review-Agent/
 │       ├── context_engine/                 # AST Code Graph & Repository Indexer
 │       │   ├── __init__.py
 │       │   ├── code_graph.py               # Call Graph Builder (Callers/Callees/Impact)
-│       │   ├── tree_sitter_indexer.py      # Multi-Language Tree-Sitter AST Indexer
+│       │   │                                 #   Python native AST; JS/TS/Go/Java via tokenization
 │       │   └── context_tool.py             # CrewAI BaseTool wrapper, repo_root-scoped & lazy
 │       │
 │       ├── governance/                     # Team Governance Rules Engine
@@ -147,7 +147,8 @@ AI-Code-Review-Agent/
 │       │
 │       ├── tools/                          # SAST & Code Review Tools
 │       │   ├── __init__.py
-│       │   ├── sast_scanner.py             # Unified Security Scanner (Semgrep+Bandit+Regex)
+│       │   ├── ast_security_scanner.py     # AST Constant Folding & Variable Indirection Scanner
+│       │   ├── sast_scanner.py             # Unified Security Scanner (AST+Semgrep+Bandit+Regex)
 │       │   ├── semgrep_runner.py           # Multi-Language Semgrep AST Runner
 │       │   ├── bandit_runner.py            # Python Bandit Security AST Runner (cached availability)
 │       │   ├── ruff_tool.py                # Ultra-Fast Ruff Linter Tool (cached availability)
@@ -194,6 +195,7 @@ AI-Code-Review-Agent/
     ├── conftest.py                         # Fixtures — resets all process-lifetime caches per test
     ├── test_adaptive_chunking.py           # Token budgeting and chunking tests
     ├── test_api_review.py                  # Synchronous review API endpoint tests
+    ├── test_ast_constant_folding.py        # AST constant folding & variable indirection tests
     ├── test_bandit_runner.py               # Bandit static analysis tests
     ├── test_benchmarks.py                  # Ground-truth accuracy and recall benchmark tests
     ├── test_cache.py                       # Content-hash LRU caching tests
@@ -208,11 +210,12 @@ AI-Code-Review-Agent/
     ├── test_rules_engine.py                # Governance YAML evaluation tests
     ├── test_sandbox_runner.py              # Isolated sandbox execution & evidence badge tests
     ├── test_semgrep_runner.py              # Semgrep integration tests
+    ├── test_synthesis_reconciler.py        # Deterministic final-synthesis reconciler tests
     ├── test_tasks_grounding.py             # Anti-hallucination prompt constraint tests
     ├── test_test_generator.py              # Unit test generation tests
     ├── test_tool_registry.py               # Declarative tool resolution tests
     ├── test_tracer.py                      # Decision tree execution tracer tests
-    ├── test_tree_sitter_indexer.py         # Tree-Sitter multi-language indexer tests
+    ├── test_vuln_bench.py                  # OWASP/CWE 12-pattern vulnerability benchmark tests
     └── test_webhook_queue.py               # SQLite WAL queue, worker, retry & concurrency tests
 ```
 

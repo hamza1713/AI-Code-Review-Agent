@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional
-import os
 import re
 
 from code_review_agent.models import SastFinding

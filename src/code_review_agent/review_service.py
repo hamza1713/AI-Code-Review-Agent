@@ -15,15 +15,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from collections import OrderedDict, deque
 
-from code_review_agent.config import logger, get_model_name
+from code_review_agent.config import logger
 from code_review_agent.models import (
     ReviewState,
     ReviewAPIResponse,
-    CrossFileImpactSummary,
-    SastFinding,
-    RuleViolation,
-    InlineComment,
-    TelemetryMetrics
+    CrossFileImpactSummary
 )
 from code_review_agent.main import PRCodeReviewFlow
 from code_review_agent.diff_parser import DiffParser
@@ -39,7 +35,6 @@ MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB max single file upload
 MAX_DIFF_CHARS = 500_000                # ~500 KB raw diff limit
 
 
-from collections import OrderedDict, deque
 
 
 class RateLimitExceeded(Exception):

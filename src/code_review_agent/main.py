@@ -11,7 +11,7 @@ import uuid
 import argparse
 import concurrent.futures
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 
 # Ensure src directory is in sys.path
@@ -28,7 +28,7 @@ if sys.platform == "win32":
         pass
 
 from crewai import LLM
-from crewai.flow import Flow, listen, start, router, or_, persist
+from crewai.flow import Flow, listen, start, router, or_
 
 from code_review_agent.config import get_github_token, get_model_name, logger
 from code_review_agent.llm_factory import LLMFactory

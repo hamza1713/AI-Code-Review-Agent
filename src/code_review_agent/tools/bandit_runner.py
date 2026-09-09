@@ -11,7 +11,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional
-import importlib.util
 
 from code_review_agent.models import SastFinding
 from code_review_agent.diff_parser import DiffParser

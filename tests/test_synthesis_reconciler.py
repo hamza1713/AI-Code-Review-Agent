@@ -155,6 +155,39 @@ class TestTestEvidence:
         assert ev.kind == "none" and "HEURISTIC" in ev.badge and ev.positive is False
 
 
+# ── Analyzer false-positive suppression (import blacklists, low-confidence) ──
+class TestFalsePositiveHandling:
+    def test_risky_import_folds_into_use_and_is_not_inflated(self):
+        # Bandit B403 (import pickle, line 22) + the real pickle.loads use (line 62).
+        report = SynthesisReconciler.reconcile(sast_findings=[
+            _sast("BANDIT-B403", "CWE-502", "LOW", "io.py", 22, "import pickle", "import pickle", "bandit"),
+            _sast("SEC-DESER-001", "CWE-502", "HIGH", "io.py", 62, "insecure deser", "pickle.loads(b)", "regex"),
+        ])
+        cwe502 = [f for f in report.findings if f.cwe == "CWE-502"]
+        assert len(cwe502) == 1                     # import merged into the use, not a second finding
+        assert cwe502[0].severity == "HIGH"         # import did not inflate/attach its own severity
+
+    def test_lone_risky_import_is_info_not_high(self):
+        report = SynthesisReconciler.reconcile(sast_findings=[
+            _sast("BANDIT-B404", "CWE-78", "LOW", "x.py", 3, "import subprocess", "import subprocess", "bandit"),
+        ])
+        assert report.findings[0].severity == "INFO"
+        assert report.score >= 85 and report.verdict == "APPROVE"   # a bare import never tanks the score
+
+    def test_safe_low_confidence_subprocess_is_dropped(self):
+        report = SynthesisReconciler.reconcile(sast_findings=[
+            _sast("BANDIT-B603", "CWE-78", "LOW", "s.py", 158, "subprocess", 'subprocess.run(["ping","-c","1",host])', "bandit"),
+            _sast("BANDIT-B607", "CWE-78", "LOW", "s.py", 158, "partial path", 'subprocess.run(["ping","-c","1",host])', "bandit"),
+        ])
+        assert report.findings == []                # spurious on a safe list-based call
+
+    def test_bare_except_kept_as_low(self):
+        report = SynthesisReconciler.reconcile(sast_findings=[
+            _sast("BANDIT-B110", "CWE-390", "LOW", "r.py", 5, "try/except/pass", "except Exception:", "bandit"),
+        ])
+        assert len(report.findings) == 1 and report.findings[0].severity == "LOW"
+
+
 # ── Rule 7 + global self-check ──────────────────────────────────────────────
 class TestCoverageAndConsistency:
     def test_limitations_note_is_honest(self):

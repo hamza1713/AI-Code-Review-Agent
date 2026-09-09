@@ -6,9 +6,8 @@ reducing redundant compute and token expenditure by up to 30-50%.
 
 import hashlib
 import functools
-import json
 import threading
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Optional, Callable
 from collections import OrderedDict
 from pydantic import BaseModel
 

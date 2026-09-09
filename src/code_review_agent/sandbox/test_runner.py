@@ -13,7 +13,7 @@ import time
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional
 
 from code_review_agent.models import TestExecutionResult
 from code_review_agent.diff_parser import DiffParser

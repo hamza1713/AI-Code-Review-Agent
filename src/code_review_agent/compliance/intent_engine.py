@@ -6,7 +6,7 @@ Detects unmet requirements, partial implementations, and unexpected scope creep.
 
 import json
 import re
-from typing import Callable, List, Any, Optional, Literal
+from typing import Callable, List, Optional, Literal
 from pydantic import BaseModel, Field
 
 from code_review_agent.config import logger

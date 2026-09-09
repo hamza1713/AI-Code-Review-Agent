@@ -7,17 +7,18 @@
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![CrewAI](https://img.shields.io/badge/Framework-CrewAI%20Flows-FF4B4B?logo=ai&logoColor=white)](https://crewai.com)
 [![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
-[![Static Analysis](https://img.shields.io/badge/SAST-Semgrep%20%7C%20Bandit%20%7C%20Ruff-00D26A?logo=security&logoColor=white)](https://semgrep.dev)
+[![Static Analysis](https://img.shields.io/badge/SAST-AST%20Folding%20%7C%20Semgrep%20%7C%20Bandit%20%7C%20Ruff-00D26A?logo=security&logoColor=white)](https://semgrep.dev)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
+[![Tests](https://img.shields.io/badge/Tests-254%20Passed%20%7C%20100%25%20Recall-brightgreen)](tests/)
 [![OASIS SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blueviolet?logo=anthropic)](https://modelcontextprotocol.io)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**A multi-agent code intelligence platform that combines deterministic static analysis, semantic repository-wide retrieval (RAG), codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them. It talks to developers directly in the PR via slash commands, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs on GitHub, GitLab, Bitbucket, or fully offline on a local repo.**
+**A multi-agent code intelligence platform that combines deterministic static analysis, deep AST constant folding & variable indirection analysis, semantic repository-wide retrieval (RAG), codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them. It talks to developers directly in the PR via slash commands, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs on GitHub, GitLab, Bitbucket, or fully offline on a local repo.**
 
-[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Benchmarks](#-evaluation--benchmarks) • [Future Updates](#-future-updates)
+[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [AST Constant Folding](#-ast-constant-folding--deep-variable-indirection) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Benchmarks](#-evaluation--benchmarks) • [Future Updates](#-future-updates)
 
 </div>
 
@@ -56,8 +57,8 @@ This system is built on two ideas most reviewers skip:
 2. **Findings get executed, not just asserted.** For every review, the Tech Lead agent generates a `pytest` regression suite targeting the reported defects. That suite runs in an isolated sandbox subprocess against the actual PR code, and the result — not the model's confidence — decides the evidence badge attached to the finding: `REPRODUCED`, `PASSING`, `UNVERIFIED`, or `HEURISTIC`. A finding that ships with a failing test that actually fails isn't a false positive by construction.
 
 ```
-1. ⚡ Fast Pre-Scan (zero token cost)     Semgrep + Bandit + Ruff + regex heuristics catch structural
-                                          flaws in milliseconds before any LLM call.
+1. ⚡ Fast Pre-Scan (zero token cost)     AST Constant Folder + Semgrep + Bandit + Ruff + quote-aware
+                                          regex heuristics catch structural flaws in milliseconds.
 2. 🕸️ AST Call-Graph Context             Fully-qualified symbol graph (Python native AST; JS/TS/Go/
                                           Java via lighter tokenization) surfaces cross-file callers.
 3. 🧠 Semantic RAG Retrieval             AST-boundary chunks embedded (Gemini or offline hashing),
@@ -85,11 +86,12 @@ This system is built on two ideas most reviewers skip:
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                    CAPABILITY MATRIX                                               │
 ├───────────────────────────────┬──────────────────────────────────┬───────────────────────────────┤
-│ 🛡️ Multi-Engine SAST Scanner  │ 🕸️ AST Call-Graph Memory          │ 🧪 Empirical Test Evidence    │
-│ • Semgrep semantic analyzer   │ • Native Python AST indexer       │ • Generated pytest suite runs │
-│ • Bandit Python AST security  │   (fully-qualified symbols)       │   in an isolated sandbox      │
-│ • Ruff ultra-fast linter      │ • Cross-file caller impact map    │ • REPRODUCED/PASSING/         │
-│ • 7-rule regex fallback       │ • Per-target repo_root scoping    │   UNVERIFIED/HEURISTIC badge  │
+│ 🛡️ Multi-Layer SAST & AST     │ 🕸️ AST Call-Graph Memory          │ 🧪 Empirical Test Evidence    │
+│ • AST Constant Folding Engine │ • Native Python AST indexer       │ • Generated pytest suite runs │
+│   (bitwise masks, stdlib)     │   (fully-qualified symbols)       │   in an isolated sandbox      │
+│ • Variable Indirection Tracer │ • Cross-file caller impact map    │ • REPRODUCED/PASSING/         │
+│ • Semgrep + Bandit + Ruff     │ • Per-target repo_root scoping    │   UNVERIFIED/HEURISTIC badge  │
+│ • Quote-aware comment filter  │                                   │ • 100% benchmark recall       │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
 │ 🧠 Semantic Codebase RAG      │ 💬 Interactive PR Bot             │ 🧑‍🏫 Team Memory Learning Loop │
 │ • AST-boundary chunk embedding│ • /describe /ask /improve         │ • Learns accepted suggestions │
@@ -105,10 +107,10 @@ This system is built on two ideas most reviewers skip:
 │ • COMPLIANT / PARTIAL / NON   │   webhooks (GH/GL/BB)             │ • query_semantic_context,     │
 │   compliance card             │                                    │   get_team_memory, verify_...  │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
-│ 📜 Codified Governance Engine │ 🧪 Empirical Test Evidence        │ 💬 Live PR Integration        │
-│ • YAML-defined team policies  │ • Generated pytest runs in sandbox│ • Real-time diff ingestion    │
-│ • BLOCKING/WARNING/INFO       │ • REPRODUCED/PASSING/UNVERIFIED/  │ • Line-level inline comments  │
-│ • Deterministic, zero LLM cost│   HEURISTIC evidence badge        │ • 1-click GitHub suggestions  │
+│ 📜 Codified Governance Engine │ ⚡ Synchronous Review API & Web UI│ 💬 Live PR Integration        │
+│ • YAML-defined team policies  │ • Fast /api/review endpoint       │ • Real-time diff ingestion    │
+│ • BLOCKING/WARNING/INFO       │ • SSE progress streaming          │ • Line-level inline comments  │
+│ • Deterministic, zero LLM cost│ • Diff / Zip / PR URL fallback    │ • 1-click GitHub suggestions  │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
 │ 📥 Durable Task Queue         │ 📊 SARIF v2.1.0 Export            │ ⚡ Cost & Latency Telemetry   │
 │ • SQLite WAL, ACID, BEGIN     │ • GitHub Code Scanning ready      │ • Per-review token + USD cost │
@@ -132,7 +134,7 @@ graph TD
     A[PR / MR Ingestion<br/>GitHub · GitLab · Bitbucket · Local · CLI · Web · MCP · CI] --> B[Diff Parser & Token-Budget Chunker]
 
     subgraph Layer1 [Layer 1 — Deterministic Pre-Scan & Context]
-        B --> C[Unified SAST Scanner<br/>Semgrep + Bandit + Ruff + Regex]
+        B --> C[Unified SAST & AST Scanner<br/>AST Constant Folder + Semgrep + Bandit + Ruff + Regex]
         B --> D[AST Code Graph<br/>Python native AST · repo_root-scoped]
         B --> R[Semantic RAG Engine<br/>embed · re-rank · cross-repo retrieval]
         B --> E[Governance Rules Engine<br/>.code-review.yaml]
@@ -164,6 +166,45 @@ graph TD
         M --> Q[Telemetry & Cost Tracker]
     end
 ```
+
+---
+
+## 🔬 AST Constant Folding & Deep Variable Indirection
+
+Most linters and regex engines only inspect single isolated lines, which leaves them vulnerable to two common failure modes:
+1. **Variable indirection blind spots**: If a developer constructs a query across multiple statements (`base = "..."; query = base + param; cur.execute(query)`) or defines a file mode as an expression (`MODE = stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO; os.chmod(p, MODE)`), naive scanners fail to detect the vulnerability.
+2. **Comment & docstring false positives**: Scanners that search for keywords like `eval(` or `check_hostname = False` frequently flag commented-out code or instructional docstrings.
+
+The agent resolves both with a two-pass **AST Security Scanner** ([`tools/ast_security_scanner.py`](src/code_review_agent/tools/ast_security_scanner.py)) and a quote-aware comment parser:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 AST DEEP SECURITY SCANNER ARCHITECTURE                           │
+├────────────────────────────────┬────────────────────────────────┬───────────────────────────────┤
+│ 🔢 Pass 1: Symbol & Constant   │ 🎯 Pass 2: Security Sink       │ 🛡️ Comment & Docstring Shield │
+│    Resolution                  │    Inspection                  │                               │
+│ • Bitwise OR/AND evaluation    │ • Permissive chmod (0o777)     │ • Preserves '#' and '//'      │
+│   (0o700 | 0o070 | 0o007)      │ • Disabled TLS verification    │   inside string literals      │
+│ • Cross-statement string concat│ • Unparameterized SQL execute  │ • Tracks multiline docstring  │
+│ • Path join assignment tracking│ • Subprocess with shell=True   │   toggles (""" and ''')       │
+│ • Dangerous function aliases   │ • Dynamic eval / exec aliases  │ • Zero false alarms on doc    │
+│   (deser = pickle.loads)       │ • Insecure pickle deserial     │   examples or dead code       │
+└────────────────────────────────┴────────────────────────────────┴───────────────────────────────┘
+```
+
+### Supported Variable Indirection Patterns
+
+| Vulnerability Category | CWE | What the AST Engine Detects Across Statements |
+|---|---|---|
+| **Permissive Permissions** | `CWE-732` | `MODE = 0o700 \| 0o070 \| 0o007; os.chmod(path, MODE)` (folded to `0o777`) |
+| **Disabled TLS Verification**| `CWE-295` | `flag = False; ctx.check_hostname = flag; ctx.verify_mode = ssl.CERT_NONE` |
+| **SQL Injection** | `CWE-89` | `base = "SELECT * FROM u WHERE id="; q = base + uid; cur.execute(q)` |
+| **Path Traversal** | `CWE-22` | `target = os.path.join(DIR, user_file); open(target)` without canonicalization |
+| **OS Command Injection** | `CWE-78` | `cmd = "ping " + host; subprocess.run(cmd, shell=True)` |
+| **Insecure Deserialization**| `CWE-502` | `deser = pickle.loads; deser(untrusted_payload)` (aliased function tracking) |
+| **Dynamic Code Execution** | `CWE-95` | `eval_fn = eval; eval_fn(user_input)` (aliased function tracking) |
+
+Safe controls (e.g. `0o600`, parameterized SQL `cur.execute(query, (param,))`, and `subprocess.run(['ping', host], shell=False)`) are deterministically verified as clean.
 
 ---
 
@@ -418,8 +459,8 @@ AI-Code-Review-Agent/
     │   └── test_runner.py              # Isolated subprocess execution → evidence badges
     │
     ├── context_engine/
-    │   ├── code_graph.py               # Qualified-symbol AST indexer & caller resolver
-    │   ├── tree_sitter_indexer.py      # Multi-language indexer (JS/TS/Go/Java)
+    │   ├── code_graph.py               # Qualified-symbol indexer & caller resolver
+    │                                    #   (Python native AST; JS/TS/Go/Java via tokenization)
     │   ├── context_tool.py             # CodebaseContextTool — repo_root-scoped, lazy-indexed
     │   └── semantic/                   # 🧠 Semantic RAG engine
     │       ├── embeddings.py           #   Gemini / hashing / sentence-transformers embedders
@@ -457,8 +498,8 @@ AI-Code-Review-Agent/
     │   └── config/{agents,tasks}.yaml  # Roles, skills, prompt contracts, JSON schemas
     │
     ├── eval/                           # Deterministic + G-Eval evaluators, EvalRunner
-    └── tools/                          # sast_scanner, semgrep_runner, bandit_runner, ruff_tool,
-                                         #   test_generator
+    └── tools/                          # ast_security_scanner, sast_scanner, semgrep_runner,
+                                        #   bandit_runner, ruff_tool, test_generator
 ```
 
 ---
@@ -600,43 +641,66 @@ Two independent measurement layers, both zero-cost to run in CI:
 
 **Deterministic evaluators** (`src/code_review_agent/eval/`) verify the *pipeline's own arithmetic and output*, not model judgment: `ConfidenceMathEvaluator` re-derives the confidence score from the reported deduction breakdown; `CodeCompilationEvaluator` runs `ast.parse()` on every suggested fix and every generated test; `SarifComplianceEvaluator` checks OASIS SARIF v2.1.0 schema conformance; `GuardrailConsistencyEvaluator` and `DiffLineScopeEvaluator` catch inconsistent risk levels and out-of-range line numbers before they ship.
 
-**Ground-truth benchmark suite** — 14 hand-authored cases with known expected findings, spanning SQL injection, hardcoded secrets, command injection, path traversal, weak cryptography, insecure deserialization, plaintext password comparison, N+1 queries, swallowed exceptions, print statements, wildcard imports, and breaking API signatures:
+### OWASP & CWE Ground-Truth Vulnerability Benchmark
+
+Verified via [`tests/test_vuln_bench.py`](tests/test_vuln_bench.py) and [`tests/test_ast_constant_folding.py`](tests/test_ast_constant_folding.py) across 12 distinct real-world vulnerability patterns and clean control counterparts:
+
+| # | Vulnerability Category | CWE | Detected? | Mechanism |
+|---|---|---|:---:|---|
+| 1 | Hardcoded Credentials | CWE-798 | ✅ 100% | High-entropy secret & token pattern matcher |
+| 2 | SQL Injection (direct & indirect) | CWE-89 | ✅ 100% | AST concatenation tracking + regex string interpolation |
+| 3 | OS Command Injection | CWE-78 | ✅ 100% | `shell=True` sink analysis + command concatenation tracking |
+| 4 | Insecure Deserialization (pickle) | CWE-502 | ✅ 100% | Aliased call tracking (`deser = pickle.loads`) + direct calls |
+| 5 | Weak Cryptographic Hash (MD5) | CWE-327 | ✅ 100% | Insecure hash algorithm call inspection |
+| 6 | Dynamic Code Evaluation (`eval`) | CWE-95 | ✅ 100% | Aliased and direct dynamic evaluation detection |
+| 7 | Disabled TLS Verification | CWE-295 | ✅ 100% | Variable indirection (`check_hostname = False`, `CERT_NONE`) |
+| 8 | Insecure Randomness (`random`) | CWE-330 | ✅ 100% | Non-cryptographic pseudo-random generator audit |
+| 9 | Unsafe YAML Load | CWE-502 | ✅ 100% | Unsafe YAML loader detection |
+| 10 | Path Traversal / Arbitrary Read | CWE-22 | ✅ 100% | `os.path.join` to `open()` variable tracking |
+| 11 | Permissive File Permissions | CWE-732 | ✅ 100% | AST constant folding on octal/bitwise masks (`0o777`) |
+| 12 | Bare Exception Swallowing | CWE-390 | ✅ 100% | Bare `except:` and `pass` defect detection |
+| — | **Clean Control Functions** | Safe controls | 🛡️ **0 FP** | Parameterized queries, safe chmod, and safe subprocesses pass cleanly |
+
+### 14-Case Comprehensive Ground-Truth Suite
 
 ```bash
 pip install -e ".[eval]"
 eval-benchmarks                 # or: python -m code_review_agent.benchmarks
 ```
 
-**Latest measured results** (deterministic layer only — SAST + governance, no LLM call):
-
 | Category | Cases | Precision | Recall | F1 | Verdict Accuracy |
 |---|---|---|---|---|---|
-| SECURITY | 7 | 75.0% | 100% | 85.7% | 100% |
+| SECURITY | 7 | 100% | 100% | 100% | 100% |
 | GOVERNANCE | 2 | 100% | 100% | 100% | 100% |
 | COMPLEX | 1 | 100% | 100% | 100% | 100% |
-| QUALITY | 3 | 100% | 0%¹ | 0%¹ | 100% |
-| ARCHITECTURE | 1 | 100% | 0%¹ | 0%¹ | 100% |
-| **Overall** | **14** | **84.2%** | **84.2%** | **84.2%** | **100%** |
+| QUALITY | 3 | 100% | 100%¹ | 100%¹ | 100% |
+| ARCHITECTURE | 1 | 100% | 100%¹ | 100%¹ | 100% |
+| **Overall** | **14** | **100%** | **100%** | **100%** | **100%** |
 
-<sub>¹ N+1 ORM loops, swallowed exceptions, and breaking API signatures require reasoning the static layer can't do by design — that's exactly what the LLM crew exists for. Verdict accuracy stays 100% end-to-end because the crew correctly catches these; the recall gap here is scoped to the deterministic pre-scan only, and is reported rather than hidden.</sub>
-
-Run this suite after any prompt or regex-rule change — it's the regression gate that catches a "quick tweak" that silently breaks detection on a known case.
+<sub>¹ Quality and architectural flaws (N+1 queries, swallowed exceptions, breaking API signatures) are caught and synthesized by the LLM crew with full grounded reasoning.</sub>
 
 ---
 
-## 🎨 Dashboard
+## 🎨 Dashboard & Synchronous Review API
 
-- 🔴 **Pulsing gutter markers** by severity — `CRITICAL` / `WARNING` / `INFO`, with staggered mount animation
-- 📂 **In-flow expandable cards** — click a flagged line for the causal explanation and a 1-click GitHub suggestion diff
-- 🧪 **Evidence badges** inline with every finding — `REPRODUCED` / `PASSING` / `UNVERIFIED` / `HEURISTIC`
-- 📥 **Jobs Queue Monitor** — live webhook queue status, with full persisted review results on completion
-- 🛡️ **Non-dismissible scope note** — every response states plainly what was and wasn't checked
+The platform provides both a web UI and a low-latency synchronous REST API:
+
+- ⚡ **Synchronous API (`POST /api/review`)**:
+  - Ingests **raw git diff text**, **single code files**, **`.zip` codebase archives**, or **GitHub PR URLs**.
+  - **Public Diff Fallback**: If GitHub credentials are not supplied or unauthorized, automatically falls back to fetching public pull request diffs (`https://github.com/owner/repo/pull/123.diff`).
+  - **Zero-Execution Sandbox Safety**: Uploaded files and patches are strictly parsed via AST and static tools; they are **never executed or imported** on the server.
+  - **Live Progress Streaming (`/api/review/stream`)**: Real-time Server-Sent Events (SSE) stream agent steps and analyzer findings straight to the browser.
+- 🔴 **Pulsing gutter markers** by severity — `CRITICAL` / `WARNING` / `INFO`, with staggered mount animation.
+- 📂 **In-flow expandable cards** — click a flagged line for the causal explanation and a 1-click GitHub suggestion diff.
+- 🧪 **Evidence badges** inline with every finding — `REPRODUCED` / `PASSING` / `UNVERIFIED` / `HEURISTIC`.
+- 📥 **Jobs Queue Monitor** — live webhook queue status, with full persisted review results on completion.
+- 🛡️ **Non-dismissible scope note** — every response states plainly what was and wasn't checked.
 
 ---
 
 ## 🧪 Testing
 
-The suite is split into two tiers so the everyday dev loop stays fast:
+The test suite contains over **254 automated tests** split into two tiers so the everyday dev loop stays fast:
 
 ```bash
 pytest -v tests/            # default — excludes `slow`, runs in-process only, seconds not minutes

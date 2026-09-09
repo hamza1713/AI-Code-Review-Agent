@@ -7,12 +7,10 @@ variables, or involve constant folding (e.g. 0o777, stat masks, aliased function
 import ast
 import re
 import stat
-from typing import List, Dict, Any, Optional, Set, Tuple
-from pathlib import Path
+from typing import List, Dict, Any, Optional
 
 from code_review_agent.models import SastFinding
 from code_review_agent.diff_parser import DiffParser
-from code_review_agent.config import logger
 
 
 # Known standard library constant values for constant folding
@@ -36,6 +34,18 @@ _KNOWN_CONSTANTS: Dict[str, Any] = {
     "False": False,
     "None": None,
 }
+
+# os.path helpers that resolve/normalize a path but do NOT confine it to a base
+# directory, so they leave traversal (../) reachable when wrapping os.path.join.
+_PATH_RESOLVERS = {"os.path.abspath", "os.path.realpath", "os.path.normpath", "os.path.join"}
+
+# Assignment target names that indicate a credential/secret when they hold a
+# non-trivial constant value (used for obfuscated-secret detection).
+_SECRET_NAME_RE = re.compile(
+    r"(api[_-]?key|secret|token|passwd|password|pwd|access[_-]?key|"
+    r"private[_-]?key|credential|auth[_-]?key|_key)$",
+    re.IGNORECASE,
+)
 
 
 def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
@@ -94,6 +104,56 @@ def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
             # Numeric addition
             if isinstance(node.op, ast.Add) and isinstance(left_val, (int, float)) and isinstance(right_val, (int, float)):
                 return left_val + right_val
+
+    # Subscript / slicing on a folded sequence, e.g. "abc"[::-1] (string reversal)
+    # or ENC[::-1], a common secret-obfuscation trick.
+    if isinstance(node, ast.Subscript):
+        seq = evaluate_ast_constant(node.value, env)
+        if isinstance(seq, (str, bytes, list, tuple)):
+            sl = node.slice
+            try:
+                if isinstance(sl, ast.Slice):
+                    lower = evaluate_ast_constant(sl.lower, env) if sl.lower is not None else None
+                    upper = evaluate_ast_constant(sl.upper, env) if sl.upper is not None else None
+                    step = evaluate_ast_constant(sl.step, env) if sl.step is not None else None
+                    return seq[lower:upper:step]
+                idx = evaluate_ast_constant(sl, env)
+                if isinstance(idx, int):
+                    return seq[idx]
+            except (ValueError, TypeError, IndexError):
+                return None
+        return None
+
+    # Calls that decode/transform encoded literals (secret obfuscation): fold a
+    # limited, side-effect-free allowlist so hex/base64-encoded secrets resolve.
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        method = node.func.attr
+        try:
+            # bytes.fromhex("...") -> bytes
+            if method == "fromhex" and isinstance(node.func.value, ast.Name) and node.func.value.id == "bytes":
+                if node.args:
+                    hex_val = evaluate_ast_constant(node.args[0], env)
+                    if isinstance(hex_val, str):
+                        return bytes.fromhex(hex_val)
+            # base64.b64decode("...") / b64decode -> bytes
+            elif method in ("b64decode", "b16decode", "b32decode", "urlsafe_b64decode"):
+                if node.args:
+                    enc_val = evaluate_ast_constant(node.args[0], env)
+                    if isinstance(enc_val, (str, bytes)):
+                        import base64 as _b64
+                        return getattr(_b64, method)(enc_val)
+            # <bytes>.decode() -> str
+            elif method == "decode":
+                inner = evaluate_ast_constant(node.func.value, env)
+                if isinstance(inner, bytes):
+                    return inner.decode(errors="replace")
+            # <str>.encode() -> bytes
+            elif method == "encode":
+                inner = evaluate_ast_constant(node.func.value, env)
+                if isinstance(inner, str):
+                    return inner.encode()
+        except (ValueError, TypeError):
+            return None
 
     return None
 
@@ -174,12 +234,39 @@ class ASTSecurityScanner:
     ) -> List[SastFinding]:
         findings: List[SastFinding] = []
 
+        # Map every node to the id() of its nearest enclosing function ("module"
+        # at top level). Local dataflow facts (path joins, SQL/command concat
+        # vars) are keyed by this scope so a variable named `path` in one
+        # function cannot leak a finding into another function that reuses the
+        # name. Constants (env) and function aliases stay module-global, since a
+        # module-level constant or `deser = pickle.loads` is legitimately visible
+        # inside every function.
+        node_scope: Dict[int, Any] = {id(tree): "module"}
+
+        def _assign_scope(parent: ast.AST, scope: Any) -> None:
+            for child in ast.iter_child_nodes(parent):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    node_scope[id(child)] = scope          # the def keyword itself lives in the outer scope
+                    _assign_scope(child, id(child))         # its body opens a new scope
+                else:
+                    node_scope[id(child)] = scope
+                    _assign_scope(child, scope)
+
+        _assign_scope(tree, "module")
+
+        def _scope_of(node: ast.AST) -> Any:
+            return node_scope.get(id(node), "module")
+
         # State tables
         env: Dict[str, Any] = dict(_KNOWN_CONSTANTS)
         aliases: Dict[str, str] = {}  # alias_name -> canonical_name
-        path_joins: Dict[str, int] = {}  # var_name -> ast_lineno
-        sql_concat_vars: Dict[str, int] = {}  # var_name -> ast_lineno
-        cmd_concat_vars: Dict[str, int] = {}  # var_name -> ast_lineno
+        # Local dataflow facts keyed by (scope_id, var_name) -> ast_lineno
+        path_joins: Dict[tuple, int] = {}
+        sql_concat_vars: Dict[tuple, int] = {}
+        cmd_concat_vars: Dict[tuple, int] = {}
+
+        def _names_in_scope(table: Dict[tuple, int], scope: Any) -> set:
+            return {name for (s, name) in table if s == scope}
 
         # Pass 1: Build variable table, aliases, and constant values
         for node in ast.walk(tree):
@@ -198,12 +285,21 @@ class ASTSecurityScanner:
                     for name in target_names:
                         env[name] = val
 
-                # 2. Function / module aliases (e.g. deser = pickle.loads)
+                scope = _scope_of(node)
+
+                # 2. Function / module aliases (e.g. deser = pickle.loads,
+                #    loads = getattr(pickle, 'loads'))
                 if isinstance(node.value, ast.Attribute):
                     if isinstance(node.value.value, ast.Name):
                         call_path = f"{node.value.value.id}.{node.value.attr}"
                         for name in target_names:
                             aliases[name] = call_path
+                elif isinstance(node.value, ast.Call) and cls._get_func_name(node.value.func) == "getattr":
+                    # getattr(<module_or_alias>, "attr") -> module.attr indirection
+                    resolved = cls._resolve_getattr(node.value, aliases)
+                    if resolved:
+                        for name in target_names:
+                            aliases[name] = resolved
                 elif isinstance(node.value, ast.Name):
                     if node.value.id in aliases:
                         for name in target_names:
@@ -213,11 +309,13 @@ class ASTSecurityScanner:
                             aliases[name] = node.value.id
 
                 # 3. Path join assignments: target = os.path.join(...)
+                #    Also see through non-confining resolvers such as
+                #    os.path.abspath(os.path.join(...)) / realpath / normpath,
+                #    which normalise but do NOT restrict to a base directory.
                 if isinstance(node.value, ast.Call):
-                    func_name = cls._get_func_name(node.value.func)
-                    if func_name == "os.path.join":
+                    if cls._call_builds_unsafe_path(node.value):
                         for name in target_names:
-                            path_joins[name] = node.lineno
+                            path_joins[(scope, name)] = node.lineno
 
                 # 4. SQL concatenation tracking: query = 'SELECT... ' + var or base_query + var
                 if isinstance(node.value, (ast.BinOp, ast.JoinedStr)) or (
@@ -225,33 +323,87 @@ class ASTSecurityScanner:
                     and isinstance(node.value.func, ast.Attribute)
                     and node.value.func.attr == "format"
                 ):
-                    if cls._is_sql_expression(node.value, env, set(sql_concat_vars.keys())):
+                    if cls._is_sql_expression(node.value, env, _names_in_scope(sql_concat_vars, scope)):
                         for name in target_names:
-                            sql_concat_vars[name] = node.lineno
+                            sql_concat_vars[(scope, name)] = node.lineno
 
                 # 5. Command concatenation tracking: cmd = 'ping ' + host
                 if isinstance(node.value, (ast.BinOp, ast.JoinedStr)):
-                    if cls._is_cmd_expression(node.value, env, set(cmd_concat_vars.keys())):
+                    if cls._is_cmd_expression(node.value, env, _names_in_scope(cmd_concat_vars, scope)):
                         for name in target_names:
-                            cmd_concat_vars[name] = node.lineno
+                            cmd_concat_vars[(scope, name)] = node.lineno
+
+                # 6. Obfuscated hardcoded secret: SECRET = <computed constant>
+                #    Only fires for secret-like target names whose value is built
+                #    from a non-literal expression (hex/base64 decode, concat) that
+                #    folds to a non-trivial string — plain string literals are left
+                #    to the regex scanner (SEC-SECRET-001) to avoid double-reporting.
+                if not isinstance(node.value, ast.Constant):
+                    secret_val = evaluate_ast_constant(node.value, env)
+                    if isinstance(secret_val, bytes):
+                        try:
+                            secret_val = secret_val.decode(errors="replace")
+                        except Exception:
+                            secret_val = None
+                    if isinstance(secret_val, str) and len(secret_val.strip()) >= 6:
+                        for name in target_names:
+                            if not _SECRET_NAME_RE.search(name):
+                                continue
+                            actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                            if actual_line not in added_lines_map:
+                                continue
+                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            findings.append(
+                                SastFinding(
+                                    rule_id="SEC-SECRET-002",
+                                    cwe="CWE-798",
+                                    name="Obfuscated Hardcoded Secret",
+                                    description=(
+                                        f"Credential '{name}' is hardcoded via an obfuscated expression "
+                                        f"(e.g. hex/base64 decode or string concatenation) that resolves to a "
+                                        f"static secret value. Encoding does not protect embedded secrets."
+                                    ),
+                                    severity="CRITICAL",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Load secrets from environment variables or a secrets manager; never embed them (even encoded) in source.",
+                                    analyzer_source="ast",
+                                )
+                            )
 
             elif isinstance(node, ast.AugAssign):
                 if isinstance(node.target, ast.Name) and isinstance(node.op, ast.Add):
+                    scope = _scope_of(node)
                     name = node.target.id
-                    if name in sql_concat_vars or cls._is_sql_expression(node.value, env, set(sql_concat_vars.keys())):
-                        sql_concat_vars[name] = node.lineno
-                    if name in cmd_concat_vars or cls._is_cmd_expression(node.value, env, set(cmd_concat_vars.keys())):
-                        cmd_concat_vars[name] = node.lineno
+                    if (scope, name) in sql_concat_vars or cls._is_sql_expression(node.value, env, _names_in_scope(sql_concat_vars, scope)):
+                        sql_concat_vars[(scope, name)] = node.lineno
+                    if (scope, name) in cmd_concat_vars or cls._is_cmd_expression(node.value, env, _names_in_scope(cmd_concat_vars, scope)):
+                        cmd_concat_vars[(scope, name)] = node.lineno
 
         # Pass 2: Inspect security-sensitive sinks
         for node in ast.walk(tree):
-            # ── Sink 1: os.chmod(path, mode) with constant folding ──
+            # ── Sink 1: permissive mode on os.chmod / os.open / os.mkdir /
+            #    os.makedirs with constant folding on the mode argument. The mode
+            #    position differs per call: chmod(path, MODE), mkdir(path, MODE),
+            #    makedirs(path, MODE) use arg index 1; os.open(path, flags, MODE)
+            #    uses index 2. A 'mode=' keyword is honoured for any of them. ──
             if isinstance(node, ast.Call):
                 func_name = cls._get_func_name(node.func)
-                if func_name == "os.chmod" and len(node.args) >= 2:
-                    mode_arg = node.args[1]
-                    folded_mode = evaluate_ast_constant(mode_arg, env)
+                _mode_arg_index = {"os.chmod": 1, "os.mkdir": 1, "os.makedirs": 1, "os.open": 2}
+                if func_name in _mode_arg_index:
+                    idx = _mode_arg_index[func_name]
+                    mode_arg = None
+                    if len(node.args) > idx:
+                        mode_arg = node.args[idx]
+                    else:
+                        for kw in node.keywords:
+                            if kw.arg == "mode":
+                                mode_arg = kw.value
+                                break
+                    folded_mode = evaluate_ast_constant(mode_arg, env) if mode_arg is not None else None
                     if isinstance(folded_mode, int):
+                        # World read+write (o+rw) or the classic 0o777/0o666 masks.
                         if folded_mode in (0o777, 0o666, 511, 438) or (folded_mode & 0o002 != 0 and folded_mode & 0o004 != 0):
                             actual_line = line_no_mapping.get(node.lineno, node.lineno)
                             if actual_line in added_lines_map:
@@ -261,16 +413,17 @@ class ASTSecurityScanner:
                                     SastFinding(
                                         rule_id="SEC-PERM-001",
                                         cwe="CWE-732",
-                                        name="Permissive File Permissions (chmod 0777)",
+                                        name="Permissive / World-Writable File Permissions",
                                         description=(
-                                            f"Overly permissive file mask ({oct_str}) grants read/write permissions to all users. "
-                                            f"Resolved via AST constant folding on variable/expression."
+                                            f"{func_name}() is called with an overly permissive file mask ({oct_str}), "
+                                            f"granting read/write access to all users. Resolved via AST constant folding "
+                                            f"on the variable/expression."
                                         ),
                                         severity="HIGH",
                                         file_path=file_path,
                                         line_number=actual_line,
                                         snippet=snippet.strip(),
-                                        fix_recommendation="Restrict permissions to owner only (e.g. 0o600 or 0o700): os.chmod(path, 0o600).",
+                                        fix_recommendation="Restrict permissions to the owner (e.g. 0o600 for files, 0o700 for directories).",
                                         analyzer_source="ast"
                                     )
                                 )
@@ -325,7 +478,9 @@ class ASTSecurityScanner:
                 func_name = cls._get_func_name(node.func)
                 if func_name == "open" and node.args:
                     first_arg = node.args[0]
-                    if isinstance(first_arg, ast.Name) and first_arg.id in path_joins:
+                    scope = _scope_of(node)
+                    if isinstance(first_arg, ast.Name) and (scope, first_arg.id) in path_joins:
+                        pj_line = path_joins[(scope, first_arg.id)]
                         actual_line = line_no_mapping.get(node.lineno, node.lineno)
                         if actual_line in added_lines_map:
                             snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
@@ -336,7 +491,7 @@ class ASTSecurityScanner:
                                     name="Path Traversal / Arbitrary File Read",
                                     description=(
                                         f"Opening file using variable '{first_arg.id}' constructed via unsanitized os.path.join "
-                                        f"at line {line_no_mapping.get(path_joins[first_arg.id], path_joins[first_arg.id])}."
+                                        f"at line {line_no_mapping.get(pj_line, pj_line)}."
                                     ),
                                     severity="HIGH",
                                     file_path=file_path,
@@ -358,11 +513,13 @@ class ASTSecurityScanner:
                 )
                 if is_sql_exec and node.args:
                     first_arg = node.args[0]
+                    scope = _scope_of(node)
+                    sql_names = _names_in_scope(sql_concat_vars, scope)
                     is_insecure = False
-                    if isinstance(first_arg, ast.Name) and first_arg.id in sql_concat_vars:
+                    if isinstance(first_arg, ast.Name) and first_arg.id in sql_names:
                         is_insecure = True
                     elif isinstance(first_arg, (ast.BinOp, ast.JoinedStr)) and cls._is_sql_expression(
-                        first_arg, env, set(sql_concat_vars.keys())
+                        first_arg, env, sql_names
                     ):
                         is_insecure = True
 
@@ -397,12 +554,14 @@ class ASTSecurityScanner:
                     ) or func_name in ("os.system", "os.popen")
 
                     first_arg = node.args[0]
+                    scope = _scope_of(node)
+                    cmd_names = _names_in_scope(cmd_concat_vars, scope)
                     is_insecure = False
                     if has_shell_true:
-                        if isinstance(first_arg, ast.Name) and first_arg.id in cmd_concat_vars:
+                        if isinstance(first_arg, ast.Name) and first_arg.id in cmd_names:
                             is_insecure = True
                         elif isinstance(first_arg, (ast.BinOp, ast.JoinedStr)) and cls._is_cmd_expression(
-                            first_arg, env, set(cmd_concat_vars.keys())
+                            first_arg, env, cmd_names
                         ):
                             is_insecure = True
 
@@ -467,7 +626,153 @@ class ASTSecurityScanner:
                             )
                         )
 
+            # ── Sink 8: Weak hash via hashlib.new(<algo>) with a folded algo ──
+            #    Catches hashlib.new("sha1") and the variable-indirected form
+            #    algo = "md5"; hashlib.new(algo). Also resolves getattr aliases.
+            if isinstance(node, ast.Call):
+                func_name = cls._get_func_name(node.func)
+                resolved = aliases.get(func_name, func_name)
+                if resolved == "hashlib.new" and node.args:
+                    algo_val = evaluate_ast_constant(node.args[0], env)
+                    if isinstance(algo_val, str) and algo_val.lower().replace("-", "") in ("md5", "sha1", "md4", "md2"):
+                        actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                        if actual_line in added_lines_map:
+                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            findings.append(
+                                SastFinding(
+                                    rule_id="SEC-CRYPTO-001",
+                                    cwe="CWE-327",
+                                    name="Weak Hash Algorithm (MD5 / SHA1)",
+                                    description=(
+                                        f"hashlib.new('{algo_val}') selects a cryptographically broken hash "
+                                        f"(resolved via AST constant folding on the algorithm argument)."
+                                    ),
+                                    severity="MEDIUM",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Use SHA-256 (hashlib.sha256) or SHA-3 for security-sensitive hashing.",
+                                    analyzer_source="ast",
+                                )
+                            )
+
+            # ── Sink 9: Insecure randomness for security values, incl. getattr ──
+            #    Resolves aliases so choice = getattr(random, 'choice'); choice(..)
+            #    and a deterministic random.seed(<const>) are both caught.
+            if isinstance(node, ast.Call):
+                func_name = cls._get_func_name(node.func)
+                resolved = aliases.get(func_name, func_name)
+                # random.seed is intentionally excluded: it is common in
+                # legitimate reproducibility/test code, so flagging it alone
+                # would hurt precision. The generator calls below are the ones
+                # that actually produce predictable security values.
+                _insecure_random = {
+                    "random.choice", "random.random", "random.randint", "random.randrange",
+                    "random.choices", "random.sample", "random.getrandbits", "random.randbytes",
+                    "random.uniform",
+                }
+                if resolved in _insecure_random:
+                    actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                    if actual_line in added_lines_map:
+                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        via = f" via alias '{func_name}'" if resolved != func_name else ""
+                        findings.append(
+                            SastFinding(
+                                rule_id="SEC-RAND-001",
+                                cwe="CWE-330",
+                                name="Insecure Pseudo-Random Generator for Security",
+                                description=(
+                                    f"Non-cryptographic random function '{resolved}'{via} used for security-sensitive "
+                                    f"value generation. The random module is predictable and unsuitable for tokens/keys."
+                                ),
+                                severity="MEDIUM",
+                                file_path=file_path,
+                                line_number=actual_line,
+                                snippet=snippet.strip(),
+                                fix_recommendation="Use the secrets module: secrets.token_hex(), secrets.choice().",
+                                analyzer_source="ast",
+                            )
+                        )
+
+            # ── Sink 7: Overly broad exception handler with a silent body ──
+            #    Catches `except:`, `except Exception:` and `except BaseException:`
+            #    whose body is only `pass` or `...`, which swallows every error
+            #    (including KeyboardInterrupt/SystemExit for BaseException).
+            if isinstance(node, ast.ExceptHandler):
+                is_broad = node.type is None or (
+                    isinstance(node.type, ast.Name) and node.type.id in ("Exception", "BaseException")
+                )
+                body_is_silent = len(node.body) == 1 and (
+                    isinstance(node.body[0], ast.Pass)
+                    or (
+                        isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and node.body[0].value.value is Ellipsis
+                    )
+                )
+                if is_broad and body_is_silent:
+                    actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                    if actual_line in added_lines_map:
+                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        handler_name = "bare except" if node.type is None else f"except {node.type.id}"
+                        findings.append(
+                            SastFinding(
+                                rule_id="SEC-EXCEPT-001",
+                                cwe="CWE-703",
+                                name="Silent Broad Exception Swallow",
+                                description=(
+                                    f"'{handler_name}:' with a body of only pass/... silently swallows all errors, "
+                                    f"hiding runtime bugs and (for BaseException) blocking KeyboardInterrupt/SystemExit."
+                                ),
+                                severity="LOW",
+                                file_path=file_path,
+                                line_number=actual_line,
+                                snippet=snippet.strip(),
+                                fix_recommendation="Catch specific exceptions and log them: except SpecificError as e: logger.warning(f'... {e}').",
+                                analyzer_source="ast",
+                            )
+                        )
+
         return findings
+
+    @classmethod
+    def _call_builds_unsafe_path(cls, node: ast.AST) -> bool:
+        """
+        True if a Call expression constructs a filesystem path from os.path.join,
+        possibly wrapped in a non-confining resolver (os.path.abspath / realpath /
+        normpath). These normalise '..' but do not restrict the result to a base
+        directory, so the joined path remains traversal-reachable.
+        """
+        if not isinstance(node, ast.Call):
+            return False
+        func_name = cls._get_func_name(node.func)
+        if func_name == "os.path.join":
+            return True
+        if func_name in _PATH_RESOLVERS:
+            # Recurse into positional args to find a nested os.path.join.
+            return any(cls._call_builds_unsafe_path(arg) for arg in node.args)
+        return False
+
+    @staticmethod
+    def _resolve_getattr(call: ast.Call, aliases: Dict[str, str]) -> Optional[str]:
+        """
+        Resolve getattr(<module>, "attr") to a dotted 'module.attr' name so that
+        indirect calls such as loads = getattr(pickle, 'loads') are tracked like
+        direct pickle.loads references. The base may itself be an alias.
+        """
+        if len(call.args) < 2:
+            return None
+        base, attr = call.args[0], call.args[1]
+        if not (isinstance(attr, ast.Constant) and isinstance(attr.value, str)):
+            return None
+        if isinstance(base, ast.Name):
+            base_name = aliases.get(base.id, base.id)
+            return f"{base_name}.{attr.value}"
+        if isinstance(base, ast.Attribute):
+            base_name = ASTSecurityScanner._get_func_name(base)
+            if base_name:
+                return f"{base_name}.{attr.value}"
+        return None
 
     @staticmethod
     def _get_func_name(node: ast.AST) -> str:

@@ -5,16 +5,15 @@ into a unified vulnerability reporting pipeline before LLM reasoning.
 """
 
 import re
-from typing import List, Dict, Type, Any, Optional, Tuple
+from typing import List, Type, Tuple
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from code_review_agent.models import SastFinding, ParsedPR
+from code_review_agent.models import SastFinding
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.tools.semgrep_runner import SemgrepRunner
 from code_review_agent.tools.bandit_runner import BanditRunner, is_safe_subprocess_call
 from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
-from code_review_agent.config import logger
 from code_review_agent.cache import memoize_by_content
 
 
@@ -91,7 +90,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-327",
         name="Weak Hash Algorithm (MD5 / SHA1)",
         severity="MEDIUM",
-        pattern=r"hashlib\.(?:md5|sha1)\s*\(",
+        pattern=r"hashlib\.(?:md5|sha1)\s*\(|hashlib\.new\s*\(\s*['\"](?:md5|sha1|md4|md2)['\"]",
         description="MD5 and SHA-1 are cryptographically broken for security verification.",
         fix_recommendation="Upgrade to SHA-256 (hashlib.sha256) or SHA-3 for hashing."
     ),
@@ -105,6 +104,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         # f-string and concatenated user paths.
         pattern=(
             r"open\s*\(\s*os\.path\.join\s*\([^)]*,\s*[A-Za-z_]\w*\s*\)"
+            r"|open\s*\(\s*os\.path\.(?:abspath|realpath|normpath)\s*\(\s*os\.path\.join\s*\([^)]*,\s*[A-Za-z_]\w*"
             r"|open\s*\(\s*[A-Za-z_]\w*\s*\+\s*[A-Za-z_]\w*"
             r"|open\s*\(\s*f[\"'].*?\{.*?\}.*?[\"']"
         ),
@@ -187,8 +187,11 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         cwe="CWE-703",
         name="Silent Exception Swallow",
         severity="LOW",
-        pattern=r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)",
-        description="Bare except or except Exception with pass silently swallows unexpected errors and hides runtime bugs.",
+        # Single-line form only (`except X: pass`). The cross-line form
+        # (`except X:` then `pass` on the next line) is handled by the AST
+        # scanner, which reports it at the correct line number.
+        pattern=r"except(?:\s+(?:Base)?Exception)?\s*:[ \t]+(?:pass|\.\.\.)\s*$",
+        description="Bare except, except Exception, or except BaseException with pass silently swallows unexpected errors and hides runtime bugs.",
         fix_recommendation="Catch specific exceptions and log the error: except SpecificError as e: logger.warning(f'... {e}')"
     ),
     SecurityPatternRule(
@@ -210,9 +213,6 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         fix_recommendation="Pass arguments as a list to subprocess without shell=True: subprocess.run(['cmd', arg], check=True)"
     )
 ]
-
-# Backwards compatibility alias
-SAST_RULES = SECURITY_PATTERN_RULES
 
 
 def strip_line_comment(line: str) -> str:
@@ -482,7 +482,6 @@ class QuickPatternScannerTool(BaseTool):
         return "\n".join(output_lines)
 
 
-# Backwards compatibility alias
+# Backwards-compatibility aliases (referenced by tool_registry and tools/__init__).
 SastScannerTool = QuickPatternScannerTool
-SastScannerInput = QuickPatternScannerInput
 UnifiedSecurityScannerTool = QuickPatternScannerTool

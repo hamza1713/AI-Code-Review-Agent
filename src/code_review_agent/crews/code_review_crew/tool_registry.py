@@ -5,7 +5,7 @@ Allows declarative specification and resolution of tools from YAML configuration
 
 import os
 from pathlib import Path
-from typing import Dict, List, Any, Type, Optional, Callable
+from typing import Dict, List, Optional, Callable
 from crewai.tools import BaseTool
 
 from code_review_agent.config import get_serper_api_key, logger

@@ -6,7 +6,7 @@ to generate targeted, production-ready pytest suites with accurate mocks and edg
 
 import ast
 import re
-from typing import Type, Optional, List, Dict, Any, Tuple
+from typing import Type, Optional, List, Tuple
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -194,8 +194,8 @@ class TestGeneratorTool(BaseTool):
                 "    @pytest.fixture",
                 f"    def mock_{mock_param}(self):",
                 f'        """Mock fixture for `{mock_param}` dependency."""',
-                f"        mock_obj = MagicMock()",
-                f"        return mock_obj",
+                "        mock_obj = MagicMock()",
+                "        return mock_obj",
                 "",
             ])
 
@@ -218,10 +218,10 @@ class TestGeneratorTool(BaseTool):
         class_lines.extend([
             f"{async_decorator}    def test_{func.name}_happy_path({test_fixture_str}):",
             f'        """Verify `{func.name}` executes successfully with valid parameters."""',
-            f"        # Act",
+            "        # Act",
             f"        result = {await_prefix}{func.name}({args_str})",
-            f"        # Assert",
-            f"        assert result is not None",
+            "        # Assert",
+            "        assert result is not None",
             "",
         ])
 
@@ -239,11 +239,11 @@ class TestGeneratorTool(BaseTool):
             f"{async_decorator}    def test_{func.name}_boundary_edge_cases({test_fixture_str}):",
             f'        """Verify `{func.name}` handles boundary or empty input appropriately."""',
             f"        # Act & Assert with boundary values: {boundary_args_str}",
-            f"        try:",
+            "        try:",
             f"            result = {await_prefix}{func.name}({boundary_args_str})",
-            f"        except (ValueError, TypeError, KeyError) as exc:",
-            f"            # Boundary rejection is an acceptable defensive pattern",
-            f"            assert str(exc) != ''",
+            "        except (ValueError, TypeError, KeyError) as exc:",
+            "            # Boundary rejection is an acceptable defensive pattern",
+            "            assert str(exc) != ''",
             "",
         ])
 
@@ -253,7 +253,7 @@ class TestGeneratorTool(BaseTool):
             class_lines.extend([
                 f"{async_decorator}    def test_{func.name}_none_rejection({test_fixture_str}):",
                 f'        """Defensive check: verify `{func.name}` behavior when `{first_param}` is None."""',
-                f"        with pytest.raises((TypeError, ValueError, AttributeError, Exception)):",
+                "        with pytest.raises((TypeError, ValueError, AttributeError, Exception)):",
                 f"            {await_prefix}{func.name}(None, *{[self._generate_sample_value(p[0], p[1], p[2]) for p in func.parameters[1:]]})",
             ])
 

@@ -7,13 +7,12 @@ and diff line scope precision.
 
 import ast
 import re
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
 
 from code_review_agent.models import (
     SummarizedFindingsJSON,
     ReviewSecurityJSON,
-    CodeQualityJSON,
     InlineComment,
     ParsedPR,
 )
@@ -193,7 +192,6 @@ class CodeCompilationEvaluator:
             tree = ast.parse(clean_code)
             # Verify basic pytest structure: look for test functions
             test_funcs = [node.name for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")]
-            has_tests = len(test_funcs) > 0
             return EvaluationResult(
                 passed=True,
                 evaluator_name="CodeCompilationEvaluator.suggested_unit_tests",

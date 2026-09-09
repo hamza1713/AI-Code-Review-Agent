@@ -4,7 +4,7 @@ Defines formal LLM-as-a-Judge criteria for Provenance Grounding,
 Security Deduplication, Quality Refactoring, and Verdict Alignment.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from pydantic import BaseModel, Field
 
 from code_review_agent.llm_factory import LLMFactory

@@ -3,7 +3,6 @@ GitHub API Client for Live Pull Request Ingestion and Inline Comment Submission.
 Interacts with GitHub REST API v3 using httpx.
 """
 
-import os
 import re
 from typing import Dict, Any, List, Optional, Tuple
 import httpx

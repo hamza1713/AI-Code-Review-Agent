@@ -11,7 +11,6 @@ behind the same `add` / `search` surface; the engine does not depend on the back
 """
 
 import json
-import math
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Callable, Dict, List, Optional

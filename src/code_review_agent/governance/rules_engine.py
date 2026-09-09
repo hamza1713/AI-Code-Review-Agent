@@ -4,7 +4,6 @@ Evaluates repository-specific coding standards, architecture constraints,
 and AppSec policies defined in .code-review.yaml against PR diffs using PyYAML and Pydantic.
 """
 
-import os
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Type

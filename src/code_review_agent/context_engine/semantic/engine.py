@@ -14,7 +14,6 @@ can be indexed into one store, giving cross-repository review context: a change 
 service can be reasoned about against callers and patterns in a sibling service.
 """
 
-import os
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass

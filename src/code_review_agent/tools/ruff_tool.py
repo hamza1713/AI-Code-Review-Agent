@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Type
+from typing import List, Optional, Type
 from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
 
