@@ -1,5 +1,7 @@
 # 🛡️ AI Code Review Agent
 
+> **Portfolio overview:** Static analysis, repository context, governance rules, and three CrewAI review roles in one developer workflow. Start with the [architecture](docs/ARCHITECTURE_AND_STRUCTURE.md), [tests](tests/), and [benchmark report](BENCHMARK_REPORT.md). The checked-in report records **84.2% finding-level F1 and 100% verdict accuracy on 14 curated cases**. These metrics are distinct and do not establish general accuracy or guarantee that a finding is correct. Generated-test evidence depends on the execution path and tool availability.
+
 ### Autonomous Multi-Agent Pull Request Review & Code Intelligence Platform
 
 <div align="center">
@@ -10,7 +12,7 @@
 [![Static Analysis](https://img.shields.io/badge/SAST-AST%20Folding%20%7C%20Semgrep%20%7C%20Bandit%20%7C%20Ruff-00D26A?logo=security&logoColor=white)](https://semgrep.dev)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
-[![Tests](https://img.shields.io/badge/Tests-254%20Passed%20%7C%20100%25%20Recall-brightgreen)](tests/)
+[![CI](https://github.com/hamza1713/AI-Code-Review-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/hamza1713/AI-Code-Review-Agent/actions/workflows/ci.yml)
 [![OASIS SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blueviolet?logo=anthropic)](https://modelcontextprotocol.io)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
@@ -54,7 +56,7 @@ Most "AI code review" tools solve the first problem (speed) by making the second
 This system is built on two ideas most reviewers skip:
 
 1. **Deterministic analysis runs before the LLM, and can override it.** Static tools decide what's provably true; the LLM only reasons about what's left. A confirmed CRITICAL/HIGH finding or a `BLOCKING` governance violation routes straight to the full multi-agent crew — the model never gets a chance to talk the system out of escalating a real vulnerability.
-2. **Findings get executed, not just asserted.** For every review, the Tech Lead agent generates a `pytest` regression suite targeting the reported defects. That suite runs in an isolated sandbox subprocess against the actual PR code, and the result — not the model's confidence — decides the evidence badge attached to the finding: `REPRODUCED`, `PASSING`, `UNVERIFIED`, or `HEURISTIC`. A finding that ships with a failing test that actually fails isn't a false positive by construction.
+2. **Findings get executed, not just asserted.** For every review, the Tech Lead agent generates a `pytest` regression suite targeting the reported defects. That suite runs in an isolated sandbox subprocess against the actual PR code, and the result — not the model's confidence — decides the evidence badge attached to the finding: `REPRODUCED`, `PASSING`, `UNVERIFIED`, or `HEURISTIC`. A failing generated test is supporting evidence that still requires inspection: the assertion, setup, and execution context can themselves be wrong.
 
 ```
 1. ⚡ Fast Pre-Scan (zero token cost)     AST Constant Folder + Semgrep + Bandit + Ruff + quote-aware
@@ -668,16 +670,13 @@ pip install -e ".[eval]"
 eval-benchmarks                 # or: python -m code_review_agent.benchmarks
 ```
 
-| Category | Cases | Precision | Recall | F1 | Verdict Accuracy |
-|---|---|---|---|---|---|
-| SECURITY | 7 | 100% | 100% | 100% | 100% |
-| GOVERNANCE | 2 | 100% | 100% | 100% | 100% |
-| COMPLEX | 1 | 100% | 100% | 100% | 100% |
-| QUALITY | 3 | 100% | 100%¹ | 100%¹ | 100% |
-| ARCHITECTURE | 1 | 100% | 100%¹ | 100%¹ | 100% |
-| **Overall** | **14** | **100%** | **100%** | **100%** | **100%** |
+The checked-in [benchmark report](BENCHMARK_REPORT.md) records the following results:
 
-<sub>¹ Quality and architectural flaws (N+1 queries, swallowed exceptions, breaking API signatures) are caught and synthesized by the LLM crew with full grounded reasoning.</sub>
+| Scope | Precision | Recall | F1 | Verdict accuracy |
+|---|---|---|---|---|
+| 14 curated cases | 84.2% | 84.2% | 84.2% | 100% |
+
+Finding-level detection and case-level verdict classification measure different things. The report includes false positives and missed findings even when the final verdict matches. Results depend on the fixture set, configuration, tools, and revision; they are not a general-purpose accuracy estimate. See the report for per-case results and the reproduction command.
 
 ---
 
