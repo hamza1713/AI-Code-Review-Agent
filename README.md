@@ -18,7 +18,7 @@
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**A multi-agent code intelligence platform that combines deterministic static analysis, deep AST constant folding & variable indirection analysis, semantic repository-wide retrieval (RAG), codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandbox before reporting them. It talks to developers directly in the PR via slash commands, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs on GitHub, GitLab, Bitbucket, or fully offline on a local repo.**
+**A multi-agent code intelligence platform that combines deterministic static analysis, repository context retrieval, team governance, and collaborative LLM reasoning. It supports GitHub, GitLab, Bitbucket, and local repositories, with editor integration, CI output, and review evidence designed for inspection.
 
 [Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [AST Constant Folding](#-ast-constant-folding--deep-variable-indirection) • [Empirical Evidence](#-empirical-test-evidence-the-differentiator) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server-use-it-from-your-editor) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine-code-reviewyaml) • [Benchmarks](#-evaluation--benchmarks) • [Future Updates](#-future-updates)
 
@@ -93,7 +93,7 @@ This system is built on two ideas most reviewers skip:
 │   (bitwise masks, stdlib)     │   (fully-qualified symbols)       │   in an isolated sandbox      │
 │ • Variable Indirection Tracer │ • Cross-file caller impact map    │ • REPRODUCED/PASSING/         │
 │ • Semgrep + Bandit + Ruff     │ • Per-target repo_root scoping    │   UNVERIFIED/HEURISTIC badge  │
-│ • Quote-aware comment filter  │                                   │ • 100% benchmark recall       │
+│ • Quote-aware comment filter  │                                   │ • 84.2% finding-level F1       │
 ├───────────────────────────────┼──────────────────────────────────┼───────────────────────────────┤
 │ 🧠 Semantic Codebase RAG      │ 💬 Interactive PR Bot             │ 🧑‍🏫 Team Memory Learning Loop │
 │ • AST-boundary chunk embedding│ • /describe /ask /improve         │ • Learns accepted suggestions │
@@ -699,7 +699,7 @@ The platform provides both a web UI and a low-latency synchronous REST API:
 
 ## 🧪 Testing
 
-The test suite contains over **254 automated tests** split into two tiers so the everyday dev loop stays fast:
+The repository includes a broad automated test suite split into two tiers so the everyday dev loop stays fast:
 
 ```bash
 pytest -v tests/            # default — excludes `slow`, runs in-process only, seconds not minutes
