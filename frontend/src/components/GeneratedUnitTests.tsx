@@ -1,25 +1,36 @@
+import type { ReviewAPIResponse } from '../types/review';
 import React, { useState } from 'react';
 import { TestTube2, Copy, Check, Terminal } from 'lucide-react';
 
 interface GeneratedUnitTestsProps {
   unitTests?: string | null;
+  execution?: ReviewAPIResponse['test_execution'];
 }
 
-export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTests }) => {
+export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTests, execution }) => {
+  const [copyError, setCopyError] = useState('');
   const [copied, setCopied] = useState(false);
 
   const testContent = unitTests && unitTests.trim()
     ? unitTests.trim()
     : '# No dynamic pytest suite generated for this changeset.';
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(testContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(testContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyError('Copy failed. Select the text and copy it manually.');
+    }
   };
 
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
+      {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
+      {execution && <p className="text-xs text-slate-300 mb-3" role="status">{execution.evidence_badge}: {execution.summary_message}</p>}
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
         <div className="flex items-center space-x-2.5">

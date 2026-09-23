@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Copy, Check, Filter, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Copy, Check, Filter, CheckCircle2, Zap } from 'lucide-react';
 import type { SastFinding, Severity } from '../types/review';
 
 interface FindingsListProps {
@@ -9,16 +9,45 @@ interface FindingsListProps {
 
 export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) => {
   const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
+  const [copyError, setCopyError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedFp, setCopiedFp] = useState<string | null>(null);
+  const [copiedApplyFp, setCopiedApplyFp] = useState<string | null>(null);
+
+  const handleCopySuppress = async (fp: string) => {
+    try {
+      await navigator.clipboard.writeText(`/review suppress ${fp}`);
+      setCopiedFp(fp);
+      setTimeout(() => setCopiedFp(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyApply = async (fp: string) => {
+    try {
+      await navigator.clipboard.writeText(`/review apply ${fp}`);
+      setCopiedApplyFp(fp);
+      setTimeout(() => setCopiedApplyFp(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
 
   const filtered = selectedSeverity === 'ALL'
     ? findings
     : findings.filter(f => f.severity.toUpperCase() === selectedSeverity);
 
-  const handleCopyFix = (text: string, idx: number) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(idx);
-    setTimeout(() => setCopiedIndex(null), 2000);
+  const handleCopyFix = async (text: string, idx: number) => {
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(idx);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      setCopiedIndex(null);
+      setCopyError('Copy failed. Select the text and copy it manually.');
+    }
   };
 
   const getSeverityBadge = (sev: Severity) => {
@@ -37,6 +66,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) =
 
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
+      {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-2">
         <div className="flex items-center space-x-2.5">
@@ -62,9 +92,10 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) =
         {findings.length > 0 && (
           <div className="flex items-center gap-1 text-xs bg-slate-900/80 p-0.5 rounded-lg border border-slate-800">
             <Filter className="w-2.5 h-2.5 text-slate-500 ml-1" />
-            {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM'].map((sev) => (
+            {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((sev) => (
               <button
                 key={sev}
+                aria-pressed={selectedSeverity === sev}
                 onClick={() => setSelectedSeverity(sev)}
                 className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all ${
                   selectedSeverity === sev
@@ -108,10 +139,39 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) =
                       {item.cwe}
                     </span>
                   )}
+                  {item.lifecycle_status && (
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                      item.lifecycle_status === 'SUPPRESSED'
+                        ? 'bg-slate-800/80 text-slate-400 border-slate-700'
+                        : item.lifecycle_status === 'RESOLVED'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : item.lifecycle_status === 'REGRESSED'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                        : 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+                    }`}>
+                      {item.lifecycle_status}
+                    </span>
+                  )}
                 </div>
 
-                <div className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
-                  {item.file_path}:L{item.line_number}
+                <div className="flex items-center gap-2">
+                  {item.fingerprint && (
+                    <button
+                      onClick={() => handleCopySuppress(item.fingerprint!)}
+                      className="text-[9px] font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Click to copy /review suppress command"
+                    >
+                      <span>fp:{item.fingerprint.slice(0, 8)}</span>
+                      {copiedFp === item.fingerprint ? (
+                        <Check className="w-2.5 h-2.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5 text-slate-500" />
+                      )}
+                    </button>
+                  )}
+                  <div className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                    {item.file_path}:L{item.line_number}
+                  </div>
                 </div>
               </div>
 
@@ -136,22 +196,34 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) =
                     <span className="text-[10px] flex items-center gap-1">
                       💡 Suggested Fix:
                     </span>
-                    <button
-                      onClick={() => handleCopyFix(item.fix_recommendation, idx)}
-                      className="text-[9px] text-emerald-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/40 hover:bg-emerald-900/70 transition-colors cursor-pointer"
-                    >
-                      {copiedIndex === idx ? (
-                        <>
-                          <Check className="w-2.5 h-2.5 text-emerald-400" />
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-2.5 h-2.5" />
-                          <span>Copy</span>
-                        </>
+                    <div className="flex items-center gap-1.5">
+                      {item.fingerprint && (
+                        <button
+                          onClick={() => handleCopyApply(item.fingerprint!)}
+                          className="text-[9px] text-amber-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/40 hover:bg-amber-900/70 border border-amber-500/30 transition-colors cursor-pointer"
+                          title="Copy /review apply command to auto-remediate on PR branch"
+                        >
+                          <Zap className="w-2.5 h-2.5 text-amber-400" />
+                          <span>{copiedApplyFp === item.fingerprint ? 'Copied /apply' : '1-Click Fix'}</span>
+                        </button>
                       )}
-                    </button>
+                      <button
+                        onClick={() => handleCopyFix(item.fix_recommendation, idx)}
+                        className="text-[9px] text-emerald-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/40 hover:bg-emerald-900/70 transition-colors cursor-pointer"
+                      >
+                        {copiedIndex === idx ? (
+                          <>
+                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-2.5 h-2.5" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <p className="text-slate-300 text-[10px] leading-relaxed">
                     {item.fix_recommendation}

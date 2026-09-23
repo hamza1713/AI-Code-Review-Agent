@@ -14,16 +14,16 @@ os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
 
 # Load environment variables from .env file
-# override=True ensures .env values take precedence over any empty/missing env vars
+# Explicit process environment wins; .env only fills missing configuration.
 _project_root = Path(__file__).resolve().parent.parent.parent
 _env_file = _project_root / ".env"
 
 if _env_file.exists():
-    load_dotenv(str(_env_file), override=True)
+    load_dotenv(str(_env_file), override=False)
 else:
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
-        load_dotenv(dotenv_path, override=True)
+        load_dotenv(dotenv_path, override=False)
 
 # ── 1. API Key normalisation ───────────────────────────────────────────────────
 # LiteLLM (used by CrewAI) reads GEMINI_API_KEY or GOOGLE_API_KEY.

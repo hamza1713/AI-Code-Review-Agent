@@ -61,3 +61,14 @@ telemetry_metrics.json
 *.swp
 *.swo
 *Zone.Identifier
+
+# The Python-only deployment serves this committed frontend build.
+!frontend/dist/
+!frontend/dist/**
+
+# Browser regression artifacts
+frontend/test-results/
+frontend/playwright-report/
+
+# Local verification workspaces
+/.cache/

@@ -112,3 +112,77 @@ class GitPlatformClient(ABC):
         rather than failing. GitHub overrides this.
         """
         return []
+
+    def set_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        sha: str,
+        state: str,  # 'pending', 'success', 'failure', 'error'
+        description: str,
+        context: str = "ai-code-review",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Update CI/CD commit status check on a commit SHA.
+        Default implementation is a no-op returning a simulated response.
+        """
+        return {
+            "state": state,
+            "description": description,
+            "context": context,
+            "target_url": target_url or "",
+            "sha": sha
+        }
+
+    def create_or_update_check_run(
+        self,
+        owner: str,
+        repo: str,
+        head_sha: str,
+        name: str = "AI Code Review",
+        status: str = "queued",  # 'queued', 'in_progress', 'completed'
+        conclusion: Optional[str] = None,  # 'success', 'failure', 'neutral', 'action_required'
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
+        annotations: Optional[List[Dict[str, Any]]] = None,
+        details_url: Optional[str] = None,
+        check_run_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Create or update a Check Run (GitHub App API).
+        For platforms or credentials lacking check run support, falls back to set_commit_status.
+        """
+        state = "pending" if status != "completed" else ("success" if conclusion in ("success", "neutral") else "failure")
+        desc = (summary or title or name)[:140]
+        return self.set_commit_status(
+            owner=owner,
+            repo=repo,
+            sha=head_sha,
+            state=state,
+            description=desc,
+            context=name.lower().replace(" ", "-"),
+            target_url=details_url
+        )
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: Optional[str] = None
+    ) -> str:
+        """Fetch raw content of a file at a specific branch/ref."""
+        return ""
+
+    def commit_file_change(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        content: str,
+        commit_message: str
+    ) -> Dict[str, Any]:
+        """Commit an updated file directly to a branch on the platform repository."""
+        raise NotImplementedError("commit_file_change not implemented for this platform")

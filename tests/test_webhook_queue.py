@@ -153,3 +153,34 @@ class TestWebhookQueueAndWorker:
         # Exactly 5 jobs should have been claimed, all unique!
         assert len(claimed_ids) == 5
         assert len(set(claimed_ids)) == 5
+
+    def test_queue_db_path_from_env(self, tmp_path, monkeypatch):
+        """Verify WebhookJobQueue respects QUEUE_DB_PATH environment variable and creates directory."""
+        custom_dir = tmp_path / "custom_data_dir"
+        db_file = custom_dir / "custom_jobs.db"
+        monkeypatch.setenv("QUEUE_DB_PATH", str(db_file))
+
+        queue = WebhookJobQueue()
+        assert queue.db_path == db_file.resolve()
+        assert custom_dir.exists()
+
+        job_id = queue.enqueue("org/repo/pull/1", {"test": True})
+        assert queue.get_job(job_id) is not None
+
+    def test_idempotency_key_prevents_duplicate_jobs(self, tmp_path):
+        """Verify enqueueing with the same idempotency_key returns the existing job_id."""
+        db_file = tmp_path / "idempotency_test.db"
+        queue = WebhookJobQueue(db_path=str(db_file))
+
+        key = "github:delivery-uuid-12345"
+        job_id_1 = queue.enqueue("org/repo/pull/42", {"commit": "abc"}, idempotency_key=key)
+        assert job_id_1.startswith("job_")
+
+        # Duplicate delivery retry
+        job_id_2 = queue.enqueue("org/repo/pull/42", {"commit": "abc"}, idempotency_key=key)
+        assert job_id_2 == job_id_1
+
+        # Confirm only one job exists in database
+        jobs = queue.list_jobs()
+        assert len(jobs) == 1
+        assert jobs[0]["job_id"] == job_id_1

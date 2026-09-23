@@ -6,7 +6,7 @@ and AppSec policies defined in .code-review.yaml against PR diffs using PyYAML a
 
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Type
+from typing import List, Dict, Any, Optional, Type, Tuple
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 from crewai.tools import BaseTool
@@ -31,15 +31,42 @@ class CustomRule(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional custom metadata or tags")
 
 
+class RemediationPolicy(BaseModel):
+    """Governance policy governing automated 1-click remediation commits."""
+    model_config = {"extra": "allow"}
+    allow_direct_commits: bool = Field(
+        default=False,
+        description="Whether direct 1-click remediation commits to PR branches are allowed (default: False, opt-in)"
+    )
+    blocked_branches: List[str] = Field(
+        default_factory=lambda: ["main", "master", "release/*", "production/*", "prod/*"],
+        description="Branch patterns blocked from direct remediation commits"
+    )
+    require_stale_head_check: bool = Field(
+        default=True,
+        description="Verify current head SHA matches reviewed head SHA before committing"
+    )
+
+
 class GovernanceConfigFile(BaseModel):
+    model_config = {"extra": "allow"}
     version: Optional[str] = Field(default="1.0", description="Schema version of configuration")
     rules: List[CustomRule] = Field(default_factory=list, description="List of configured governance rules")
+    remediation: RemediationPolicy = Field(
+        default_factory=RemediationPolicy,
+        description="Remediation safety and guardrails policy"
+    )
 
 
 class RulesEngine:
     """Evaluates project-specific custom rules (.code-review.yaml) with PyYAML and Pydantic validation."""
 
-    def __init__(self, rules_file_path: Optional[str] = None, repo_root: Optional[str] = None):
+    def __init__(
+        self,
+        rules_file_path: Optional[str] = None,
+        repo_root: Optional[str] = None,
+        config: Optional[GovernanceConfigFile] = None
+    ):
         if rules_file_path:
             self.rules_file = Path(rules_file_path)
         elif repo_root:
@@ -47,11 +74,17 @@ class RulesEngine:
         else:
             self.rules_file = Path(".code-review.yaml")
         self.rules: List[CustomRule] = []
-        self.load_rules()
+        self.remediation_policy: RemediationPolicy = RemediationPolicy()
+        if config is not None:
+            self.remediation_policy = config.remediation
+            self.rules = list(config.rules)
+        else:
+            self.load_rules()
 
     def load_rules(self):
         """Parse and validate rules from .code-review.yaml. Fails loudly on malformed syntax or schema."""
         self.rules.clear()
+        self.remediation_policy = RemediationPolicy()
         if not self.rules_file.exists():
             logger.info(f"No custom rules file found at {self.rules_file}. Using default baseline governance.")
             self._load_default_rules()
@@ -89,8 +122,10 @@ class RulesEngine:
             if isinstance(parsed_data, dict):
                 config = GovernanceConfigFile(**parsed_data)
                 self.rules = config.rules
+                self.remediation_policy = config.remediation
             elif isinstance(parsed_data, list):
                 self.rules = [CustomRule(**item) for item in parsed_data]
+                self.remediation_policy = RemediationPolicy()
             else:
                 raise GovernanceParsingError(
                     f"Invalid YAML structure in '{self.rules_file}': expected mapping or list, got {type(parsed_data).__name__}"
@@ -99,6 +134,21 @@ class RulesEngine:
             raise GovernanceParsingError(
                 f"Schema validation error in governance rules file '{self.rules_file}':\n{str(e)}"
             ) from e
+
+    def is_remediation_commit_allowed(self, branch: str) -> Tuple[bool, str]:
+        """
+        Evaluate if direct remediation commit is permitted for the given branch under governance policy.
+        Returns (is_allowed, reason).
+        """
+        if not self.remediation_policy.allow_direct_commits:
+            return False, "Remediation policy (.code-review.yaml): remediation.allow_direct_commits is false (opt-in required)."
+
+        clean_branch = (branch or "").strip()
+        for pat in self.remediation_policy.blocked_branches:
+            regex_pat = "^" + pat.replace("*", ".*") + "$"
+            if re.match(regex_pat, clean_branch, re.IGNORECASE):
+                return False, f"Branch '{clean_branch}' is protected by governance policy (.code-review.yaml: blocked_branches)."
+        return True, "Allowed"
 
     def _load_default_rules(self):
         """Fallback baseline governance rules."""

@@ -10,6 +10,21 @@ from fastapi.testclient import TestClient
 from code_review_agent.bot.command_router import CommandRouter
 from code_review_agent.webhook_server import app
 
+TOKEN = "test-operator-token-with-32-characters-minimum"
+
+@pytest.fixture(autouse=True)
+def configured_operator(monkeypatch):
+    monkeypatch.setenv("REVIEW_API_TOKEN", TOKEN)
+    monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
+    from code_review_agent.review_worker import execute
+    from code_review_agent.review_service import rate_limiter
+    rate_limiter.reset()
+    async def in_process(operation, payload):
+        return execute(operation, payload)
+    monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)
+    monkeypatch.setattr("code_review_agent.webhook_server.dispatch_webhook_command", lambda **payload: CommandRouter.dispatch(**payload))
+
+
 
 SAMPLE_SQLI_DIFF = """diff --git a/app/db.py b/app/db.py
 --- a/app/db.py
@@ -114,7 +129,7 @@ class TestBotAPIEndpoints:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
 
     def test_api_bot_command_help(self, client):
         resp = client.post("/api/bot/command", json={"command": "/help"})
@@ -269,7 +284,7 @@ class TestMultiPlatformWebhookAuth:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
 
     def _gitlab_note_payload(self, note, username):
         return {
@@ -283,11 +298,11 @@ class TestMultiPlatformWebhookAuth:
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
     def test_gitlab_rejects_unlisted_user_fail_closed(self, mock_dispatch, client):
         """With no BOT_ALLOWED_USERS configured, a cost-bearing command is refused."""
-        env = {"GITLAB_WEBHOOK_SECRET": "", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": ""}
+        env = {"GITLAB_WEBHOOK_SECRET": "test-gitlab-secret", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": ""}
         with patch.dict(os.environ, env, clear=False):
             resp = client.post(
                 "/webhook/gitlab",
-                headers={"X-Gitlab-Event": "Note Hook"},
+                headers={"X-Gitlab-Event": "Note Hook", "X-Gitlab-Token": "test-gitlab-secret"},
                 json=self._gitlab_note_payload("/review", "random-user"),
             )
         assert resp.status_code == 200
@@ -296,11 +311,11 @@ class TestMultiPlatformWebhookAuth:
 
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
     def test_gitlab_allows_listed_user(self, mock_dispatch, client):
-        env = {"GITLAB_WEBHOOK_SECRET": "", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": "maintainer"}
+        env = {"GITLAB_WEBHOOK_SECRET": "test-gitlab-secret", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": "maintainer"}
         with patch.dict(os.environ, env, clear=False):
             resp = client.post(
                 "/webhook/gitlab",
-                headers={"X-Gitlab-Event": "Note Hook"},
+                headers={"X-Gitlab-Event": "Note Hook", "X-Gitlab-Token": "test-gitlab-secret"},
                 json=self._gitlab_note_payload("/review", "maintainer"),
             )
         assert resp.status_code == 200

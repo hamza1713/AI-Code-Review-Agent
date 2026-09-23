@@ -15,6 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN mkdir -p /app/data
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \

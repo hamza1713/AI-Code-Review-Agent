@@ -135,9 +135,12 @@ class TestWebhookBenchmarkAPI:
     """Test webhook REST API endpoint for benchmark metrics."""
 
     @patch.object(BenchmarkRunner, "run_deterministic_benchmark")
-    def test_api_benchmark_metrics_endpoint(self, mock_run):
+    def test_api_benchmark_metrics_endpoint(self, mock_run, monkeypatch):
+        token = "test-operator-token-with-32-characters-minimum"
+        monkeypatch.setenv("REVIEW_API_TOKEN", token)
+        monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
         mock_run.return_value = _create_sample_metric()
-        client = TestClient(app)
+        client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
 
         response = client.get("/api/benchmark/metrics")
         assert response.status_code == 200

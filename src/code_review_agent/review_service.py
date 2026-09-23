@@ -294,7 +294,8 @@ class ReviewService:
         pr_url: Optional[str] = None,
         repo_root: Optional[str] = None,
         client_ip: str = "127.0.0.1",
-        bypass_limits: bool = False
+        bypass_limits: bool = False,
+        rate_limit_checked: bool = False
     ) -> ReviewAPIResponse:
         """
         Execute synchronous in-browser review for raw diff, uploaded file, uploaded zip, or live GitHub PR.
@@ -310,7 +311,7 @@ class ReviewService:
         real PRs is never throttled as if it were one abusive client.
         """
         # 1. Rate Limiting Check (skipped for trusted internal callers)
-        if not bypass_limits:
+        if not bypass_limits and not rate_limit_checked:
             rate_limiter.check_rate_limit(client_ip)
 
         # 2. Ingest and normalize inputs into unified diff and optional repo_root
@@ -341,7 +342,16 @@ class ReviewService:
                     raise InputValidationError(
                         f"Uploaded file exceeds {MAX_SINGLE_FILE_BYTES // (1024 * 1024)}MB limit."
                     )
+                from code_review_agent.sandbox.test_runner import safe_diff_path
+                if any(character in file_name for character in ('\n', '\r', '\x00')):
+                    raise InputValidationError("Invalid source filename.")
+                normalized_name = file_name.replace("\\", "/").split("/")[-1]
+                try:
+                    safe_diff_path(Path(tempfile.gettempdir()), normalized_name)
+                except ValueError:
+                    raise InputValidationError("Invalid source filename.")
                 content = file_bytes.decode("utf-8", errors="replace")
+                file_name = normalized_name
                 final_diff = cls.file_to_unified_diff(file_name, content)
 
                 # Create temp file so AST indexer can index it if it is Python
@@ -378,8 +388,13 @@ class ReviewService:
             if repo_root:
                 flow.state.repo_root = repo_root
 
-            flow_id = f"web_review_{int(time.time())}"
+            import uuid
+            flow_id = f"web_review_{uuid.uuid4().hex}"
+            review_started = time.time()
+            review_clock = time.monotonic()
             flow.kickoff(inputs={"id": flow_id})
+            review_ended = time.time()
+            review_duration_ms = (time.monotonic() - review_clock) * 1000
 
             # 5. Build Cross-File Impact Information
             impact_callers: Dict[str, List[str]] = {}
@@ -423,30 +438,14 @@ class ReviewService:
             # 6. Extract Verdict, Confidence, Summary, and Complete Report
             verdict, confidence, summary, full_report = cls.extract_verdict_and_confidence(flow.state)
 
-            # 7. Assemble Structured Execution Trace Tree
-            from code_review_agent.observability.tracer import get_tracer
-            tracer = get_tracer(flow_id)
-            ingest_node = tracer.start_step(title="Ingestion & Diff Parsing", stage="INGESTION")
-            ingest_node.complete({"files_changed": flow.state.parsed_pr.files_changed if flow.state.parsed_pr else 0})
-
-            sec_node = tracer.start_step(title="Security Pattern & SAST Scan", stage="SECURITY_SCAN")
-            sec_node.complete({"findings_count": len(flow.state.sast_findings)})
-
-            gov_node = tracer.start_step(title="Governance Policy Check", stage="GOVERNANCE")
-            gov_node.complete({"violations_count": len(flow.state.rule_violations)})
-
-            crew_needed = getattr(flow.state, "crew_needed", False)
-            agent_node = tracer.start_step(
-                title="Multi-Agent Crew Evaluation",
-                stage="AGENT_CREW",
-                agent_name="Senior Dev / AppSec / Tech Lead"
-            )
-            agent_node.complete({"crew_executed": crew_needed})
-
-            synth_node = tracer.start_step(title="Executive Verdict Synthesis", stage="SYNTHESIS")
-            synth_node.complete({"verdict": verdict, "confidence": confidence})
-
-            trace_data = tracer.to_dict()
+            # Only publish timing that was actually measured around the work.
+            trace_data = {"trace_id": flow_id, "started_at": review_started,
+                "duration_ms": review_duration_ms, "nodes": [{
+                    "id": "review", "title": "Review analysis", "stage": "REVIEW",
+                    "status": "COMPLETED", "started_at": review_started,
+                    "ended_at": review_ended, "duration_ms": review_duration_ms,
+                    "details": {"timing_scope": "End-to-end analysis; individual stages are not instrumented."},
+                    "children": []}]}
 
             # 8. Assemble Structured API Response
             response = ReviewAPIResponse(

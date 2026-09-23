@@ -96,3 +96,61 @@ class GitHubPlatformClient(GitPlatformClient):
         pull_number: int
     ) -> List[Dict[str, Any]]:
         return self.client.list_pull_request_review_comments(owner, repo, pull_number)
+
+    def set_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        sha: str,
+        state: str,
+        description: str,
+        context: str = "ai-code-review",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        return self.client.set_commit_status(
+            owner=owner, repo=repo, sha=sha, state=state,
+            description=description, context=context, target_url=target_url
+        )
+
+    def create_or_update_check_run(
+        self,
+        owner: str,
+        repo: str,
+        head_sha: str,
+        name: str = "AI Code Review",
+        status: str = "queued",
+        conclusion: Optional[str] = None,
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
+        annotations: Optional[List[Dict[str, Any]]] = None,
+        details_url: Optional[str] = None,
+        check_run_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        return self.client.create_or_update_check_run(
+            owner=owner, repo=repo, head_sha=head_sha, name=name,
+            status=status, conclusion=conclusion, title=title, summary=summary,
+            annotations=annotations, details_url=details_url, check_run_id=check_run_id
+        )
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: Optional[str] = None
+    ) -> str:
+        return self.client.fetch_file_content(owner=owner, repo=repo, path=path, ref=ref)
+
+    def commit_file_change(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        content: str,
+        commit_message: str
+    ) -> Dict[str, Any]:
+        return self.client.commit_file_change(
+            owner=owner, repo=repo, branch=branch, path=path, content=content, commit_message=commit_message
+        )
+

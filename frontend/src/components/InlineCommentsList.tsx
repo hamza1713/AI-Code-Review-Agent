@@ -7,12 +7,30 @@ interface InlineCommentsListProps {
 }
 
 export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments }) => {
+  const [copyError, setCopyError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedFp, setCopiedFp] = useState<string | null>(null);
 
-  const handleCopySuggestion = (code: string, idx: number) => {
-    navigator.clipboard.writeText(code);
-    setCopiedIndex(idx);
-    setTimeout(() => setCopiedIndex(null), 2000);
+  const handleCopySuppress = async (fp: string) => {
+    try {
+      await navigator.clipboard.writeText(`/review suppress ${fp}`);
+      setCopiedFp(fp);
+      setTimeout(() => setCopiedFp(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopySuggestion = async (code: string, idx: number) => {
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedIndex(idx);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      setCopiedIndex(null);
+      setCopyError('Copy failed. Select the text and copy it manually.');
+    }
   };
 
   const getSeverityBadge = (sev: string) => {
@@ -28,6 +46,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
 
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
+      {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
         <div className="flex items-center space-x-2.5">
@@ -66,12 +85,43 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
               className="bg-slate-900/70 border border-slate-800/80 rounded-lg p-3 space-y-2 hover:border-slate-700 transition-all"
             >
               <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <span className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(comment.severity)}`}>
-                  {comment.severity || 'SUGGESTION'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(comment.severity)}`}>
+                    {comment.severity || 'SUGGESTION'}
+                  </span>
+                  {comment.lifecycle_status && (
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                      comment.lifecycle_status === 'SUPPRESSED'
+                        ? 'bg-slate-800/80 text-slate-400 border-slate-700'
+                        : comment.lifecycle_status === 'RESOLVED'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : comment.lifecycle_status === 'REGRESSED'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                        : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                    }`}>
+                      {comment.lifecycle_status}
+                    </span>
+                  )}
+                </div>
 
-                <div className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
-                  {comment.path}:L{comment.line} ({comment.side || 'RIGHT'})
+                <div className="flex items-center gap-2">
+                  {comment.fingerprint && (
+                    <button
+                      onClick={() => handleCopySuppress(comment.fingerprint!)}
+                      className="text-[9px] font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Click to copy /review suppress command"
+                    >
+                      <span>fp:{comment.fingerprint.slice(0, 8)}</span>
+                      {copiedFp === comment.fingerprint ? (
+                        <Check className="w-2.5 h-2.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5 text-slate-500" />
+                      )}
+                    </button>
+                  )}
+                  <div className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                    {comment.path}:L{comment.line} ({comment.side || 'RIGHT'})
+                  </div>
                 </div>
               </div>
 

@@ -3,6 +3,8 @@ GitHub API Client for Live Pull Request Ingestion and Inline Comment Submission.
 Interacts with GitHub REST API v3 using httpx.
 """
 
+import base64
+import hashlib
 import re
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
@@ -235,4 +237,196 @@ class GitHubClient:
                     f"Failed to list review comments from {url}: [{resp.status_code}] {resp.text}"
                 )
             return resp.json()
+
+    def set_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        sha: str,
+        state: str,  # 'pending', 'success', 'failure', 'error'
+        description: str,
+        context: str = "ai-code-review",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Update commit status on a specific commit SHA using GitHub Statuses API."""
+        url = f"{self.base_url}/repos/{owner}/{repo}/statuses/{sha}"
+        payload = {
+            "state": state,
+            "description": description[:140],
+            "context": context
+        }
+        if target_url:
+            payload["target_url"] = target_url
+
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code not in (200, 201):
+                logger.warning(f"Failed to set commit status on {url}: [{resp.status_code}] {resp.text}")
+                return {"error": resp.text, "status_code": resp.status_code}
+            return resp.json()
+
+    def create_or_update_check_run(
+        self,
+        owner: str,
+        repo: str,
+        head_sha: str,
+        name: str = "AI Code Review",
+        status: str = "queued",  # 'queued', 'in_progress', 'completed'
+        conclusion: Optional[str] = None,  # 'success', 'failure', 'neutral', 'action_required'
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
+        annotations: Optional[List[Dict[str, Any]]] = None,
+        details_url: Optional[str] = None,
+        check_run_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Create or update a GitHub Check Run.
+        Falls back to Commit Status API if token lacks checks:write permissions (403/404).
+        """
+        if check_run_id:
+            url = f"{self.base_url}/repos/{owner}/{repo}/check-runs/{check_run_id}"
+            method = "PATCH"
+        else:
+            url = f"{self.base_url}/repos/{owner}/{repo}/check-runs"
+            method = "POST"
+
+        payload: Dict[str, Any] = {
+            "name": name,
+            "head_sha": head_sha,
+            "status": status,
+        }
+        if status == "completed" and conclusion:
+            payload["conclusion"] = conclusion
+
+        if title or summary or annotations:
+            payload["output"] = {
+                "title": (title or name)[:255],
+                "summary": summary or "Automated review evaluation completed.",
+                "annotations": (annotations or [])[:50]
+            }
+
+        if details_url:
+            payload["details_url"] = details_url
+
+        headers = self._get_headers(accept="application/vnd.github.v3+json")
+        with httpx.Client(headers=headers, timeout=30.0) as client:
+            try:
+                resp = client.request(method, url, json=payload)
+                if resp.status_code in (200, 201):
+                    return resp.json()
+
+                # If 403 or 404, token lacks checks permission or app not installed; fall back to commit status
+                if resp.status_code in (403, 404, 422):
+                    logger.info(
+                        f"GitHub Check Run API returned [{resp.status_code}]. "
+                        "Falling back to GitHub Commit Status API..."
+                    )
+                    state = "pending" if status != "completed" else (
+                        "success" if conclusion in ("success", "neutral") else "failure"
+                    )
+                    return self.set_commit_status(
+                        owner=owner,
+                        repo=repo,
+                        sha=head_sha,
+                        state=state,
+                        description=(summary or title or name)[:140],
+                        context=name.lower().replace(" ", "-"),
+                        target_url=details_url
+                    )
+                return {"error": resp.text, "status_code": resp.status_code}
+            except Exception as e:
+                logger.warning(f"Error calling check run API: {e}; falling back to commit status...")
+                state = "pending" if status != "completed" else (
+                    "success" if conclusion in ("success", "neutral") else "failure"
+                )
+                return self.set_commit_status(
+                    owner=owner,
+                    repo=repo,
+                    sha=head_sha,
+                    state=state,
+                    description=(summary or title or name)[:140],
+                    context=name.lower().replace(" ", "-"),
+                    target_url=details_url
+                )
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: Optional[str] = None
+    ) -> str:
+        """Fetch raw text content of a file from GitHub repository."""
+        if not self.token:
+            return ""
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}"
+        params = {"ref": ref} if ref else {}
+        headers = self._get_headers(accept="application/vnd.github.v3+json")
+        with httpx.Client(headers=headers, timeout=30.0) as client:
+            resp = client.get(url, params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("encoding") == "base64" and "content" in data:
+                    return base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+                return data.get("content", "")
+            return ""
+
+    def commit_file_change(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        content: str,
+        commit_message: str
+    ) -> Dict[str, Any]:
+        """
+        Commit an updated file directly to a branch on GitHub.
+        Retrieves current file SHA (if existing), encodes content, and PUTs to GitHub Contents API.
+        """
+        if not self.token:
+            simulated_sha = "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            return {
+                "sha": simulated_sha,
+                "html_url": f"https://github.com/{owner}/{repo}/commit/{simulated_sha}",
+                "branch": branch,
+                "path": path
+            }
+
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}"
+        headers = self._get_headers(accept="application/vnd.github.v3+json")
+
+        with httpx.Client(headers=headers, timeout=30.0) as client:
+            # 1. Check if file exists on target branch
+            file_sha = None
+            get_resp = client.get(url, params={"ref": branch})
+            if get_resp.status_code == 200:
+                file_sha = get_resp.json().get("sha")
+
+            # 2. Commit file update
+            encoded_content = base64.b64encode(content.encode("utf-8")).decode("ascii")
+            payload: Dict[str, Any] = {
+                "message": commit_message,
+                "content": encoded_content,
+                "branch": branch
+            }
+            if file_sha:
+                payload["sha"] = file_sha
+
+            put_resp = client.put(url, json=payload)
+            if put_resp.status_code in (200, 201):
+                data = put_resp.json()
+                commit_info = data.get("commit", {})
+                return {
+                    "sha": commit_info.get("sha", ""),
+                    "html_url": commit_info.get("html_url", ""),
+                    "branch": branch,
+                    "path": path
+                }
+            if put_resp.status_code in (401, 403):
+                raise PermissionError(
+                    f"GitHub token lacks write permissions on {owner}/{repo}:{branch}. "
+                    f"Status [{put_resp.status_code}]: {put_resp.text}"
+                )
+            raise RuntimeError(f"Failed to commit file change: [{put_resp.status_code}] {put_resp.text}")
 

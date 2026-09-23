@@ -24,13 +24,25 @@ from code_review_agent.review_service import rate_limiter, ReviewService, InputV
 from code_review_agent.models import SummarizedFindingsJSON
 
 
-client = TestClient(app)
+TOKEN = "test-operator-token-with-32-characters-minimum"
+client = TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
 
 
 @pytest.fixture(autouse=True)
-def reset_rate_limiter():
+def reset_rate_limiter(monkeypatch):
     """Reset rate limiter state before each test."""
     rate_limiter.reset()
+    monkeypatch.setenv("REVIEW_API_TOKEN", TOKEN)
+    monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
+    monkeypatch.delenv("REVIEW_SANDBOX_IMAGE", raising=False)
+    from code_review_agent.review_worker import execute
+    from code_review_agent.review_executor import ReviewWorkerError
+    async def in_process(operation, payload):
+        try:
+            return execute(operation, payload)
+        except InputValidationError as error:
+            raise ReviewWorkerError(str(error), 400)
+    monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)
 
 
 @pytest.fixture
@@ -164,8 +176,8 @@ def login_route(req):
             files={"zip_file": ("too_large.zip", large_bytes, "application/zip")}
         )
 
-        assert response.status_code == 400
-        assert "exceeds maximum size limit" in response.json()["detail"]
+        assert response.status_code == 413
+        assert "limit" in response.json()["detail"]
 
     def test_review_non_python_file_honest_labeling(self, mock_llm_flow):
         """Verify non-Python code reviews report cross-file impact as unavailable: Python only."""
@@ -200,7 +212,8 @@ function login(user, pass) {
         def slow_review(*args, **kwargs):
             raise asyncio.TimeoutError()
 
-        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
+        from code_review_agent.review_executor import ReviewDeadlineError
+        with patch("code_review_agent.webhook_server.run_job_async", side_effect=ReviewDeadlineError):
             response = client.post(
                 "/api/review",
                 json={"raw_diff": "diff --git a/test.py b/test.py\n+x = 1"}
@@ -256,7 +269,7 @@ def dangerous_function(cmd):
         """Verify that exceeding the 30 requests/minute IP rate limit returns HTTP 429."""
         # Use low-overhead invalid payload to quickly trigger rate limiter
         for _ in range(30):
-            rate_limiter.check_rate_limit("192.168.1.50")
+            rate_limiter.check_rate_limit("operator")
 
         # 31st request from same IP should raise / return 429
         response = client.post(

@@ -486,12 +486,28 @@ class PRCodeReviewFlow(Flow[ReviewState]):
         reconciled_verdict = None
         try:
             from code_review_agent.synthesis import SynthesisReconciler
+            crew_sast_findings = []
+            try:
+                from code_review_agent.tools.crew_finding_parser import parse_crew_advisory_findings
+                file_hint = self.state.pr_file_path
+                if not file_hint and self.state.pr_content:
+                    diff_match = re.search(r"^\+\+\+\s+b/(.+)$", self.state.pr_content, re.MULTILINE)
+                    if diff_match:
+                        file_hint = diff_match.group(1).strip()
+                file_hint = file_hint or "unknown"
+                crew_source = self.state.summarized_findings or self.state.review_result
+                if crew_source:
+                    crew_sast_findings = parse_crew_advisory_findings(crew_source, file_hint=file_hint)
+            except Exception as crew_parse_err:
+                logger.debug(f"Could not parse crew advisory findings: {crew_parse_err}")
+
             reconciled = SynthesisReconciler.reconcile(
                 sast_findings=self.state.sast_findings,
                 rule_violations=self.state.rule_violations,
                 test_execution=self.state.test_execution,
                 generated_tests=self.state.generated_unit_tests,
                 pr_content=self.state.pr_content,
+                crew_findings=crew_sast_findings,
             )
             reconciled_md = reconciled.to_markdown()
             reconciled_verdict = reconciled.verdict

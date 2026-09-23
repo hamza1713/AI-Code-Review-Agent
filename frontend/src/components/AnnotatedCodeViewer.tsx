@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-javascript';
@@ -45,33 +45,14 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   const [selectedFile, setSelectedFile] = useState<string>('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'CRITICAL' | 'WARNING' | 'INFO'>('ALL');
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [copyError, setCopyError] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [manuallyExpandedFolds, setManuallyExpandedFolds] = useState<Record<number, boolean>>({});
 
   // 1. Parse raw diff or plain file content into structured file lines
   const parsedFiles: ParsedFile[] = useMemo(() => {
     const raw = (reviewedDiff || '').trim();
-    if (!raw) {
-      // Fallback sample file if no raw diff is provided
-      return [
-        {
-          filename: 'app/auth.py',
-          lines: [
-            { lineNumber: 1, content: 'import sqlite3', type: 'context', raw: 'import sqlite3' },
-            { lineNumber: 2, content: 'from flask import request, jsonify', type: 'context', raw: 'from flask import request, jsonify' },
-            { lineNumber: 3, content: '', type: 'context', raw: '' },
-            { lineNumber: 4, content: 'def login_user():', type: 'context', raw: 'def login_user():' },
-            { lineNumber: 5, content: '    username = request.form.get("username")', type: 'context', raw: '    username = request.form.get("username")' },
-            { lineNumber: 6, content: '    password = request.form.get("password")', type: 'context', raw: '    password = request.form.get("password")' },
-            { lineNumber: 7, content: '    conn = sqlite3.connect("users.db")', type: 'context', raw: '    conn = sqlite3.connect("users.db")' },
-            { lineNumber: 8, content: '    query = f"SELECT * FROM users WHERE username = \'{username}\' AND password = \'{password}\'"', type: 'added', raw: '+    query = f"SELECT * FROM users WHERE username = \'{username}\' AND password = \'{password}\'"' },
-            { lineNumber: 9, content: '    cursor = conn.cursor()', type: 'context', raw: '    cursor = conn.cursor()' },
-            { lineNumber: 10, content: '    cursor.execute(query)', type: 'added', raw: '+    cursor.execute(query)' },
-            { lineNumber: 11, content: '    return jsonify(cursor.fetchone())', type: 'context', raw: '    return jsonify(cursor.fetchone())' },
-          ],
-        },
-      ];
-    }
+    if (!raw) return [];
 
     // Check if it is a unified git diff format
     if (raw.includes('diff --git') || raw.includes('--- ') || raw.includes('@@ ')) {
@@ -150,26 +131,18 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     return [{ filename: 'source_file.py', lines: plainLines }];
   }, [reviewedDiff]);
 
-  // Set default selected file on mount
-  useEffect(() => {
-    if (parsedFiles.length > 0) {
-      // Pick file with comments or first file
-      const fileWithComments = parsedFiles.find(f =>
-        inlineComments.some(c => c.path.includes(f.filename) || f.filename.includes(c.path))
-      );
-      setSelectedFile(fileWithComments ? fileWithComments.filename : parsedFiles[0].filename);
-    }
-  }, [parsedFiles, inlineComments]);
-
-  // Active current file data
   const currentFile = useMemo(() => {
-    return parsedFiles.find(f => f.filename === selectedFile) || parsedFiles[0] || { filename: '', lines: [] };
-  }, [parsedFiles, selectedFile]);
+    return parsedFiles.find(f => f.filename === selectedFile)
+      || parsedFiles.find(f => inlineComments.some(c => c.path === f.filename))
+      || parsedFiles[0] || { filename: '', lines: [] };
+  }, [parsedFiles, selectedFile, inlineComments]);
 
   // Map comments by line number for current file
   const commentsByLine = useMemo(() => {
     const map: Record<number, InlineComment[]> = {};
     for (const comment of inlineComments) {
+      const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/^[ab]\//, '');
+      if (normalizePath(comment.path) !== normalizePath(currentFile.filename) || comment.side === 'LEFT') continue;
       const lineNo = comment.line;
       if (!map[lineNo]) {
         map[lineNo] = [];
@@ -177,7 +150,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
       map[lineNo].push(comment);
     }
     return map;
-  }, [inlineComments]);
+  }, [inlineComments, currentFile.filename]);
 
   // List of all flagged line numbers in the file
   const flaggedLineNumbers = useMemo(() => {
@@ -200,21 +173,6 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     return { total: inlineComments.length, critical, warning, info };
   }, [inlineComments]);
 
-  // 2. Auto-expand highest-severity / first comment on initial load
-  useEffect(() => {
-    if (inlineComments.length === 0) return;
-
-    // Prioritize CRITICAL first, then WARNING, then first
-    const criticalComment = inlineComments.find(c => (c.severity || '').toUpperCase() === 'CRITICAL');
-    const warningComment = inlineComments.find(c => (c.severity || '').toUpperCase() === 'WARNING');
-    const target = criticalComment || warningComment || inlineComments[0];
-
-    if (target) {
-      const key = `${target.path || selectedFile}-${target.line}-0`;
-      setExpandedComments({ [key]: true });
-    }
-  }, [inlineComments, selectedFile]);
-
   const toggleComment = (key: string) => {
     setExpandedComments(prev => ({
       ...prev,
@@ -222,16 +180,22 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     }));
   };
 
-  const handleCopyCode = (code: string, key: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const handleCopyCode = async (code: string, key: string) => {
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch {
+      setCopiedKey(null);
+      setCopyError('Copy failed. Select the text and copy it manually.');
+    }
   };
 
   const expandAllComments = () => {
     const all: Record<string, boolean> = {};
-    inlineComments.forEach((c, idx) => {
-      all[`${c.path || selectedFile}-${c.line}-${idx}`] = true;
+    Object.entries(commentsByLine).forEach(([line, comments]) => {
+      comments.forEach((_, index) => { all[`${currentFile.filename}-${line}-${index}`] = true; });
     });
     setExpandedComments(all);
   };
@@ -243,11 +207,11 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   // Syntax highlighter helper
   const highlightSyntax = (codeText: string) => {
     try {
-      const lang = selectedFile.endsWith('.js') || selectedFile.endsWith('.ts')
+      const lang = currentFile.filename.endsWith('.js') || currentFile.filename.endsWith('.ts')
         ? Prism.languages.javascript
-        : selectedFile.endsWith('.json')
+        : currentFile.filename.endsWith('.json')
         ? Prism.languages.json
-        : selectedFile.endsWith('.sql')
+        : currentFile.filename.endsWith('.sql')
         ? Prism.languages.sql
         : Prism.languages.python;
 
@@ -289,6 +253,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
 
   return (
     <div className="bg-[#0e121a] border border-slate-800/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
       {/* 1. Header Summary Strip */}
       <div className="p-4 bg-[#121622] border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
@@ -390,7 +355,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                 key={f.filename}
                 onClick={() => setSelectedFile(f.filename)}
                 className={`text-xs font-mono px-3 py-1 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  selectedFile === f.filename
+                  currentFile.filename === f.filename
                     ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 bg-slate-900/60 border border-transparent'
                 }`}

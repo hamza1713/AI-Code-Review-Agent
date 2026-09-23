@@ -1,19 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Server,
-  RefreshCw,
-  GitPullRequest,
-  Copy,
-  Check,
-  Sparkles,
-  ExternalLink,
-  ShieldCheck,
-  AlertCircle,
-  Play,
-  Key,
-  CheckCircle2
-} from 'lucide-react';
-import type { WebhookJob } from '../types/review';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, Server, Copy, ExternalLink } from 'lucide-react';
+import type { WebhookJob, QueueMetrics } from '../types/review';
+import { apiFetch, responseError } from '../api';
 
 interface WebhookConfig {
   webhook_url: string;
@@ -21,414 +9,416 @@ interface WebhookConfig {
   token_configured: boolean;
   github_connected: boolean;
   github_user: string | null;
+  test_events_enabled: boolean;
 }
 
-export const JobsQueueMonitor: React.FC = () => {
+const date = (value?: string | number | null) =>
+  value ? new Date(typeof value === 'number' ? value * 1000 : value).toLocaleString() : '—';
+
+function JobDetails({
+  job,
+  onClose,
+  onCancel,
+}: {
+  job: WebhookJob;
+  onClose: () => void;
+  onCancel?: (jobId: string) => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={dialog}
+      onClose={onClose}
+      aria-labelledby="job-details-title"
+      className="m-auto max-w-2xl w-[calc(100%-2rem)] max-h-[85vh] overflow-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-200 backdrop:bg-black/70"
+    >
+      <div className="flex justify-between items-center gap-4">
+        <h2 id="job-details-title" className="font-semibold">
+          Job details
+        </h2>
+        <button onClick={() => dialog.current?.close()} className="text-slate-400 hover:text-white text-sm">
+          Close
+        </button>
+      </div>
+      <dl className="my-5 grid grid-cols-[auto_1fr] gap-3 text-sm">
+        <dt className="text-slate-400">ID</dt>
+        <dd className="font-mono">{job.job_id}</dd>
+        <dt className="text-slate-400">Source</dt>
+        <dd className="break-all">{job.pr_identifier}</dd>
+        <dt className="text-slate-400">Status</dt>
+        <dd>
+          <span className="font-semibold">{job.status}</span>
+          {job.current_stage && <span className="ml-2 text-xs text-indigo-400 font-mono">({job.current_stage})</span>}
+        </dd>
+        {job.worker_id && (
+          <>
+            <dt className="text-slate-400">Worker</dt>
+            <dd className="font-mono text-xs">{job.worker_id}</dd>
+          </>
+        )}
+        {typeof job.stage_progress === 'number' && (
+          <>
+            <dt className="text-slate-400">Progress</dt>
+            <dd>{Math.round(job.stage_progress * 100)}%</dd>
+          </>
+        )}
+        <dt className="text-slate-400">Attempts</dt>
+        <dd>
+          {job.attempts || 0} / {job.max_retries || 1}
+        </dd>
+        <dt className="text-slate-400">Updated</dt>
+        <dd>{date(job.updated_at)}</dd>
+      </dl>
+      {['QUEUED', 'RETRYING', 'PROCESSING'].includes(job.status) && onCancel && (
+        <div className="mb-4">
+          <button
+            onClick={() => {
+              onCancel(job.job_id);
+              dialog.current?.close();
+            }}
+            className="rounded-lg bg-rose-600/80 hover:bg-rose-600 px-3 py-1.5 text-xs text-white font-medium"
+          >
+            Cancel this job
+          </button>
+        </div>
+      )}
+      {job.last_error && (
+        <p role="alert" className="rounded-lg bg-rose-950 p-3 text-rose-200 text-sm mb-4">
+          {job.last_error}
+        </p>
+      )}
+      {job.result && (
+        <pre className="mt-4 text-xs whitespace-pre-wrap break-all bg-slate-950 p-4 rounded-xl border border-slate-800">
+          {JSON.stringify(job.result, null, 2)}
+        </pre>
+      )}
+    </dialog>
+  );
+}
+
+export function JobsQueueMonitor() {
   const [jobs, setJobs] = useState<WebhookJob[]>([]);
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('ALL');
+  const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [error, setError] = useState('');
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<WebhookJob | null>(null);
   const [config, setConfig] = useState<WebhookConfig | null>(null);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simFeedback, setSimFeedback] = useState<string | null>(null);
+  const [configError, setConfigError] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [simulating, setSimulating] = useState(false);
+  const [metrics, setMetrics] = useState<QueueMetrics | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const refresh = useCallback(() => setRefreshVersion((value) => value + 1), []);
 
-  const fetchConfig = async () => {
+  const handleCancelJob = async (jobId: string) => {
     try {
-      const res = await fetch('/api/webhook/config');
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
-      }
+      const res = await apiFetch(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error(await responseError(res));
+      setFeedback(`Job ${jobId} cancelled.`);
+      refresh();
     } catch (err) {
-      console.error('Error fetching webhook config:', err);
-    }
-  };
-
-  const fetchJobs = async () => {
-    setLoading(true);
-    try {
-      const url = filterStatus === 'ALL' ? '/jobs' : `/jobs?status=${filterStatus}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(data.jobs || []);
-      }
-    } catch (err) {
-      console.error('Error fetching jobs:', err);
-    } finally {
-      setLoading(false);
+      setFeedback(err instanceof Error ? err.message : 'Unable to cancel job.');
     }
   };
 
   useEffect(() => {
-    fetchConfig();
-    fetchJobs();
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (autoRefresh) {
-      interval = setInterval(fetchJobs, 3000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [filterStatus, autoRefresh]);
-
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const handleTriggerSimulatedWebhook = async () => {
-    setIsSimulating(true);
-    setSimFeedback(null);
-    try {
-      const res = await fetch('/api/webhook/test-event', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setSimFeedback(`✅ ${data.message}`);
-        fetchJobs();
-      } else {
-        setSimFeedback('❌ Failed to trigger test event.');
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const [jobsRes, metricsRes] = await Promise.all([
+          apiFetch(filter === 'ALL' ? '/jobs' : `/jobs?status=${filter}`, { signal: controller.signal }),
+          apiFetch('/jobs/metrics', { signal: controller.signal }).catch(() => null),
+        ]);
+        if (!jobsRes.ok) throw new Error(await responseError(jobsRes));
+        const data = await jobsRes.json();
+        if (controller.signal.aborted) return;
+        setJobs(data.jobs || []);
+        if (metricsRes && metricsRes.ok) {
+          setMetrics(await metricsRes.json());
+        }
+        setUpdatedAt(Date.now());
+        setError('');
+      } catch (reason) {
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to load jobs.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          if (autoRefresh) timer = setTimeout(poll, 3000);
+        }
       }
-    } catch {
-      setSimFeedback('❌ Network error triggering test event.');
-    } finally {
-      setIsSimulating(false);
-      setTimeout(() => setSimFeedback(null), 5000);
-    }
-  };
+    };
+    void poll();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [filter, autoRefresh, refreshVersion]);
 
-  const formatTimestamp = (val?: string | number | null) => {
-    if (!val) return '-';
-    if (typeof val === 'number') {
-      return new Date(val * 1000).toLocaleTimeString();
-    }
-    return new Date(val).toLocaleTimeString();
-  };
-
-  const formatDateTime = (val?: string | number | null) => {
-    if (!val) return '-';
-    if (typeof val === 'number') {
-      return new Date(val * 1000).toLocaleString();
-    }
-    return new Date(val).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    const s = (status || '').toUpperCase();
-    if (s === 'COMPLETED') {
-      return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-    }
-    if (s === 'PROCESSING') {
-      return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse';
-    }
-    if (s === 'QUEUED') {
-      return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-    }
-    if (s === 'FAILED') {
-      return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
-    }
-    return 'bg-slate-800 text-slate-400 border-slate-700';
-  };
-
-
-  const currentWebhookUrl = config?.webhook_url || `${window.location.origin}/webhook/github`;
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await apiFetch('/api/webhook/config', { signal: controller.signal });
+        if (!response.ok) throw new Error(await responseError(response));
+        const value = await response.json();
+        if (!controller.signal.aborted) {
+          setConfig(value);
+          setConfigError('');
+        }
+      } catch (reason) {
+        if (!controller.signal.aborted)
+          setConfigError(reason instanceof Error ? reason.message : 'Unable to load webhook settings.');
+      }
+    })();
+    return () => controller.abort();
+  }, [refreshVersion]);
 
   return (
     <div className="space-y-6">
-      {/* 1. Interactive Live GitHub Webhook Setup Card */}
-      <div className="bg-gradient-to-br from-[#121624] via-[#101420] to-[#0c0f18] border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
-              <Sparkles className="w-5 h-5 text-amber-400" />
+      <section className="rounded-2xl border border-slate-700 bg-slate-900/60 p-6 space-y-4">
+        <h1 className="text-2xl font-semibold">Review job queue</h1>
+        <p className="text-sm text-slate-400">
+          Follow browser reviews and incoming pull requests. Results stay available after you leave the page.
+        </p>
+        {configError && (
+          <p role="alert" className="text-amber-300 text-sm">
+            Webhook settings: {configError}
+          </p>
+        )}
+        {config && (
+          <>
+            <div className="flex flex-wrap gap-4 text-xs">
+              <span>
+                {config.github_connected
+                  ? `GitHub connected${config.github_user ? ` as ${config.github_user}` : ''}`
+                  : 'GitHub connection unavailable'}
+              </span>
+              <span>
+                {config.secret_configured
+                  ? 'Webhook signature verification configured'
+                  : 'GitHub webhook disabled: secret not configured'}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
-                  GitHub Live Webhook Setup & Testing Hub
-                </h2>
-                <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  Automated PR Ingestion
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Connect your GitHub repository to automatically run multi-agent reviews and post inline fixes on every Pull Request.
-              </p>
-            </div>
-          </div>
-
-          {/* Status Chips */}
-          <div className="flex flex-wrap items-center gap-2">
-            {config?.github_connected ? (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>GitHub API Connected ({config.github_user ? `@${config.github_user}` : 'Active'})</span>
-              </span>
-            ) : config?.token_configured ? (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-amber-500/10 text-amber-300 border border-amber-500/30 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>GITHUB_TOKEN loaded (unverified)</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-slate-800 text-slate-400 border border-slate-700 font-medium">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>GITHUB_TOKEN missing in .env</span>
-              </span>
-            )}
-
-            {config?.secret_configured ? (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>HMAC Secret Active</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-amber-500/10 text-amber-300 border border-amber-500/30 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>WEBHOOK_SECRET missing</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Setup Parameters Table */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-          {/* Payload URL */}
-          <div className="bg-[#0a0d14] p-3 rounded-xl border border-slate-800 space-y-1.5">
-            <div className="flex items-center justify-between text-slate-400 font-sans text-[11px]">
-              <span className="font-semibold text-slate-300">1. Webhook Payload URL</span>
+            <div className="flex items-center gap-3">
+              <code className="text-xs break-all flex-1">{config.webhook_url}</code>
               <button
-                onClick={() => handleCopy(currentWebhookUrl, 'url')}
-                className="text-indigo-400 hover:text-indigo-200 flex items-center gap-1 text-[10px] cursor-pointer"
+                aria-label="Copy webhook URL"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(config.webhook_url);
+                    setFeedback('Webhook URL copied.');
+                  } catch {
+                    setFeedback('Copy failed. Select the webhook URL and copy it manually.');
+                  }
+                }}
               >
-                {copiedField === 'url' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedField === 'url' ? 'Copied' : 'Copy'}</span>
+                <Copy size={16} />
               </button>
             </div>
-            <div className="bg-slate-900/80 px-2.5 py-1.5 rounded text-indigo-300 overflow-x-auto text-[11px]">
-              {currentWebhookUrl}
-            </div>
-          </div>
+            {config.test_events_enabled && (
+              <button
+                disabled={simulating}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm disabled:opacity-50"
+                onClick={async () => {
+                  setSimulating(true);
+                  setFeedback('');
+                  try {
+                    const response = await apiFetch('/api/webhook/test-event', { method: 'POST' });
+                    if (!response.ok) throw new Error(await responseError(response));
+                    setFeedback('Test event queued.');
+                    refresh();
+                  } catch (reason) {
+                    setFeedback(reason instanceof Error ? reason.message : 'Unable to create test event.');
+                  } finally {
+                    setSimulating(false);
+                  }
+                }}
+              >
+                Create test event
+              </button>
+            )}
+          </>
+        )}
+        {feedback && (
+          <p role="status" className="text-sm text-indigo-200">
+            {feedback}
+          </p>
+        )}
+        <a
+          href="https://github.com"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-indigo-300 inline-flex gap-2 items-center"
+        >
+          Open GitHub
+          <ExternalLink size={14} />
+        </a>
+      </section>
 
-          {/* Content Type & Events */}
-          <div className="bg-[#0a0d14] p-3 rounded-xl border border-slate-800 space-y-1.5">
-            <div className="flex items-center justify-between text-slate-400 font-sans text-[11px]">
-              <span className="font-semibold text-slate-300">2. Configuration Settings</span>
-              <span className="text-[10px] text-slate-500">GitHub Webhook Form</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="bg-slate-900/80 px-2 py-1 rounded text-slate-300">
-                <span className="text-slate-500 block text-[9px] font-sans">Content type:</span>
-                application/json
-              </div>
-              <div className="bg-slate-900/80 px-2 py-1 rounded text-emerald-300">
-                <span className="text-slate-500 block text-[9px] font-sans">Trigger event:</span>
-                Pull requests
-              </div>
-            </div>
+      {metrics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="text-xs text-slate-400">Queued</div>
+            <div className="text-xl font-bold text-slate-200">{metrics.queued}</div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="text-xs text-slate-400">Processing</div>
+            <div className="text-xl font-bold text-indigo-400">{metrics.processing}</div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="text-xs text-slate-400">Active Workers</div>
+            <div className="text-xl font-bold text-emerald-400">{metrics.active_workers}</div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="text-xs text-slate-400">Avg Duration</div>
+            <div className="text-xl font-bold text-slate-300">{metrics.avg_duration_seconds}s</div>
           </div>
         </div>
+      )}
 
-        {/* Action Buttons: Live Simulator & Direct Link */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex flex-wrap items-center gap-2.5">
+      <section className="rounded-2xl border border-slate-700 bg-slate-900/40 p-4 sm:p-6" aria-label="Jobs">
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-5">
+          <h2 className="font-semibold flex items-center gap-2">
+            <Server size={18} />
+            Saved jobs
+          </h2>
+          <div className="flex gap-3 items-center">
             <button
-              onClick={handleTriggerSimulatedWebhook}
-              disabled={isSimulating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer disabled:opacity-50"
+              aria-pressed={autoRefresh}
+              onClick={() => setAutoRefresh((value) => !value)}
+              className="text-xs"
             >
-              <Play className={`w-3.5 h-3.5 ${isSimulating ? 'animate-spin' : ''}`} />
-              <span>Simulate Inbound PR Webhook</span>
+              Auto-refresh {autoRefresh ? 'on' : 'off'}
             </button>
-
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-colors"
-            >
-              <span>Open GitHub</span>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-            </a>
-          </div>
-
-          {simFeedback && (
-            <span className="text-xs font-medium text-emerald-400">
-              {simFeedback}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Durable Task Queue Monitor Table */}
-      <div className="bg-[#12151c] border border-slate-800/80 rounded-2xl p-6 shadow-2xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <Server className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Durable Background Task Queue</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono">
-                  SQLite ACID WAL
-                </span>
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                Persistent background queue with crash recovery and exponential backoff workers
-              </p>
-            </div>
-          </div>
-
-          {/* Actions & Filters */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Status filters */}
-            <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-              {['ALL', 'QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED'].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setFilterStatus(st)}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    filterStatus === st
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-
-            {/* Auto-refresh toggle */}
             <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                autoRefresh
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-slate-900 border-slate-800 text-slate-400'
-              }`}
+              aria-label="Refresh jobs"
+              onClick={() => {
+                setLoading(true);
+                refresh();
+              }}
             >
-              <span className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
-              <span>Auto-Refresh</span>
-            </button>
-
-            {/* Refresh button */}
-            <button
-              onClick={fetchJobs}
-              disabled={loading}
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors cursor-pointer"
-              title="Refresh jobs"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-purple-400' : ''}`} />
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
-
-        {/* Jobs Table */}
-        <div className="rounded-xl border border-slate-800 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/90 text-slate-400 uppercase font-mono tracking-wider border-b border-slate-800 text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Job ID</th>
-                  <th className="py-3 px-4">PR Identifier</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Retries</th>
-                  <th className="py-3 px-4">Created</th>
-                  <th className="py-3 px-4 text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
-                {jobs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-slate-500 font-sans">
-                      No background webhook jobs found. Incoming GitHub webhooks or simulated events will durably appear here.
-                    </td>
-                  </tr>
-                ) : (
-                  jobs.map((job) => (
-                    <tr key={job.job_id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="py-3 px-4 font-bold text-indigo-400">{job.job_id.slice(0, 14)}...</td>
-                      <td className="py-3 px-4 font-sans font-medium text-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <GitPullRequest className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                          <span>{job.pr_identifier || 'In-Memory Review'}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(job.status)}`}>
-                          {job.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-400">{job.retry_count || 0}</td>
-                      <td className="py-3 px-4 text-slate-400 text-[11px]">
-                        {formatTimestamp(job.created_at)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => setSelectedJob(job)}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-sans text-[11px] transition-colors cursor-pointer"
-                        >
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {['ALL', 'QUEUED', 'PROCESSING', 'RETRYING', 'COMPLETED', 'FAILED', 'CANCELLED'].map((status) => (
+            <button
+              key={status}
+              aria-pressed={filter === status}
+              onClick={() => {
+                if (status === filter) return;
+                setFilter(status);
+                setJobs([]);
+                setUpdatedAt(null);
+                setLoading(true);
+                setError('');
+              }}
+              className={`px-3 py-2 rounded-lg text-xs ${filter === status ? 'bg-indigo-600' : 'bg-slate-800 text-slate-300'}`}
+            >
+              {status}
+            </button>
+          ))}
         </div>
-
-        {/* Selected Job Details Modal */}
-        {selectedJob && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-[#12151c] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Job Details:</span>
-                  <span className="font-mono text-purple-400">{selectedJob.job_id}</span>
-                </h3>
-                <button
-                  onClick={() => setSelectedJob(null)}
-                  className="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer"
-                >
-                  ✕ Close
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-2 text-slate-300">
-                  <div><strong>PR:</strong> {selectedJob.pr_identifier}</div>
-                  <div><strong>Status:</strong> {selectedJob.status}</div>
-                  <div><strong>Created:</strong> {formatDateTime(selectedJob.created_at)}</div>
-                  <div><strong>Last Updated:</strong> {formatDateTime(selectedJob.updated_at)}</div>
-                </div>
-
-
-                {selectedJob.error_message && (
-                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300">
-                    <strong>Error / Notice:</strong> {selectedJob.error_message}
-                  </div>
-                )}
-
-                {selectedJob.result && (
-                  <div className="space-y-1">
-                    <span className="font-semibold text-slate-400">Result Payload:</span>
-                    <pre className="p-3 rounded-lg bg-[#0a0c10] border border-slate-800 text-[11px] font-mono text-emerald-300 max-h-60 overflow-y-auto">
-                      {JSON.stringify(selectedJob.result, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
+        {error && (
+          <div role="alert" className="bg-rose-950/40 border border-rose-700 rounded-lg p-3 mb-4 text-sm text-rose-200">
+            {error} {updatedAt ? 'Showing the last successfully loaded data.' : 'No current queue data is available.'}
+            <button onClick={refresh} className="underline ml-3">
+              Retry
+            </button>
           </div>
         )}
-      </div>
+        <p role="status" className="text-xs text-slate-400 mb-4">
+          {loading
+            ? 'Loading jobs…'
+            : updatedAt
+            ? `Last refreshed: ${new Date(updatedAt).toLocaleTimeString()}`
+            : 'Waiting for a successful refresh.'}
+        </p>
+        <div className="overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="text-xs text-slate-400">
+              <tr>
+                {['Source', 'Status / Stage', 'Attempts', 'Created', 'Actions'].map((label) => (
+                  <th scope="col" key={label} className="p-3">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr key={job.job_id} className="border-t border-slate-800">
+                  <td className="p-3 break-all font-mono text-xs">{job.pr_identifier}</td>
+                  <td className="p-3 text-xs">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
+                        job.status === 'COMPLETED'
+                          ? 'bg-emerald-950 text-emerald-300'
+                          : job.status === 'FAILED'
+                          ? 'bg-rose-950 text-rose-300'
+                          : job.status === 'CANCELLED'
+                          ? 'bg-slate-800 text-slate-400'
+                          : job.status === 'PROCESSING'
+                          ? 'bg-indigo-950 text-indigo-300'
+                          : 'bg-amber-950 text-amber-300'
+                      }`}
+                    >
+                      {job.status}
+                    </span>
+                    {job.current_stage && job.status === 'PROCESSING' && (
+                      <div className="text-[11px] text-indigo-400 mt-1 font-mono">
+                        {job.current_stage}{' '}
+                        {typeof job.stage_progress === 'number' &&
+                          `(${Math.round(job.stage_progress * 100)}%)`}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-xs">
+                    {job.attempts || 0} / {job.max_retries || 1}
+                  </td>
+                  <td className="p-3 text-xs whitespace-nowrap">{date(job.created_at)}</td>
+                  <td className="p-3 text-xs space-x-2">
+                    <button
+                      aria-label={`Inspect ${job.job_id}`}
+                      onClick={() => setSelectedJob(job)}
+                      className="text-indigo-300 hover:underline"
+                    >
+                      Inspect
+                    </button>
+                    {['QUEUED', 'RETRYING', 'PROCESSING'].includes(job.status) && (
+                      <button onClick={() => handleCancelJob(job.job_id)} className="text-rose-400 hover:underline">
+                        Cancel
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!loading && !error && !jobs.length && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-slate-400">
+                    No jobs match this filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {selectedJob && (
+        <JobDetails
+          job={jobs.find((job) => job.job_id === selectedJob.job_id) || selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onCancel={handleCancelJob}
+        />
+      )}
     </div>
   );
-};
-
+}

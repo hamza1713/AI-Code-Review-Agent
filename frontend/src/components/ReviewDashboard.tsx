@@ -51,11 +51,17 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         onExportJSON={handleExportJSON}
       />
 
+      <section className="review-metrics" aria-label="Review counts">
+        <button className="review-metric" aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}><span>Security findings</span><strong className="text-rose-300">{securityCount}</strong><small>Explore risks and fixes →</small></button>
+        <button className="review-metric" aria-pressed={activeTab === 'governance'} onClick={() => setActiveTab('governance')}><span>Standards violations</span><strong className="text-amber-300">{govCount}</strong><small>Review team rules →</small></button>
+        <button className="review-metric" aria-pressed={activeTab === 'inline'} onClick={() => setActiveTab('inline')}><span>Inline suggestions</span><strong className="text-indigo-300">{inlineCount}</strong><small>See proposed changes →</small></button>
+      </section>
+      <p className="text-xs text-slate-400">Counts are grouped by source. The same issue may appear in more than one group.</p>
       {/* 2. Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-[#12151c] p-1.5 rounded-xl border border-slate-800/80">
         <div className="flex flex-wrap items-center gap-1">
           <button
-            onClick={() => setActiveTab('all')}
+            aria-pressed={activeTab === 'all'} onClick={() => setActiveTab('all')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'all'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -67,7 +73,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('annotated')}
+            aria-pressed={activeTab === 'annotated'} onClick={() => setActiveTab('annotated')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'annotated'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -79,7 +85,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('report')}
+            aria-pressed={activeTab === 'report'} onClick={() => setActiveTab('report')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'report'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -91,7 +97,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('security')}
+            aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'security'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -103,7 +109,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('governance')}
+            aria-pressed={activeTab === 'governance'} onClick={() => setActiveTab('governance')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'governance'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -115,7 +121,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('inline')}
+            aria-pressed={activeTab === 'inline'} onClick={() => setActiveTab('inline')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'inline'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -127,7 +133,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('impact')}
+            aria-pressed={activeTab === 'impact'} onClick={() => setActiveTab('impact')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'impact'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -139,7 +145,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           </button>
 
           <button
-            onClick={() => setActiveTab('tests')}
+            aria-pressed={activeTab === 'tests'} onClick={() => setActiveTab('tests')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'tests'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -179,7 +185,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
 
             {/* Right Column: Tests, Inline Suggestions & Call Graph */}
             <div className="space-y-4">
-              <GeneratedUnitTests unitTests={data.generated_unit_tests} />
+              <GeneratedUnitTests unitTests={data.generated_unit_tests} execution={data.test_execution} />
               <InlineCommentsList comments={data.inline_comments || []} />
               <CrossFileImpact impact={data.cross_file_impact} />
             </div>
@@ -230,7 +236,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       )}
 
       {activeTab === 'tests' && (
-        <GeneratedUnitTests unitTests={data.generated_unit_tests} />
+        <GeneratedUnitTests unitTests={data.generated_unit_tests} execution={data.test_execution} />
       )}
 
       {/* 4. Trace Visualizer */}

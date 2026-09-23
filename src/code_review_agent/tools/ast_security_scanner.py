@@ -7,6 +7,7 @@ variables, or involve constant folding (e.g. 0o777, stat masks, aliased function
 import ast
 import re
 import stat
+import textwrap
 from typing import List, Dict, Any, Optional
 
 from code_review_agent.models import SastFinding
@@ -179,6 +180,68 @@ class ASTSecurityScanner:
 
         for file_diff in py_files:
             file_path = file_diff.target_file
+
+            # ── Check for breaking API signature changes in function defs ──
+            for hunk in file_diff.hunks:
+                deleted_defs = []
+                added_defs = []
+                curr_target_line = hunk.new_start
+                for line in hunk.lines:
+                    if line.startswith("-") and re.match(r"^-\s*def\s+([A-Za-z_]\w*)", line):
+                        deleted_defs.append(line[1:].strip())
+                    elif line.startswith("+"):
+                        if re.match(r"^\+\s*def\s+([A-Za-z_]\w*)", line):
+                            added_defs.append((curr_target_line, line[1:].strip()))
+                        curr_target_line += 1
+                    elif not line.startswith("-"):
+                        curr_target_line += 1
+
+                for del_code in deleted_defs:
+                    del_match = re.match(r"^def\s+([A-Za-z_]\w*)\s*\((.*)\)", del_code)
+                    if not del_match:
+                        continue
+                    del_name = del_match.group(1)
+                    for add_line_no, add_code in added_defs:
+                        add_match = re.match(r"^def\s+([A-Za-z_]\w*)\s*\((.*)\)", add_code)
+                        if not add_match or add_match.group(1) != del_name:
+                            continue
+
+                        try:
+                            old_ast = ast.parse(del_code + "\n    pass")
+                            new_ast = ast.parse(add_code + "\n    pass")
+                            old_fn = old_ast.body[0]
+                            new_fn = new_ast.body[0]
+                            if isinstance(old_fn, ast.FunctionDef) and isinstance(new_fn, ast.FunctionDef):
+                                old_args = [a.arg for a in old_fn.args.args]
+                                old_defaults_count = len(old_fn.args.defaults)
+                                old_req = len(old_args) - old_defaults_count
+                                new_args = [a.arg for a in new_fn.args.args]
+                                new_defaults_count = len(new_fn.args.defaults)
+                                new_req = len(new_args) - new_defaults_count
+
+                                # Breaking if new required parameters added without defaults, or parameters removed
+                                if new_req > old_req or any(arg not in old_args for arg in new_args[:new_req]):
+                                    findings.append(
+                                        SastFinding(
+                                            rule_id="ARCH-SIG-001",
+                                            cwe="",
+                                            category="ARCHITECTURE",
+                                            name="Breaking API Function Signature Change",
+                                            description=(
+                                                f"Breaking API signature change: Function '{del_name}' added required "
+                                                f"parameter(s) without defaults, breaking existing callers."
+                                            ),
+                                            severity="WARNING",
+                                            file_path=file_path,
+                                            line_number=add_line_no,
+                                            snippet=add_code,
+                                            fix_recommendation="Provide default values for new parameters (e.g. param = None) or maintain backwards-compatible overload/facade.",
+                                            analyzer_source="ast",
+                                        )
+                                    )
+                        except SyntaxError:
+                            pass
+
             added_lines_map = dict(DiffParser.extract_added_lines_with_numbers(file_diff))
             if not added_lines_map:
                 continue
@@ -212,13 +275,36 @@ class ASTSecurityScanner:
             if not code_text.strip():
                 continue
 
+            tree = None
+            line_offset = 0
+            # 1. Try direct parse
             try:
                 tree = ast.parse(code_text, filename=file_path)
             except SyntaxError:
-                # Diff snippet may be an incomplete AST fragment
-                continue
+                pass
 
-            file_findings = cls._analyze_tree(tree, file_path, clean_lines, line_no_mapping, added_lines_map)
+            # 2. Try dedented parse
+            if tree is None:
+                dedented = textwrap.dedent(code_text)
+                try:
+                    tree = ast.parse(dedented, filename=file_path)
+                except SyntaxError:
+                    pass
+
+            # 3. Try wrapped parse (e.g. if snippet contains 'return')
+            if tree is None:
+                dedented = textwrap.dedent(code_text)
+                wrapped = "def _diff_scope():\n" + textwrap.indent(dedented, "    ")
+                try:
+                    tree = ast.parse(wrapped, filename=file_path)
+                    line_offset = 1
+                except SyntaxError:
+                    continue
+
+            adjusted_mapping = {k + line_offset: v for k, v in line_no_mapping.items()}
+            adjusted_clean_lines = ([""] * line_offset) + clean_lines
+
+            file_findings = cls._analyze_tree(tree, file_path, adjusted_clean_lines, adjusted_mapping, added_lines_map)
             findings.extend(file_findings)
 
         return findings
@@ -626,26 +712,95 @@ class ASTSecurityScanner:
                             )
                         )
 
-            # ── Sink 8: Weak hash via hashlib.new(<algo>) with a folded algo ──
-            #    Catches hashlib.new("sha1") and the variable-indirected form
-            #    algo = "md5"; hashlib.new(algo). Also resolves getattr aliases.
+            # ── Sink 8: Weak hash (MD5/SHA1) direct or via hashlib.new with password context check ──
             if isinstance(node, ast.Call):
                 func_name = cls._get_func_name(node.func)
                 resolved = aliases.get(func_name, func_name)
-                if resolved == "hashlib.new" and node.args:
+                is_weak_hash = False
+                algo_name = ""
+
+                if resolved in ("hashlib.md5", "hashlib.sha1"):
+                    is_weak_hash = True
+                    algo_name = "MD5" if "md5" in resolved else "SHA-1"
+                elif resolved == "hashlib.new" and node.args:
                     algo_val = evaluate_ast_constant(node.args[0], env)
                     if isinstance(algo_val, str) and algo_val.lower().replace("-", "") in ("md5", "sha1", "md4", "md2"):
-                        actual_line = line_no_mapping.get(node.lineno, node.lineno)
-                        if actual_line in added_lines_map:
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        is_weak_hash = True
+                        algo_name = algo_val.upper()
+
+                if is_weak_hash:
+                    actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                    if actual_line in added_lines_map:
+                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        enclosing_fn = cls._enclosing_function_node(node, tree)
+                        fn_name = enclosing_fn.name if enclosing_fn else ""
+
+                        # Check for password/auth context in function name, args, or snippet
+                        first_arg_str = cls._node_to_str(node.args[0]) if node.args else ""
+                        context_blob = f"{fn_name} {first_arg_str} {snippet}".lower()
+                        is_pw_ctx = bool(re.search(r"password|passwd|pwd|credential|secret|auth|token|pin", context_blob))
+
+                        if is_pw_ctx:
                             findings.append(
                                 SastFinding(
                                     rule_id="SEC-CRYPTO-001",
                                     cwe="CWE-327",
-                                    name="Weak Hash Algorithm (MD5 / SHA1)",
+                                    category="SECURITY",
+                                    name=f"Insecure Password Hashing ({algo_name})",
                                     description=(
-                                        f"hashlib.new('{algo_val}') selects a cryptographically broken hash "
-                                        f"(resolved via AST constant folding on the algorithm argument)."
+                                        f"Cryptographically weak hash algorithm '{algo_name}' used for password hashing in '{fn_name or 'function'}'. "
+                                        f"MD5 and SHA-1 have broken collision resistance and are vulnerable to rapid GPU brute-force."
+                                    ),
+                                    severity="CRITICAL",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Use a dedicated password hashing algorithm with salt and work factor like bcrypt or Argon2 (e.g. bcrypt.hashpw or argon2-cffi).",
+                                    analyzer_source="ast",
+                                )
+                            )
+
+                            # Check for salt presence in scope
+                            has_salt = False
+                            if enclosing_fn:
+                                for subnode in ast.walk(enclosing_fn):
+                                    if isinstance(subnode, ast.Name) and re.search(r"salt|pepper|nonce", subnode.id, re.I):
+                                        has_salt = True
+                                        break
+                                    if isinstance(subnode, ast.Call):
+                                        cname = cls._get_func_name(subnode.func)
+                                        if cname in ("os.urandom", "secrets.token_bytes", "secrets.token_hex"):
+                                            has_salt = True
+                                            break
+                            if not has_salt:
+                                findings.append(
+                                    SastFinding(
+                                        rule_id="SEC-CRYPTO-002",
+                                        cwe="CWE-760",
+                                        category="SECURITY",
+                                        name="Unsalted Password Hash",
+                                        description=(
+                                            "Password is hashed without a cryptographic salt. Identical passwords produce identical "
+                                            "hash values, enabling precomputed rainbow table attacks."
+                                        ),
+                                        severity="HIGH",
+                                        file_path=file_path,
+                                        line_number=actual_line,
+                                        snippet=snippet.strip(),
+                                        fix_recommendation="Incorporate a cryptographically random, per-user salt (at least 16 bytes), or use bcrypt / Argon2 which manage salts automatically.",
+                                        analyzer_source="ast",
+                                    )
+                                )
+                        else:
+                            findings.append(
+                                SastFinding(
+                                    rule_id="SEC-CRYPTO-001",
+                                    cwe="CWE-327",
+                                    category="SECURITY",
+                                    name=f"Weak Hash Algorithm ({algo_name})",
+                                    description=(
+                                        f"'{resolved}' selects a cryptographically broken hash algorithm ({algo_name}). "
+                                        f"MD5 and SHA-1 are vulnerable to collisions and unsuitable for security verification."
                                     ),
                                     severity="MEDIUM",
                                     file_path=file_path,
@@ -719,12 +874,13 @@ class ASTSecurityScanner:
                             SastFinding(
                                 rule_id="SEC-EXCEPT-001",
                                 cwe="CWE-703",
-                                name="Silent Broad Exception Swallow",
+                                category="QUALITY",
+                                name="Swallowed Exception Anti-Pattern",
                                 description=(
-                                    f"'{handler_name}:' with a body of only pass/... silently swallows all errors, "
-                                    f"hiding runtime bugs and (for BaseException) blocking KeyboardInterrupt/SystemExit."
+                                    f"Silently swallowed exception anti-pattern: '{handler_name}:' with a body of only pass/... "
+                                    f"silently swallows all errors, hiding runtime bugs and (for BaseException) blocking KeyboardInterrupt/SystemExit."
                                 ),
-                                severity="LOW",
+                                severity="WARNING",
                                 file_path=file_path,
                                 line_number=actual_line,
                                 snippet=snippet.strip(),
@@ -733,7 +889,447 @@ class ASTSecurityScanner:
                             )
                         )
 
+            # ── Sink 8: N+1 ORM / Database Query Loop ──
+            if isinstance(node, (ast.For, ast.While)):
+                for subnode in ast.walk(node):
+                    if subnode is not node and isinstance(subnode, ast.Call):
+                        subfunc = cls._get_func_name(subnode.func)
+                        is_query_call = (
+                            subfunc.endswith(".query")
+                            or subfunc.endswith(".execute")
+                            or subfunc.endswith(".filter")
+                            or subfunc in ("query", "execute")
+                            or "query" in subfunc.lower()
+                        )
+                        if is_query_call:
+                            actual_line = line_no_mapping.get(subnode.lineno, subnode.lineno)
+                            if actual_line in added_lines_map:
+                                snippet = clean_lines[subnode.lineno - 1] if 0 < subnode.lineno <= len(clean_lines) else ""
+                                findings.append(
+                                    SastFinding(
+                                        rule_id="QUAL-NPLUS1-001",
+                                        cwe="",
+                                        category="QUALITY",
+                                        name="N+1 ORM Query Loop",
+                                        description=(
+                                            f"N+1 query loop anti-pattern: Database query '{subfunc}' "
+                                            f"executed repeatedly inside an iteration loop for order items or records."
+                                        ),
+                                        severity="WARNING",
+                                        file_path=file_path,
+                                        line_number=actual_line,
+                                        snippet=snippet.strip(),
+                                        fix_recommendation="Eager load related records using batch queries or ORM select_related/prefetch_related outside the loop.",
+                                        analyzer_source="ast",
+                                    )
+                                )
+
+        # Class-level concurrency checks (Fix 2 & 2b)
+        findings.extend(cls._check_unused_locks(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+        findings.extend(cls._check_singleton_races(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+
+        # Algorithmic and performance checks (Fix 3)
+        findings.extend(cls._check_performance_patterns(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+
+        # Return type completeness check (Fix 5)
+        findings.extend(cls._check_implicit_none_returns(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+
         return findings
+
+    @classmethod
+    def _check_unused_locks(
+        cls,
+        tree: ast.AST,
+        file_path: str,
+        clean_lines: List[str],
+        line_no_mapping: Dict[int, int],
+        added_lines_map: Dict[int, str],
+    ) -> List[SastFinding]:
+        findings: List[SastFinding] = []
+        for class_node in ast.walk(tree):
+            if not isinstance(class_node, ast.ClassDef):
+                continue
+
+            lock_fields: Dict[str, int] = {}
+            used_fields: set = set()
+
+            for item in class_node.body:
+                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+
+                is_init = item.name == "__init__"
+                for stmt in ast.walk(item):
+                    if is_init and isinstance(stmt, ast.Assign):
+                        for tgt in stmt.targets:
+                            if (
+                                isinstance(tgt, ast.Attribute)
+                                and isinstance(tgt.value, ast.Name)
+                                and tgt.value.id == "self"
+                                and isinstance(stmt.value, ast.Call)
+                            ):
+                                fn = cls._get_func_name(stmt.value.func)
+                                if fn in (
+                                    "threading.Lock", "threading.RLock",
+                                    "asyncio.Lock", "threading.Semaphore",
+                                    "Lock", "RLock"
+                                ):
+                                    lock_fields[tgt.attr] = stmt.lineno
+
+                    # Usage: with self._lock: or with self._lock as ...:
+                    if isinstance(stmt, (ast.With, ast.AsyncWith)):
+                        for with_item in stmt.items:
+                            expr = with_item.context_expr
+                            if (
+                                isinstance(expr, ast.Attribute)
+                                and isinstance(expr.value, ast.Name)
+                                and expr.value.id == "self"
+                            ):
+                                used_fields.add(expr.attr)
+
+                    # Usage: self._lock.acquire()
+                    if isinstance(stmt, ast.Call):
+                        fn = cls._get_func_name(stmt.func)
+                        if ".acquire" in fn or fn.endswith("acquire"):
+                            if isinstance(stmt.func, ast.Attribute):
+                                if (
+                                    isinstance(stmt.func.value, ast.Attribute)
+                                    and isinstance(stmt.func.value.value, ast.Name)
+                                    and stmt.func.value.value.id == "self"
+                                ):
+                                    used_fields.add(stmt.func.value.attr)
+
+            for field_name, lineno in lock_fields.items():
+                if field_name not in used_fields:
+                    actual_line = line_no_mapping.get(lineno, lineno)
+                    if actual_line in added_lines_map:
+                        snippet = clean_lines[lineno - 1] if 0 < lineno <= len(clean_lines) else ""
+                        findings.append(
+                            SastFinding(
+                                rule_id="SEC-LOCK-001",
+                                cwe="CWE-362",
+                                category="SECURITY",
+                                name="Lock Field Defined But Never Acquired",
+                                description=(
+                                    f"'{class_node.name}.{field_name}' is initialized as a synchronization Lock "
+                                    f"in __init__ but is never acquired with 'with self.{field_name}:' or '.acquire()' "
+                                    f"in any method of the class. This leaves shared resources unguarded while creating "
+                                    f"a misleading appearance of thread safety."
+                                ),
+                                severity="HIGH",
+                                file_path=file_path,
+                                line_number=actual_line,
+                                snippet=snippet.strip(),
+                                fix_recommendation=f"Synchronize access to shared connection or state using 'with self.{field_name}:'.",
+                                analyzer_source="ast",
+                            )
+                        )
+        return findings
+
+    @classmethod
+    def _check_singleton_races(
+        cls,
+        tree: ast.AST,
+        file_path: str,
+        clean_lines: List[str],
+        line_no_mapping: Dict[int, int],
+        added_lines_map: Dict[int, str],
+    ) -> List[SastFinding]:
+        findings: List[SastFinding] = []
+        for class_node in ast.walk(tree):
+            if not isinstance(class_node, ast.ClassDef):
+                continue
+
+            for item in class_node.body:
+                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if item.name not in ("__call__", "get_instance", "instance"):
+                    continue
+
+                has_lock = any(
+                    isinstance(stmt, (ast.With, ast.AsyncWith))
+                    or (isinstance(stmt, ast.Call) and "acquire" in cls._get_func_name(stmt.func))
+                    for stmt in ast.walk(item)
+                )
+
+                for stmt in item.body:
+                    if isinstance(stmt, ast.If):
+                        is_membership_check = False
+                        if isinstance(stmt.test, ast.Compare):
+                            for op in stmt.test.ops:
+                                if isinstance(op, ast.NotIn):
+                                    is_membership_check = True
+                                    break
+                        elif isinstance(stmt.test, ast.UnaryOp) and isinstance(stmt.test.op, ast.Not):
+                            is_membership_check = True
+
+                        if is_membership_check:
+                            sets_instance = False
+                            for s in ast.walk(stmt):
+                                if isinstance(s, ast.Assign):
+                                    for t in s.targets:
+                                        if isinstance(t, (ast.Subscript, ast.Attribute)):
+                                            sets_instance = True
+                                            break
+                            if sets_instance and not has_lock:
+                                actual_line = line_no_mapping.get(stmt.lineno, stmt.lineno)
+                                if actual_line in added_lines_map:
+                                    snippet = clean_lines[stmt.lineno - 1] if 0 < stmt.lineno <= len(clean_lines) else ""
+                                    findings.append(
+                                        SastFinding(
+                                            rule_id="SEC-RACE-001",
+                                            cwe="CWE-362",
+                                            category="SECURITY",
+                                            name="Singleton Metaclass TOCTOU Race Condition",
+                                            description=(
+                                                f"Method '{class_node.name}.{item.name}' performs a check-then-set pattern "
+                                                f"for singleton instance creation without synchronization. Under concurrent "
+                                                f"threads or coroutines, multiple instances can be created simultaneously."
+                                            ),
+                                            severity="HIGH",
+                                            file_path=file_path,
+                                            line_number=actual_line,
+                                            snippet=snippet.strip(),
+                                            fix_recommendation="Protect singleton instantiation using a threading.Lock: 'with cls._lock: if cls not in cls._instances: ...'",
+                                            analyzer_source="ast",
+                                        )
+                                    )
+        return findings
+
+    @classmethod
+    def _check_performance_patterns(
+        cls,
+        tree: ast.AST,
+        file_path: str,
+        clean_lines: List[str],
+        line_no_mapping: Dict[int, int],
+        added_lines_map: Dict[int, str],
+    ) -> List[SastFinding]:
+        findings: List[SastFinding] = []
+
+        # 1. list.pop(0) -> O(n) front-pop
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                if (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "pop"
+                    and node.args
+                ):
+                    first_arg = node.args[0]
+                    if (
+                        (isinstance(first_arg, ast.Constant) and first_arg.value == 0)
+                        or (not isinstance(first_arg, ast.UnaryOp) and getattr(first_arg, "n", None) == 0)
+                    ):
+                        actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                        if actual_line in added_lines_map:
+                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            findings.append(
+                                SastFinding(
+                                    rule_id="PERF-LIST-001",
+                                    cwe="",
+                                    category="QUALITY",
+                                    name="O(n) pop(0) Linear Queue Pop",
+                                    description=(
+                                        "Calling .pop(0) on a Python list requires shifting all subsequent elements left in memory, "
+                                        "resulting in O(n) complexity per pop."
+                                    ),
+                                    severity="MEDIUM",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Use collections.deque.popleft() for O(1) FIFO queues, or heapq.heappop() for priority queues.",
+                                    analyzer_source="ast",
+                                )
+                            )
+
+        # 2. Repeated sort on list insertion (matching receiver)
+        for func_node in ast.walk(tree):
+            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            appended_receivers: set = set()
+            for n in ast.walk(func_node):
+                if (
+                    isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "append"
+                ):
+                    rec_str = cls._node_to_str(n.func.value)
+                    if rec_str:
+                        appended_receivers.add(rec_str)
+
+            if not appended_receivers:
+                continue
+
+            for n in ast.walk(func_node):
+                if (
+                    isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "sort"
+                ):
+                    rec_str = cls._node_to_str(n.func.value)
+                    if rec_str and rec_str in appended_receivers:
+                        actual_line = line_no_mapping.get(n.lineno, n.lineno)
+                        if actual_line in added_lines_map:
+                            snippet = clean_lines[n.lineno - 1] if 0 < n.lineno <= len(clean_lines) else ""
+                            findings.append(
+                                SastFinding(
+                                    rule_id="PERF-SORT-001",
+                                    cwe="",
+                                    category="QUALITY",
+                                    name="Repeated O(n log n) Sort on List Insertion",
+                                    description=(
+                                        f"List '{rec_str}' is appended to and then immediately sorted with .sort(), causing "
+                                        f"an O(n log n) sorting pass on every insertion (overall O(n^2 log n) queue population)."
+                                    ),
+                                    severity="MEDIUM",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Use heapq.heappush() for O(log n) insertion into a heap, or bisect.insort().",
+                                    analyzer_source="ast",
+                                )
+                            )
+
+        # 3. O(n^2) nested loop duplicate search
+        for outer in ast.walk(tree):
+            if not isinstance(outer, ast.For):
+                continue
+            outer_len_target = cls._get_range_len_target(outer.iter)
+            if not outer_len_target:
+                continue
+
+            for inner in outer.body:
+                for sub in ast.walk(inner):
+                    if sub is not outer and isinstance(sub, ast.For):
+                        inner_len_target = cls._get_range_len_target(sub.iter)
+                        if inner_len_target and inner_len_target == outer_len_target:
+                            actual_line = line_no_mapping.get(sub.lineno, sub.lineno)
+                            if actual_line in added_lines_map:
+                                snippet = clean_lines[sub.lineno - 1] if 0 < sub.lineno <= len(clean_lines) else ""
+                                findings.append(
+                                    SastFinding(
+                                        rule_id="PERF-NESTED-001",
+                                        cwe="",
+                                        category="QUALITY",
+                                        name="O(n^2) Quadratic Nested Loop Iteration",
+                                        description=(
+                                            f"Nested loops iterate over range(len({outer_len_target})) quadratically, "
+                                            f"resulting in O(n^2) comparisons. This creates severe latency bottlenecks on large collections."
+                                        ),
+                                        severity="MEDIUM",
+                                        file_path=file_path,
+                                        line_number=actual_line,
+                                        snippet=snippet.strip(),
+                                        fix_recommendation="Use a set or collections.Counter for O(n) membership or duplicate lookup.",
+                                        analyzer_source="ast",
+                                    )
+                                )
+
+        return findings
+
+    @classmethod
+    def _check_implicit_none_returns(
+        cls,
+        tree: ast.AST,
+        file_path: str,
+        clean_lines: List[str],
+        line_no_mapping: Dict[int, int],
+        added_lines_map: Dict[int, str],
+    ) -> List[SastFinding]:
+        findings: List[SastFinding] = []
+        for func_node in ast.walk(tree):
+            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if func_node.returns is None:
+                continue
+
+            ret_str = cls._node_to_str(func_node.returns)
+            is_optional = (
+                ret_str in ("None", "")
+                or "Optional" in ret_str
+                or (isinstance(func_node.returns, ast.Constant) and func_node.returns.value is None)
+                or (
+                    isinstance(func_node.returns, ast.BinOp)
+                    and isinstance(func_node.returns.op, ast.BitOr)
+                    and (cls._node_to_str(func_node.returns.left) == "None" or cls._node_to_str(func_node.returns.right) == "None")
+                )
+            )
+            if is_optional:
+                continue
+
+            for child in ast.walk(func_node):
+                if isinstance(child, ast.ExceptHandler):
+                    body_is_silent = len(child.body) == 1 and (
+                        isinstance(child.body[0], ast.Pass)
+                        or (
+                            isinstance(child.body[0], ast.Expr)
+                            and isinstance(child.body[0].value, ast.Constant)
+                            and child.body[0].value.value is Ellipsis
+                        )
+                    )
+                    if body_is_silent:
+                        actual_line = line_no_mapping.get(child.lineno, child.lineno)
+                        if actual_line in added_lines_map:
+                            snippet = clean_lines[child.lineno - 1] if 0 < child.lineno <= len(clean_lines) else ""
+                            findings.append(
+                                SastFinding(
+                                    rule_id="QUAL-RETURN-001",
+                                    cwe="",
+                                    category="QUALITY",
+                                    name="Implicit None Return Violates Type Annotation",
+                                    description=(
+                                        f"Function '{func_node.name}' is annotated to return '{ret_str or 'non-Optional'}' "
+                                        f"but contains an exception handler that silently swallows errors and falls through, "
+                                        f"implicitly returning None. This violates the declared type contract."
+                                    ),
+                                    severity="MEDIUM",
+                                    file_path=file_path,
+                                    line_number=actual_line,
+                                    snippet=snippet.strip(),
+                                    fix_recommendation="Re-raise the exception, return an explicit fallback value, or update return annotation to Optional[...].",
+                                    analyzer_source="ast",
+                                )
+                            )
+                        break
+        return findings
+
+    @classmethod
+    def _enclosing_function_node(cls, target_node: ast.AST, tree: ast.AST) -> Optional[ast.AST]:
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for child in ast.walk(node):
+                    if child is target_node:
+                        return node
+        return None
+
+    @staticmethod
+    def _node_to_str(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            val = ASTSecurityScanner._node_to_str(node.value)
+            return f"{val}.{node.attr}" if val else node.attr
+        if isinstance(node, ast.Constant):
+            return str(node.value)
+        return ""
+
+    @classmethod
+    def _get_range_len_target(cls, node: ast.AST) -> str:
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "range"
+            and node.args
+        ):
+            arg = node.args[0]
+            if (
+                isinstance(arg, ast.Call)
+                and isinstance(arg.func, ast.Name)
+                and arg.func.id == "len"
+                and arg.args
+            ):
+                return cls._node_to_str(arg.args[0])
+        return ""
 
     @classmethod
     def _call_builds_unsafe_path(cls, node: ast.AST) -> bool:
@@ -835,3 +1431,7 @@ class ASTSecurityScanner:
         if isinstance(node, ast.JoinedStr):
             return any(cls._is_cmd_expression(val, env, cmd_vars) for val in node.values)
         return False
+
+
+# Backward-compatible alias
+AstSecurityScanner = ASTSecurityScanner

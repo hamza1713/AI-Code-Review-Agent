@@ -3,7 +3,9 @@ Data models and state schemas for the Code Review Flow, Quick Security Pattern S
 AST Code Graph, Governance Rules Engine, and Telemetry.
 """
 
-from typing import List, Dict, Any, Optional, Literal
+import re
+import hashlib
+from typing import List, Dict, Any, Optional, Literal, Iterable, Set
 from pydantic import BaseModel, Field
 
 
@@ -79,19 +81,140 @@ class RuleViolation(BaseModel):
     suggested_fix: str = Field(..., description="Actionable fix recommendation")
 
 
-# --- SAST & Security Findings ---
+import hashlib
+from pathlib import Path
+
+
+def compute_finding_fingerprint(
+    file_path: str = "",
+    rule_id: str = "",
+    snippet: str = "",
+    line_number: int = 0,
+    **kwargs: Any,
+) -> str:
+    """Compute a deterministic, location-resilient 16-character SHA-256 fingerprint for a finding."""
+    fp_arg = kwargs.get("file_path", file_path)
+    rule_arg = kwargs.get("rule_id", rule_id)
+    # Detect inverted positional arguments
+    if fp_arg and any(prefix in fp_arg for prefix in ("SEC-", "QUAL-", "ARCH-", "GOV-", "SAST-")):
+        fp_arg, rule_arg = rule_arg, fp_arg
+    norm_path = Path(fp_arg).as_posix() if fp_arg else "unknown"
+    norm_snippet = " ".join((snippet or "").strip().split())
+    raw = f"{norm_path}:{rule_arg}:{norm_snippet}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+class FindingLifecycleResult(BaseModel):
+    """Encapsulates categorized findings across PR revisions."""
+    new: List[Any] = Field(default_factory=list)
+    resolved: List[Any] = Field(default_factory=list)
+    regressed: List[Any] = Field(default_factory=list)
+    suppressed: List[Any] = Field(default_factory=list)
+    unchanged: List[Any] = Field(default_factory=list)
+    current: List[Any] = Field(default_factory=list)
+
+    def __getitem__(self, item: str) -> List[Any]:
+        return getattr(self, item)
+
+
+# --- SAST & Security / Quality Findings ---
 
 class SastFinding(BaseModel):
-    """Deterministic security vulnerability finding."""
-    rule_id: str = Field(..., description="Unique rule identifier (e.g., SAST-SQLI-001)")
-    cwe: str = Field(..., description="Common Weakness Enumeration ID (e.g., CWE-89)")
-    description: str = Field(..., description="Vulnerability description")
+    """Deterministic security, quality, or architecture defect finding."""
+    rule_id: str = Field(..., description="Unique rule identifier (e.g., SAST-SQLI-001, QUAL-NPLUS1-001)")
+    cwe: str = Field(default="", description="Common Weakness Enumeration ID (e.g., CWE-89)")
+    category: str = Field(default="SECURITY", description="Finding category: 'SECURITY', 'QUALITY', 'ARCHITECTURE', 'GOVERNANCE'")
+    name: str = Field(default="", description="Short human-readable finding name")
+    description: str = Field(..., description="Defect or vulnerability description")
     severity: str = Field(..., description="Severity level: 'LOW', 'MEDIUM', 'HIGH', or 'CRITICAL'")
     file_path: str = Field(..., description="Relative path of affected file")
     line_number: int = Field(..., description="Target line number in the new file")
     snippet: str = Field(default="", description="Code snippet containing the vulnerability")
     fix_recommendation: str = Field(..., description="Remediation steps or suggested replacement code")
-    analyzer_source: str = Field(default="regex", description="Source tool: 'semgrep', 'bandit', 'regex', etc.")
+    analyzer_source: str = Field(default="regex", description="Source tool: 'semgrep', 'bandit', 'ast', 'regex', etc.")
+    fingerprint: Optional[str] = Field(default=None, description="Deterministic 16-char fingerprint for tracking across commits")
+    lifecycle_status: Literal["NEW", "RESOLVED", "REGRESSED", "SUPPRESSED"] = Field(
+        default="NEW",
+        description="Finding lifecycle status across PR revisions"
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.fingerprint:
+            self.fingerprint = compute_finding_fingerprint(
+                self.file_path, self.rule_id, self.snippet, self.line_number
+            )
+
+
+def compute_finding_lifecycle(
+    current_findings: Optional[List[Any]] = None,
+    previous_findings: Optional[List[Any]] = None,
+    *,
+    prior_findings: Optional[List[Any]] = None,
+    suppressed_fingerprints: Optional[Iterable[str]] = None,
+) -> FindingLifecycleResult:
+    """
+    Compare findings across PR revisions by deterministic fingerprint.
+    Categorizes findings into: NEW, RESOLVED, REGRESSED, and SUPPRESSED.
+    """
+    # Accommodate flexible positional or keyword usage
+    curr = current_findings or []
+    prev = prior_findings if prior_findings is not None else (previous_findings or [])
+    suppressed_set = set(suppressed_fingerprints or [])
+
+    prev_by_fp = {}
+    for f in prev:
+        fp = getattr(f, "fingerprint", None)
+        if fp:
+            prev_by_fp[fp] = f
+
+    new_list = []
+    regressed_list = []
+    suppressed_list = []
+    unchanged_list = []
+    current_processed = []
+
+    for item in curr:
+        finding = item.model_copy() if hasattr(item, "model_copy") else item
+        fp = getattr(finding, "fingerprint", None)
+        if not fp and hasattr(finding, "file_path") and hasattr(finding, "rule_id"):
+            fp = compute_finding_fingerprint(
+                finding.file_path, finding.rule_id, getattr(finding, "snippet", "")
+            )
+            finding.fingerprint = fp
+
+        if fp and fp in suppressed_set:
+            finding.lifecycle_status = "SUPPRESSED"
+            suppressed_list.append(finding)
+        elif not fp or fp not in prev_by_fp:
+            finding.lifecycle_status = "NEW"
+            new_list.append(finding)
+        else:
+            prev_item = prev_by_fp[fp]
+            prev_status = getattr(prev_item, "lifecycle_status", "NEW")
+            if prev_status == "RESOLVED":
+                finding.lifecycle_status = "REGRESSED"
+                regressed_list.append(finding)
+            else:
+                unchanged_list.append(finding)
+
+        current_processed.append(finding)
+
+    curr_fps = {getattr(f, "fingerprint", None) for f in curr if getattr(f, "fingerprint", None)}
+    resolved_list = []
+    for fp, prev_finding in prev_by_fp.items():
+        if fp not in curr_fps and fp not in suppressed_set:
+            resolved_copy = prev_finding.model_copy() if hasattr(prev_finding, "model_copy") else prev_finding
+            resolved_copy.lifecycle_status = "RESOLVED"
+            resolved_list.append(resolved_copy)
+
+    return FindingLifecycleResult(
+        new=new_list,
+        resolved=resolved_list,
+        regressed=regressed_list,
+        suppressed=suppressed_list,
+        unchanged=unchanged_list,
+        current=current_processed,
+    )
 
 
 # --- Inline GitHub Comments ---
@@ -108,15 +231,35 @@ class InlineComment(BaseModel):
         default=None,
         description="Suggested replacement code (will be rendered in GitHub suggestion blocks)"
     )
+    fingerprint: Optional[str] = Field(default=None, description="Deterministic fingerprint hash")
+    lifecycle_status: Literal["NEW", "RESOLVED", "REGRESSED", "SUPPRESSED"] = Field(
+        default="NEW",
+        description="Lifecycle state of this comment"
+    )
 
 
     def to_github_markdown(self) -> str:
-        """Format comment into GitHub-flavored Markdown with 1-click suggestion block."""
+        """Format comment into GitHub-flavored Markdown with 1-click suggestion block and fingerprint metadata."""
         badge = "🚨 **CRITICAL**" if self.severity == "CRITICAL" else ("⚠️ **WARNING**" if self.severity == "WARNING" else "💡 **SUGGESTION**")
         md = f"{badge}: {self.comment_body}\n"
         if self.suggestion_code:
             md += f"\n```suggestion\n{self.suggestion_code.strip()}\n```\n"
+        if self.fingerprint:
+            md += f"\n<!-- ai-code-review:fingerprint:{self.fingerprint} -->\n<sub>Fingerprint: `{self.fingerprint}`</sub>"
         return md
+
+
+def extract_fingerprint_from_comment(comment_body: str) -> Optional[str]:
+    """Extract embedded deterministic fingerprint from a review comment body."""
+    if not comment_body:
+        return None
+    match = re.search(r"<!--\s*ai-code-review:fingerprint:([a-f0-9]{8,64})\s*-->", comment_body, re.IGNORECASE)
+    if match:
+        return match.group(1).lower()
+    match2 = re.search(r"Fingerprint:\s*`([a-f0-9]{8,64})`", comment_body, re.IGNORECASE)
+    if match2:
+        return match2.group(1).lower()
+    return None
 
 
 # --- Crew Output Schemas ---
@@ -233,14 +376,31 @@ class SummarizedFindingsJSON(BaseModel):
 
 class TestExecutionResult(BaseModel):
     """Result of running generated unit tests in the isolated sandbox."""
+    __test__ = False
     executed: bool = Field(default=False, description="Whether tests were executed")
     status: Literal["PASSED", "REPRODUCED_DEFECT", "ERROR", "TIMEOUT", "SKIPPED"] = Field(
         default="SKIPPED",
         description="Execution status of the generated test suite"
     )
-    evidence_badge: Literal["REPRODUCED", "PASSING", "UNVERIFIED", "HEURISTIC"] = Field(
+    evidence_badge: Literal["REPRODUCED", "PASSING", "UNVERIFIED", "HEURISTIC", "EMPIRICAL_ORIGINAL_PASSED", "HEALED_SYNTAX_REPAIRED", "HEALED_MOCK_STUBBED"] = Field(
         default="HEURISTIC",
         description="Empirical evidence badge verifying findings groundedness"
+    )
+    trust_grade: Literal["EMPIRICAL_ORIGINAL_PASSED", "HEALED_SYNTAX_REPAIRED", "HEALED_MOCK_STUBBED", "UNVERIFIED"] = Field(
+        default="UNVERIFIED",
+        description="Four-tier evidence trust grading"
+    )
+    original_test_suite: Optional[str] = Field(
+        default=None,
+        description="Original unhealed synthesized unit test suite"
+    )
+    healed_test_suite: Optional[str] = Field(
+        default=None,
+        description="Healed synthesized unit test suite actually executed"
+    )
+    mock_stub_warning: Optional[str] = Field(
+        default=None,
+        description="Explicit warning if dependencies were stubbed in-memory"
     )
     tests_run: int = Field(default=0, description="Total number of tests executed")
     failures: int = Field(default=0, description="Number of failed tests")
@@ -249,6 +409,35 @@ class TestExecutionResult(BaseModel):
     stdout: str = Field(default="", description="Captured standard output from pytest")
     stderr: str = Field(default="", description="Captured standard error from pytest")
     summary_message: str = Field(default="", description="Human-readable summary of empirical test results")
+    self_healed: bool = Field(default=False, description="Whether the test suite was automatically healed")
+    heal_attempts: int = Field(default=0, description="Number of self-healing iterations performed")
+
+
+# --- Remediation Safety & Rollback Structures ---
+
+class StructuredPatch(BaseModel):
+    """Structured AST/JSON patch specification for deterministic automated remediations."""
+    file_path: str = Field(..., description="Target repository file path to patch")
+    expected_old_text: str = Field(..., description="Exact original code block expected to be replaced")
+    replacement_text: str = Field(..., description="Verified replacement code block")
+    target_line: Optional[int] = Field(default=None, description="1-indexed target line number")
+    fingerprint: Optional[str] = Field(default=None, description="Associated finding fingerprint")
+
+
+class RollbackManifest(BaseModel):
+    """Audit record and rollback manifest for automated remediation commits."""
+    remediation_id: str = Field(..., description="Unique remediation operation identifier")
+    repo_id: str = Field(..., description="Normalized repository identifier (owner/repo)")
+    pr_id: Optional[str] = Field(default=None, description="Pull request number or ID")
+    branch: str = Field(..., description="Branch the remediation commit was pushed to")
+    file_path: str = Field(..., description="Repository file path that was modified")
+    blob_sha_before: str = Field(..., description="SHA-256 hash or blob SHA of the file before patch")
+    commit_sha_after: str = Field(..., description="Commit SHA produced by the remediation")
+    actor: str = Field(..., description="Identity of user or bot initiating remediation")
+    timestamp: float = Field(..., description="UTC timestamp of the remediation commit")
+    expected_old_text: str = Field(..., description="Original code before patch (for rollback)")
+    replacement_text: str = Field(..., description="Replacement code applied")
+    status: str = Field(default="COMMITTED", description="'COMMITTED' or 'ROLLED_BACK'")
 
 
 # --- Telemetry & Metrics ---

@@ -405,17 +405,17 @@ class UnifiedSecurityScanner:
         all_findings: List[SastFinding] = []
         seen_keys = set()
 
-        # 1. Built-in Regex Pattern scanner (always active, high priority for SEC- rules)
-        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
-        for f in regex_findings:
+        # 1. AST Constant Folding & Variable Indirection Scanner (Python AST - high semantic fidelity)
+        ast_findings = ASTSecurityScanner.scan_diff(raw_diff)
+        for f in ast_findings:
             key = (f.file_path, f.line_number, f.rule_id)
             if key not in seen_keys:
                 seen_keys.add(key)
                 all_findings.append(f)
 
-        # 2. AST Constant Folding & Variable Indirection Scanner (Python AST)
-        ast_findings = ASTSecurityScanner.scan_diff(raw_diff)
-        for f in ast_findings:
+        # 2. Built-in Regex Pattern scanner (heuristic fallback)
+        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
+        for f in regex_findings:
             key = (f.file_path, f.line_number, f.rule_id)
             if key not in seen_keys:
                 seen_keys.add(key)

@@ -51,6 +51,7 @@ testpaths = ["tests"]
 # Default run excludes `slow` — see markers below and the Testing section in README.md.
 addopts = "-m \"not slow\""
 markers = [
+    "sandbox_integration: requires Docker and a configured immutable REVIEW_SANDBOX_IMAGE",
     "eval: AI evaluation tests requiring LLM-as-a-judge",
     "deterministic_eval: Fast, zero-cost deterministic evaluation tests",
     "slow: spawns a real OS subprocess (bandit/ruff CLI, nested pytest run) or constructs a real CrewAI Agent (LLMFactory). Timing is host-load sensitive. Run explicitly with `pytest -m slow tests/`."

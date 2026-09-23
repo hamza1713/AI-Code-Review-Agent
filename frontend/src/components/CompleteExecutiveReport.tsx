@@ -109,6 +109,7 @@ function buildFullReport(data: ReviewAPIResponse): string {
 }
 
 export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = ({ data }) => {
+  const [copyError, setCopyError] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Use backend's full_report if available; otherwise synthesise it from structured data
@@ -118,10 +119,16 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
     return buildFullReport(data);
   }, [data]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(displayReport);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(displayReport);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyError('Copy failed. Select the text and copy it manually.');
+    }
   };
 
   const handleDownloadMd = () => {
@@ -138,6 +145,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
 
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-5 shadow-lg space-y-4">
+      {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
         <div className="flex items-center space-x-2.5">

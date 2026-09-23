@@ -1,15 +1,19 @@
 version: '3.8'
 
 services:
-  code-review-agent:
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: code-review-agent
+    container_name: code-review-web
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
+      - APP_ENV=${APP_ENV:-production}
+      - QUEUE_DB_PATH=/app/data/webhook_jobs.db
+      - MAX_CONCURRENT_REVIEWS=${MAX_CONCURRENT_REVIEWS:-4}
+      - REVIEW_API_TOKEN=${REVIEW_API_TOKEN:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
@@ -22,3 +26,22 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "code_review_agent.worker", "--concurrency", "4", "--db-path", "/app/data/webhook_jobs.db"]
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - QUEUE_DB_PATH=/app/data/webhook_jobs.db
+      - MAX_CONCURRENT_REVIEWS=${MAX_CONCURRENT_REVIEWS:-4}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - LLM_MODEL=${LLM_MODEL:-gemini/gemini-2.5-flash}
+      - LLM_REQUEST_TIMEOUT=60.0
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - web

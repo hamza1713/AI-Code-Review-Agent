@@ -52,7 +52,7 @@ class CommandRouter:
 
     # Commands that reason about the repository (not just the diff) and therefore need
     # a real checkout. For live PRs the router clones one; see temporary_pr_checkout.
-    _REPO_CONTEXT_COMMANDS = {"ask", "improve", "compliance", "review", "ticket"}
+    _REPO_CONTEXT_COMMANDS = {"ask", "improve", "compliance", "review", "ticket", "rerun", "explain", "apply"}
 
     @classmethod
     def is_bot_command(cls, text: str) -> bool:
@@ -78,6 +78,59 @@ class CommandRouter:
         args = (match.group(2) or "").strip()
         return cmd, args
 
+    MAINTAINER_ASSOCIATIONS = {"OWNER", "MEMBER"}
+
+    @classmethod
+    def check_maintainer_permission(
+        cls,
+        command_name: str,
+        pr_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Optional[BotCommandResult]:
+        """
+        Verify that the user has maintainer permissions for privileged commands
+        (/apply, /suppress, /unsuppress).
+        Returns None if permitted, or a BotCommandResult with status='ERROR' and
+        permission denied message if not permitted.
+        """
+        meta = pr_metadata or {}
+        if "is_maintainer" in kwargs and kwargs["is_maintainer"] is not None:
+            if not kwargs["is_maintainer"]:
+                return BotCommandResult(
+                    command=command_name,
+                    status="ERROR",
+                    response_markdown=f"⛔ Permission Denied: Slash command `/{command_name}` is restricted to repository maintainers.",
+                    action_taken="POST_COMMENT",
+                    metadata={"error": "permission_denied", "required_role": "maintainer"}
+                )
+            return None
+
+        if "is_maintainer" in meta and meta["is_maintainer"] is not None:
+            if not meta["is_maintainer"]:
+                return BotCommandResult(
+                    command=command_name,
+                    status="ERROR",
+                    response_markdown=f"⛔ Permission Denied: Slash command `/{command_name}` is restricted to repository maintainers.",
+                    action_taken="POST_COMMENT",
+                    metadata={"error": "permission_denied", "required_role": "maintainer"}
+                )
+            return None
+
+        assoc = kwargs.get("author_association") or meta.get("author_association") or meta.get("commenter_association")
+        if assoc is not None:
+            norm_assoc = str(assoc).strip().upper()
+            if norm_assoc not in cls.MAINTAINER_ASSOCIATIONS:
+                return BotCommandResult(
+                    command=command_name,
+                    status="ERROR",
+                    response_markdown=f"⛔ Permission Denied: Slash command `/{command_name}` is restricted to repository maintainers.",
+                    action_taken="POST_COMMENT",
+                    metadata={"error": "permission_denied", "required_role": "maintainer", "author_association": norm_assoc}
+                )
+            return None
+
+        return None
+
     @classmethod
     def dispatch(
         cls,
@@ -85,7 +138,11 @@ class CommandRouter:
         pr_url: Optional[str] = None,
         raw_diff: Optional[str] = None,
         repo_root: Optional[str] = None,
-        auto_post: bool = True
+        auto_post: bool = True,
+        author_association: Optional[str] = None,
+        is_maintainer: Optional[bool] = None,
+        pr_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> BotCommandResult:
         """
         Parse command and dispatch to appropriate handler.
@@ -104,7 +161,7 @@ class CommandRouter:
         # Resolve diff if missing but PR URL is provided — across GitHub, GitLab,
         # Bitbucket, or a local repo, via the platform adapter factory.
         diff = raw_diff
-        pr_metadata = {}
+        pr_meta = dict(pr_metadata or {})
         client = None
         owner, repo, pull_number = None, None, None
         platform = "github"
@@ -120,9 +177,15 @@ class CommandRouter:
                 if not diff:
                     diff = client.fetch_pull_request_diff(owner, repo, pull_number)
                 meta = client.fetch_pull_request_metadata(owner, repo, pull_number)
-                pr_metadata = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
+                fetched_meta = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
+                pr_meta = {**fetched_meta, **pr_meta}
             except Exception as e:
                 logger.warning(f"Could not fetch PR data for '{pr_url}': {e}")
+
+        if author_association is not None:
+            pr_meta["author_association"] = author_association
+        if is_maintainer is not None:
+            pr_meta["is_maintainer"] = is_maintainer
 
         # Route to handlers
         handler_map = {
@@ -136,6 +199,11 @@ class CommandRouter:
             "benchmark": cls._handle_benchmark,
             "help": cls._handle_help,
             "review": cls._handle_review,
+            "suppress": cls._handle_suppress,
+            "unsuppress": cls._handle_unsuppress,
+            "explain": cls._handle_explain,
+            "rerun": cls._handle_rerun,
+            "apply": cls._handle_apply,
         }
 
         handler = handler_map.get(cmd)
@@ -166,24 +234,35 @@ class CommandRouter:
                             temporary_pr_checkout(
                                 owner,
                                 repo,
-                                head_sha=pr_metadata.get("head_sha"),
-                                head_ref=pr_metadata.get("head_ref"),
+                                head_sha=pr_meta.get("head_sha"),
+                                head_ref=pr_meta.get("head_ref"),
                                 platform=platform,
                                 host=host,
                             )
                         )
 
                 try:
-                    result = handler(
-                        args=args,
-                        diff=diff or "",
-                        pr_metadata=pr_metadata,
-                        repo_root=effective_root,
-                        owner=owner,
-                        repo=repo,
-                        pull_number=pull_number,
-                        client=client
-                    )
+                    import inspect
+                    sig = inspect.signature(handler)
+                    has_varkw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                    call_args = {
+                        "args": args,
+                        "diff": diff or "",
+                        "pr_metadata": pr_meta,
+                        "repo_root": effective_root,
+                        "owner": owner,
+                        "repo": repo,
+                        "pull_number": pull_number,
+                        "client": client,
+                    }
+                    if has_varkw:
+                        call_args.update(kwargs)
+                        if author_association is not None:
+                            call_args["author_association"] = author_association
+                        if is_maintainer is not None:
+                            call_args["is_maintainer"] = is_maintainer
+                    filtered_args = {k: v for k, v in call_args.items() if k in sig.parameters or has_varkw}
+                    result = handler(**filtered_args)
                 except Exception as err:
                     logger.error(f"Error handling bot command `/{cmd}`: {err}", exc_info=True)
                     result = BotCommandResult(
@@ -507,16 +586,46 @@ class CommandRouter:
         owner: Optional[str] = None,
         repo: Optional[str] = None,
         pull_number: Optional[int] = None,
+        client: Optional[Any] = None,
         **kwargs
     ) -> BotCommandResult:
         """
-        Trigger a full multi-agent review flow.
-
-        Reviews the already-fetched diff (platform-agnostic) rather than re-fetching via
-        a GitHub-only URL, and lets dispatch post the report back through whichever
-        platform client resolved the PR/MR. `repo_root` (the isolated checkout) gives the
-        crew real RAG/AST context.
+        Trigger a full multi-agent review flow or dispatch review subcommands
+        (/review suppress, /review unsuppress, /review explain, /review rerun).
         """
+        clean_args = args.strip()
+        if clean_args.startswith("suppress"):
+            return cls._handle_suppress(
+                args=clean_args[len("suppress"):].strip(),
+                diff=diff, pr_metadata=pr_metadata, repo_root=repo_root,
+                owner=owner, repo=repo, pull_number=pull_number, **kwargs
+            )
+        if clean_args.startswith("unsuppress"):
+            return cls._handle_unsuppress(
+                args=clean_args[len("unsuppress"):].strip(),
+                diff=diff, pr_metadata=pr_metadata, repo_root=repo_root,
+                owner=owner, repo=repo, pull_number=pull_number, **kwargs
+            )
+        if clean_args.startswith("explain"):
+            return cls._handle_explain(
+                args=clean_args[len("explain"):].strip(),
+                diff=diff, pr_metadata=pr_metadata, repo_root=repo_root,
+                owner=owner, repo=repo, pull_number=pull_number, **kwargs
+            )
+        if clean_args.startswith("rerun"):
+            return cls._handle_rerun(
+                args=clean_args[len("rerun"):].strip(),
+                diff=diff, pr_metadata=pr_metadata, repo_root=repo_root,
+                owner=owner, repo=repo, pull_number=pull_number, **kwargs
+            )
+        if clean_args.startswith("apply"):
+            return cls._handle_apply(
+                args=clean_args[len("apply"):].strip(),
+                diff=diff, pr_metadata=pr_metadata, repo_root=repo_root,
+                owner=owner, repo=repo, pull_number=pull_number,
+                client=client, **kwargs
+            )
+
         from code_review_agent.review_service import ReviewService
 
         if not diff or not diff.strip():
@@ -537,6 +646,304 @@ class CommandRouter:
             action_taken="POST_COMMENT",
             metadata={"verdict": response.verdict, "confidence": response.confidence}
         )
+
+    @classmethod
+    def _handle_suppress(
+        cls,
+        args: str,
+        diff: str,
+        pr_metadata: Dict[str, Any],
+        repo_root: Optional[str] = None,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        pull_number: Optional[int] = None,
+        **kwargs
+    ) -> BotCommandResult:
+        """Suppress a finding fingerprint for the repository."""
+        perm_err = cls.check_maintainer_permission("suppress", pr_metadata=pr_metadata, **kwargs)
+        if perm_err:
+            return perm_err
+        from code_review_agent.suppression_store import SuppressionStore
+        clean = args.strip()
+        if not clean:
+            return BotCommandResult(
+                command="suppress",
+                status="ERROR",
+                response_markdown=(
+                    "⚠️ **Missing Fingerprint**\n\n"
+                    "Please specify the finding fingerprint to suppress.\n"
+                    "**Example**: `/review suppress 9a4b2f1e Accepted risk in mock test`"
+                ),
+                action_taken="POST_COMMENT",
+                metadata={}
+            )
+
+        parts = clean.split(maxsplit=1)
+        fingerprint = parts[0].strip().lower()
+        reason = parts[1].strip() if len(parts) > 1 else "No reason specified"
+
+        if len(fingerprint) < 4:
+            return BotCommandResult(
+                command="suppress",
+                status="ERROR",
+                response_markdown=f"⚠️ Fingerprint `{fingerprint}` is invalid. Expected a hex fingerprint.",
+                action_taken="POST_COMMENT",
+                metadata={}
+            )
+
+        repo_id = f"{owner}/{repo}" if owner and repo else (Path(repo_root).name if repo_root else "default")
+        author = pr_metadata.get("author", "reviewer")
+
+        store = SuppressionStore()
+        store.suppress(
+            repo_id=repo_id,
+            fingerprint=fingerprint,
+            reason=reason,
+            author=author,
+            pr_id=str(pull_number or "")
+        )
+
+        response_md = (
+            f"### 🚫 Finding Suppressed\n"
+            f"Successfully suppressed finding fingerprint **`{fingerprint}`** for **`{repo_id}`**.\n\n"
+            f"- **Reason**: {reason}\n"
+            f"- **Author**: @{author}\n"
+            f"- **Scope**: Repository `{repo_id}`\n\n"
+            f"This finding will be treated as `SUPPRESSED` and will not block PR merges or request changes in subsequent reviews.\n\n"
+            f"<sub>To reverse suppression, comment: `/review unsuppress {fingerprint}`</sub>"
+        )
+        return BotCommandResult(
+            command="suppress",
+            status="SUCCESS",
+            response_markdown=response_md,
+            action_taken="POST_COMMENT",
+            metadata={"fingerprint": fingerprint, "repo_id": repo_id, "reason": reason}
+        )
+
+    @classmethod
+    def _handle_unsuppress(
+        cls,
+        args: str,
+        diff: str,
+        pr_metadata: Dict[str, Any],
+        repo_root: Optional[str] = None,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        pull_number: Optional[int] = None,
+        **kwargs
+    ) -> BotCommandResult:
+        """Unsuppress a previously suppressed finding fingerprint."""
+        perm_err = cls.check_maintainer_permission("unsuppress", pr_metadata=pr_metadata, **kwargs)
+        if perm_err:
+            return perm_err
+        from code_review_agent.suppression_store import SuppressionStore
+        fingerprint = args.strip().lower()
+        if not fingerprint:
+            return BotCommandResult(
+                command="unsuppress",
+                status="ERROR",
+                response_markdown="⚠️ Please specify the finding fingerprint to unsuppress. Example: `/review unsuppress 9a4b2f1e`",
+                action_taken="POST_COMMENT",
+                metadata={}
+            )
+
+        repo_id = f"{owner}/{repo}" if owner and repo else (Path(repo_root).name if repo_root else "default")
+        store = SuppressionStore()
+        unsuppressed = store.unsuppress(repo_id, fingerprint)
+
+        if unsuppressed:
+            response_md = (
+                f"### 🔓 Finding Unsuppressed\n"
+                f"Finding fingerprint **`{fingerprint}`** is no longer suppressed for **`{repo_id}`**.\n\n"
+                f"Future reviews will re-evaluate and enforce this rule normally."
+            )
+        else:
+            response_md = (
+                f"⚠️ Finding **`{fingerprint}`** was not found in the active suppressions list for **`{repo_id}`**."
+            )
+
+        return BotCommandResult(
+            command="unsuppress",
+            status="SUCCESS" if unsuppressed else "ERROR",
+            response_markdown=response_md,
+            action_taken="POST_COMMENT",
+            metadata={"fingerprint": fingerprint, "unsuppressed": unsuppressed}
+        )
+
+    @classmethod
+    def _handle_explain(
+        cls,
+        args: str,
+        diff: str,
+        pr_metadata: Dict[str, Any],
+        repo_root: Optional[str] = None,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        pull_number: Optional[int] = None,
+        **kwargs
+    ) -> BotCommandResult:
+        """Provide detailed root cause explanation and remediation for a finding fingerprint."""
+        from code_review_agent.tools.sast_scanner import SastEngine
+        from code_review_agent.tools.ast_security_scanner import AstSecurityScanner
+        fingerprint = args.strip().lower()
+        if not fingerprint:
+            return BotCommandResult(
+                command="explain",
+                status="ERROR",
+                response_markdown="⚠️ Please specify a finding fingerprint to explain. Example: `/review explain 9a4b2f1e`",
+                action_taken="POST_COMMENT",
+                metadata={}
+            )
+
+        # Look up finding across SAST and AST scanners
+        matched_finding = None
+        sast_findings = SastEngine().scan_diff(diff)
+        for f in sast_findings:
+            if (f.fingerprint or "").lower().startswith(fingerprint):
+                matched_finding = f
+                break
+
+        if not matched_finding:
+            ast_findings = AstSecurityScanner.scan_diff(diff)
+            for f in ast_findings:
+                if (f.fingerprint or "").lower().startswith(fingerprint):
+                    matched_finding = f
+                    break
+
+        if matched_finding:
+            response_md = (
+                f"### 🔍 Deep Finding Explanation (`{matched_finding.fingerprint}`)\n\n"
+                f"**Rule**: `{matched_finding.rule_id}` ({matched_finding.name or 'Security/Quality Violation'})\n"
+                f"**Location**: `{matched_finding.file_path}:L{matched_finding.line_number}`\n"
+                f"**Severity**: `{matched_finding.severity}`"
+                + (f" | **CWE**: `{matched_finding.cwe}`" if matched_finding.cwe else "")
+                + f"\n\n#### 📌 Why was this flagged?\n{matched_finding.description}\n\n"
+            )
+            if matched_finding.snippet:
+                response_md += f"#### 🧪 Affected Snippet\n```python\n{matched_finding.snippet}\n```\n\n"
+            if matched_finding.fix_recommendation:
+                response_md += f"#### 💡 Recommended Fix\n{matched_finding.fix_recommendation}\n\n"
+            response_md += (
+                f"---\n"
+                f"<sub>To suppress this finding if it is an accepted risk or false positive, run: "
+                f"`/review suppress {matched_finding.fingerprint} <reason>`</sub>"
+            )
+            return BotCommandResult(
+                command="explain",
+                status="SUCCESS",
+                response_markdown=response_md,
+                action_taken="POST_COMMENT",
+                metadata={"fingerprint": matched_finding.fingerprint, "rule_id": matched_finding.rule_id}
+            )
+
+        return BotCommandResult(
+            command="explain",
+            status="ERROR",
+            response_markdown=(
+                f"⚠️ Could not locate an active finding with fingerprint `{fingerprint}` in this PR's diff.\n"
+                f"The finding may have already been resolved, or the fingerprint may belong to another PR."
+            ),
+            action_taken="POST_COMMENT",
+            metadata={"fingerprint": fingerprint}
+        )
+
+    @classmethod
+    def _handle_rerun(
+        cls,
+        args: str,
+        diff: str,
+        pr_metadata: Dict[str, Any],
+        repo_root: Optional[str] = None,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        pull_number: Optional[int] = None,
+        **kwargs
+    ) -> BotCommandResult:
+        """Trigger an expedited full re-review."""
+        return cls._handle_review(
+            args="",
+            diff=diff,
+            pr_metadata=pr_metadata,
+            repo_root=repo_root,
+            owner=owner,
+            repo=repo,
+            pull_number=pull_number,
+            **kwargs
+        )
+
+    @classmethod
+    def _handle_apply(
+        cls,
+        args: str,
+        diff: str,
+        pr_metadata: Dict[str, Any],
+        repo_root: Optional[str] = None,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        pull_number: Optional[int] = None,
+        client: Optional[Any] = None,
+        **kwargs
+    ) -> BotCommandResult:
+        """Apply 1-click remediation commit directly to PR branch."""
+        perm_err = cls.check_maintainer_permission("apply", pr_metadata=pr_metadata, **kwargs)
+        if perm_err:
+            return perm_err
+        from code_review_agent.remediator import AutoRemediator
+        fingerprint = args.strip().lower()
+        if not fingerprint:
+            return BotCommandResult(
+                command="apply",
+                status="ERROR",
+                response_markdown="⚠️ Please specify the finding fingerprint to apply. Example: `/review apply 9a4b2f1e`",
+                action_taken="POST_COMMENT",
+                metadata={}
+            )
+
+        pr_ident = f"{owner}/{repo}#{pull_number}" if owner and repo and pull_number else (pr_metadata.get("html_url") or "local")
+        result = AutoRemediator.apply_remediation(
+            pr_identifier=pr_ident,
+            fingerprint=fingerprint,
+            client=client,
+            repo_root=repo_root
+        )
+
+        if result.get("status") == "success":
+            commit_sha = result.get("commit_sha", "")
+            commit_url = result.get("commit_url", "")
+            file_path = result.get("file_path", "")
+            branch = result.get("branch", "")
+            sha_display = commit_sha[:8] if commit_sha else "committed"
+            commit_link = f"[{sha_display}]({commit_url})" if commit_url else f"`{sha_display}`"
+
+            response_md = (
+                f"### 🚀 1-Click Auto-Remediation Applied!\n\n"
+                f"Successfully committed verified remediation for finding **`{fingerprint}`** (`{result.get('rule_id', '')}`):\n\n"
+                f"- **Target File**: `{file_path}`\n"
+                f"- **Branch**: `{branch}`\n"
+                f"- **Commit**: {commit_link}\n\n"
+                f"The finding has been resolved and marked as suppressed in team memory."
+            )
+            return BotCommandResult(
+                command="apply",
+                status="SUCCESS",
+                response_markdown=response_md,
+                action_taken="POST_COMMENT",
+                metadata=result
+            )
+        else:
+            err_msg = result.get("message", "Unknown remediation error")
+            response_md = (
+                f"⚠️ Unable to apply auto-remediation for `{fingerprint}`:\n\n"
+                f"> {err_msg}\n\n"
+                f"Please review the finding details and apply the recommended fix manually."
+            )
+            return BotCommandResult(
+                command="apply",
+                status="ERROR",
+                response_markdown=response_md,
+                action_taken="POST_COMMENT",
+                metadata=result
+            )
 
     @classmethod
     def _handle_ticket(
@@ -765,6 +1172,11 @@ class CommandRouter:
             "| `/learn <rule>` | Directly teaches the agent a repository coding standard | `/learn Always use httpx` |\n"
             "| `/benchmark` | Runs ground-truth benchmark suite and posts accuracy card | `/benchmark` |\n"
             "| `/review` | Triggers full multi-agent code & security review | `/review` |\n"
+            "| `/review rerun` | Triggers expedited full re-review on current PR head | `/review rerun` |\n"
+            "| `/review suppress <fp> [reason]` | Suppresses finding fingerprint for this repository | `/review suppress 9a4b2f1e Mock test` |\n"
+            "| `/review unsuppress <fp>` | Re-enables inspection for finding fingerprint | `/review unsuppress 9a4b2f1e` |\n"
+            "| `/review explain <fp>` | Provides deep root-cause explanation and remediation | `/review explain 9a4b2f1e` |\n"
+            "| `/review apply <fp>` | Commits 1-click verified remediation directly to PR branch | `/review apply 9a4b2f1e` |\n"
             "| `/help` | Shows this commands guide | `/help` |\n\n"
             "---\n"
             "<sub>Powered by AI Code Review Agent (v2.0)</sub>"

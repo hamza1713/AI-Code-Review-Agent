@@ -1,149 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import { Search, ShieldAlert, GitGraph, FileCheck2, Cpu, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, Clock, ShieldCheck, GitGraph, FileCheck2, Cpu } from 'lucide-react';
 
-interface Stage {
-  id: number;
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
+interface PipelineProgressProps {
+  currentStage?: string | null;
+  stageProgress?: number | null;
 }
 
-const STAGES: Stage[] = [
-  {
-    id: 1,
-    title: 'Unified Diff Parsing & Chunking',
-    subtitle: 'Extracts file hunks and builds 1-indexed target line maps',
-    icon: <Search className="w-4 h-4 text-cyan-400" />
-  },
-  {
-    id: 2,
-    title: 'Quick Pattern Scanner (Heuristic AppSec)',
-    subtitle: 'Heuristic regex scan for SQL injection, secrets, and auth anti-patterns',
-    icon: <ShieldAlert className="w-4 h-4 text-rose-400" />
-  },
-  {
-    id: 3,
-    title: 'AST Code Graph & Caller Resolution',
-    subtitle: 'Indexes qualified symbols and computes cross-file impact dependencies',
-    icon: <GitGraph className="w-4 h-4 text-indigo-400" />
-  },
-  {
-    id: 4,
-    title: 'Team Governance Rules Evaluation',
-    subtitle: 'Validates changes against .code-review.yaml coding standards',
-    icon: <FileCheck2 className="w-4 h-4 text-amber-400" />
-  },
-  {
-    id: 5,
-    title: 'CrewAI Multi-Agent Synthesis',
-    subtitle: 'Senior Developer + Security Engineer + Tech Lead parallel deliberation',
-    icon: <Cpu className="w-4 h-4 text-purple-400" />
-  }
-];
+const STAGE_LABELS: Record<string, string> = {
+  QUEUED: 'Queued — Waiting for an available review worker...',
+  PROCESSING: 'Claimed by worker — Initializing review environment...',
+  INGESTION: 'Ingesting diff, resolving AST & symbol references...',
+  AST_PRESCAN: 'Running compiler-grade AST analysis & call graphs...',
+  SECURITY_SCAN: 'Scanning for OWASP Top 10 vulnerabilities & security sinks...',
+  GOVERNANCE_EVAL: 'Evaluating custom team governance rules & standards...',
+  LLM_REASONING: 'Multi-agent reasoning crew formulating architectural review...',
+  TEST_SANDBOX: 'Running isolated empirical sandbox test verification...',
+  SYNTHESIS: 'Synthesizing final executive verdict & actionable inline fixes...',
+  COMPLETED: 'Review finalized — rendering report...',
+};
 
-export const PipelineProgress: React.FC = () => {
-  const [activeStage, setActiveStage] = useState(1);
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
-
-  // Advance stage animation
+export function PipelineProgress({ currentStage, stageProgress }: PipelineProgressProps) {
+  const [seconds, setSeconds] = useState(0);
   useEffect(() => {
-    const stageTimer = setInterval(() => {
-      setActiveStage(prev => (prev < STAGES.length ? prev + 1 : prev));
-    }, 1800);
-
-    const clockTimer = setInterval(() => {
-      setSecondsElapsed(prev => prev + 1);
-    }, 1000);
-
-    return () => {
-      clearInterval(stageTimer);
-      clearInterval(clockTimer);
-    };
+    const timer = setInterval(() => setSeconds(value => value + 1), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  return (
-    <div className="bg-[#12151c] border border-indigo-500/20 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent pointer-events-none" />
+  const progressPercent = typeof stageProgress === 'number'
+    ? Math.round(stageProgress > 1 ? stageProgress : stageProgress * 100)
+    : null;
 
-      {/* Header */}
-      <div className="flex items-center justify-between pb-6 border-b border-slate-800/80 relative z-10">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-white tracking-tight">
-              Executing Multi-Agent Review Pipeline...
-            </h3>
-            <p className="text-xs text-slate-400">
-              Running deterministic AST scans, governance rules, and LLM synthesis
-            </p>
-          </div>
-        </div>
-
-        {/* Stopwatch */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-indigo-300">
-          <Clock className="w-3.5 h-3.5" />
-          <span>Elapsed: {secondsElapsed}s</span>
-        </div>
-      </div>
-
-      {/* Pipeline Stages */}
-      <div className="mt-8 space-y-4 relative z-10">
-        {STAGES.map((stage) => {
-          const isCompleted = activeStage > stage.id;
-          const isCurrent = activeStage === stage.id;
-
-          return (
-            <div
-              key={stage.id}
-              className={`flex items-start gap-4 p-4 rounded-xl border transition-all duration-500 ${
-                isCurrent
-                  ? 'bg-indigo-950/30 border-indigo-500/40 shadow-lg shadow-indigo-500/5 ring-1 ring-indigo-500/20'
-                  : isCompleted
-                  ? 'bg-slate-900/40 border-slate-800/60 opacity-80'
-                  : 'bg-slate-900/20 border-slate-800/30 opacity-40'
-              }`}
-            >
-              {/* Step indicator */}
-              <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-xs font-mono font-bold transition-all ${
-                  isCompleted
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                    : isCurrent
-                    ? 'bg-indigo-600 border-indigo-400 text-white animate-pulse'
-                    : 'bg-slate-800 border-slate-700 text-slate-500'
-                }`}
-              >
-                {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : stage.id}
-              </div>
-
-              {/* Stage description */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-xs text-slate-200">{stage.title}</span>
-                  {isCurrent && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono animate-pulse">
-                      In Progress
-                    </span>
-                  )}
-                  {isCompleted && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                      Done
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">{stage.subtitle}</p>
-              </div>
-
-              {/* Icon */}
-              <div className="shrink-0 p-2 rounded-lg bg-slate-800/50 border border-slate-700/40">
-                {stage.icon}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+  const stageDescription = (currentStage && STAGE_LABELS[currentStage]) || (
+    currentStage ? `Executing stage: ${currentStage}` : 'Waiting for the review service. Your report will appear here when it is ready.'
   );
-};
+
+  return (
+    <section className="progress-panel" aria-busy="true" aria-labelledby="progress-title">
+      <div className="progress-symbol"><Loader2 size={28} className="animate-spin" /></div>
+      <p className="eyebrow">REVIEW IN PROGRESS</p>
+      <h1 id="progress-title">Taking a closer look at your code.</h1>
+      
+      {currentStage && (
+        <div className="flex items-center justify-center gap-2 text-indigo-400 font-medium text-sm my-2">
+          <Cpu size={16} />
+          <span>Stage: <strong>{currentStage}</strong></span>
+          {progressPercent !== null && <span className="text-slate-400">({progressPercent}%)</span>}
+        </div>
+      )}
+
+      {progressPercent !== null && (
+        <div className="w-full max-w-md mx-auto bg-slate-800 rounded-full h-2.5 overflow-hidden my-3 border border-slate-700">
+          <div
+            className="bg-indigo-500 h-2.5 rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${Math.max(5, Math.min(100, progressPercent))}%` }}
+          />
+        </div>
+      )}
+
+      <p role="status" className="text-sm text-slate-300 max-w-lg mx-auto">{stageDescription}</p>
+      
+      <div className="elapsed"><Clock size={15} />{seconds}s elapsed</div>
+      {seconds >= 60 && (
+        <p className="text-amber-300 text-xs">This review is taking a little longer. Larger changes or multi-agent crew reasoning can take up to three minutes.</p>
+      )}
+      
+      <div className="progress-capabilities">
+        <span><ShieldCheck size={17} />Security analysis</span>
+        <span><GitGraph size={17} />Code impact</span>
+        <span><FileCheck2 size={17} />Team standards</span>
+      </div>
+      <p className="progress-note">
+        {currentStage ? '⚡ Live stage telemetry connected to distributed worker process.' : 'Live telemetry connects automatically as worker advances.'}
+      </p>
+    </section>
+  );
+}
+

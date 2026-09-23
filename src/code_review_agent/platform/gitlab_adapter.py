@@ -3,6 +3,7 @@ GitLab Platform Adapter.
 Implements GitPlatformClient for GitLab.com and self-hosted GitLab CE/EE instances via GitLab REST API v4.
 """
 
+import hashlib
 import os
 import re
 import urllib.parse
@@ -253,3 +254,112 @@ class GitLabPlatformClient(GitPlatformClient):
                 if len(notes) < per_page:
                     break
         return comments
+
+    def set_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        sha: str,
+        state: str,  # 'pending', 'success', 'failure', 'error'
+        description: str,
+        context: str = "ai-code-review",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Post commit status update to GitLab API."""
+        enc = self._encode_project(f"{owner}/{repo}")
+        url = f"{self.base_url}/projects/{enc}/statuses/{sha}"
+        # Map generic status to GitLab state
+        gl_state = {
+            "pending": "running",
+            "success": "success",
+            "failure": "failed",
+            "error": "failed"
+        }.get(state.lower(), "running")
+
+        payload: Dict[str, Any] = {
+            "state": gl_state,
+            "name": context,
+            "description": description[:140]
+        }
+        if target_url:
+            payload["target_url"] = target_url
+
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code not in (200, 201):
+                return {"error": resp.text, "status_code": resp.status_code}
+            return resp.json()
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: Optional[str] = None
+    ) -> str:
+        """Fetch raw content of a file from GitLab repository."""
+        enc_proj = self._encode_project(f"{owner}/{repo}")
+        enc_path = urllib.parse.quote(path, safe="")
+        url = f"{self.base_url}/projects/{enc_proj}/repository/files/{enc_path}/raw"
+        params = {"ref": ref or "main"}
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            resp = client.get(url, params=params)
+            if resp.status_code == 200:
+                return resp.text
+            return ""
+
+    def commit_file_change(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        content: str,
+        commit_message: str
+    ) -> Dict[str, Any]:
+        """Commit an updated file directly to a branch on GitLab."""
+        if not self.token:
+            simulated_sha = "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            return {
+                "sha": simulated_sha,
+                "html_url": f"{self.base_url}/{owner}/{repo}/-/commit/{simulated_sha}",
+                "branch": branch,
+                "path": path
+            }
+
+        enc_proj = self._encode_project(f"{owner}/{repo}")
+        enc_path = urllib.parse.quote(path, safe="")
+        url = f"{self.base_url}/projects/{enc_proj}/repository/files/{enc_path}"
+
+        payload = {
+            "branch": branch,
+            "commit_message": commit_message,
+            "content": content
+        }
+
+        with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
+            # First try PUT (update existing file)
+            resp = client.put(url, json=payload)
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                return {
+                    "sha": data.get("commit_id") or data.get("file_path", ""),
+                    "html_url": f"{self.base_url}/{owner}/{repo}/-/blob/{branch}/{path}",
+                    "branch": branch,
+                    "path": path
+                }
+            # If file does not exist on branch, try POST (create new file)
+            if resp.status_code in (400, 404):
+                resp2 = client.post(url, json=payload)
+                if resp2.status_code in (200, 201):
+                    data2 = resp2.json()
+                    return {
+                        "sha": data2.get("commit_id") or data2.get("file_path", ""),
+                        "html_url": f"{self.base_url}/{owner}/{repo}/-/blob/{branch}/{path}",
+                        "branch": branch,
+                        "path": path
+                    }
+            if resp.status_code in (401, 403):
+                raise PermissionError(f"GitLab token lacks write permission for {owner}/{repo}:{branch}")
+            raise RuntimeError(f"Failed to commit file to GitLab: [{resp.status_code}] {resp.text}")
+

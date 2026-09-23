@@ -3,6 +3,7 @@
 export type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type RuleSeverity = 'BLOCKING' | 'WARNING' | 'INFO';
 export type Verdict = 'APPROVE' | 'REQUEST CHANGES' | 'ESCALATE' | 'COMMENT';
+export type FindingLifecycleStatus = 'NEW' | 'RESOLVED' | 'REGRESSED' | 'SUPPRESSED';
 
 export interface SastFinding {
   rule_id: string;
@@ -13,6 +14,8 @@ export interface SastFinding {
   line_number: number;
   snippet?: string;
   fix_recommendation: string;
+  fingerprint?: string;
+  lifecycle_status?: FindingLifecycleStatus;
 }
 
 export interface RuleViolation {
@@ -33,6 +36,8 @@ export interface InlineComment {
   comment_body: string;
   why?: string;
   suggestion_code?: string;
+  fingerprint?: string;
+  lifecycle_status?: FindingLifecycleStatus;
 }
 
 export interface CrossFileImpactSummary {
@@ -85,6 +90,7 @@ export interface ReviewAPIResponse {
   governance_violations: RuleViolation[];
   cross_file_impact: CrossFileImpactSummary;
   generated_unit_tests?: string | null;
+  test_execution?: { executed: boolean; status: string; evidence_badge: string; summary_message: string } | null;
   inline_comments: InlineComment[];
   telemetry?: TelemetryMetrics | null;
   trace?: TraceData | null;
@@ -97,7 +103,7 @@ export interface ReviewAPIResponse {
 export interface WebhookJob {
   job_id: string;
   pr_identifier: string;
-  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING';
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING' | 'CANCELLED';
   created_at: string | number;
   updated_at?: string | number | null;
   started_at?: string | number | null;
@@ -109,6 +115,23 @@ export interface WebhookJob {
   error_message?: string | null;
   payload?: Record<string, unknown>;
   result?: Record<string, unknown> | null;
+  worker_id?: string | null;
+  current_stage?: string | null;
+  stage_progress?: number | null;
+  priority?: number | null;
+}
+
+
+export interface QueueMetrics {
+  queued: number;
+  processing: number;
+  retrying: number;
+  completed: number;
+  failed: number;
+  cancelled: number;
+  total: number;
+  active_workers: number;
+  avg_duration_seconds: number;
 }
 
 
@@ -119,5 +142,7 @@ export interface HealthStatus {
   queue: {
     queued: number;
     processing: number;
+    retrying?: number;
+    active_workers?: number;
   };
 }

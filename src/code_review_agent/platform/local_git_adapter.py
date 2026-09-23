@@ -162,3 +162,73 @@ class LocalGitPlatformClient(GitPlatformClient):
             text = issue_file.read_text(encoding="utf-8")
             return {"title": f"Local Issue #{issue_number}", "body": text, "state": "open"}
         return {"title": f"Issue #{issue_number}", "body": "", "state": "open"}
+
+    def set_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        sha: str,
+        state: str,  # 'pending', 'success', 'failure', 'error'
+        description: str,
+        context: str = "ai-code-review",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Record local commit status check."""
+        status_data = {
+            "sha": sha,
+            "state": state,
+            "description": description,
+            "context": context,
+            "target_url": target_url or ""
+        }
+        try:
+            status_file = self.repo_dir / ".git" / "ai_review_status.json"
+            if status_file.parent.exists():
+                import json
+                status_file.write_text(json.dumps(status_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        return status_data
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: Optional[str] = None
+    ) -> str:
+        """Fetch file content from local repository working tree."""
+        target_path = (self.repo_dir / path).resolve()
+        if target_path.exists() and target_path.is_file():
+            return target_path.read_text(encoding="utf-8", errors="replace")
+        return ""
+
+    def commit_file_change(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        content: str,
+        commit_message: str
+    ) -> Dict[str, Any]:
+        """Write file change to local repository, stage with git add, and commit."""
+        target_path = (self.repo_dir / path).resolve()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(content, encoding="utf-8")
+
+        sha = "local-working-tree"
+        try:
+            self._run_git(["add", path])
+            self._run_git(["commit", "-m", commit_message])
+            sha = self._run_git(["rev-parse", "HEAD"]).strip()
+        except Exception as e:
+            logger.warning(f"Local git commit notice: {e}")
+
+        return {
+            "sha": sha,
+            "html_url": f"file:///{target_path.as_posix()}",
+            "branch": branch,
+            "path": path
+        }
+

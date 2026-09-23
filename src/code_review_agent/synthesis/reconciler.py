@@ -70,6 +70,12 @@ _CWE_SEVERITY: Dict[str, str] = {
     "CWE-326": "MEDIUM",    # inadequate encryption strength
     "CWE-330": "MEDIUM",    # weak randomness
     "CWE-20": "MEDIUM",     # improper input validation
+    "CWE-916": "CRITICAL",  # use of password hash with insufficient computational effort
+    "CWE-760": "HIGH",      # use of one-way hash without a salt
+    "CWE-362": "HIGH",      # concurrent execution / race condition / unsynchronized access
+    "CWE-674": "HIGH",      # uncontrolled recursion
+    "CWE-369": "MEDIUM",    # divide by zero
+    "CWE-208": "MEDIUM",    # observable timing discrepancy
     "CWE-703": "LOW",       # improper exception handling / silent swallow
     "CWE-390": "LOW",       # detection of error condition without action
 }
@@ -261,8 +267,10 @@ class SynthesisReconciler:
         test_execution: Optional[TestExecutionResult] = None,
         generated_tests: str = "",
         pr_content: str = "",
+        crew_findings: Optional[List[SastFinding]] = None,
     ) -> ReconciledReport:
-        signals = cls._collect_signals(sast_findings or [], rule_violations or [], pr_content)
+        all_sast = list(sast_findings or []) + list(crew_findings or [])
+        signals = cls._collect_signals(all_sast, rule_violations or [], pr_content)
         # Risky imports are folded into the real use-finding they belong to (regardless of
         # line distance — imports sit at the top of the file, uses far below), so an import
         # never becomes its own inflated finding. Everything else clusters by adjacency.
@@ -344,10 +352,14 @@ class SynthesisReconciler:
     @classmethod
     def _correct_cwe(cls, cwe: Optional[str], evidence: str) -> Optional[str]:
         """Rule 6: assign the CWE that matches the defect, correcting inherited mislabels."""
+        norm = cls._normalize_cwe(cwe)
+        # Preserve specific targeted CWEs from specialized analyzers
+        if norm in ("CWE-760", "CWE-916", "CWE-362", "CWE-674", "CWE-369", "CWE-208"):
+            return norm
         for pattern, corrected in _CWE_CORRECTIONS:
             if pattern.search(evidence or ""):
                 return corrected
-        return cls._normalize_cwe(cwe)
+        return norm
 
     @classmethod
     def _signal_severity(cls, sig: _Signal) -> str:
@@ -359,6 +371,8 @@ class SynthesisReconciler:
         if sig.is_low_conf:
             return "LOW"
         if sig.cwe and sig.cwe in _CWE_SEVERITY:
+            if sig.cwe == "CWE-327" and (sig.raw_severity == "CRITICAL" or "password" in (sig.description or "").lower()):
+                return "CRITICAL"
             return _CWE_SEVERITY[sig.cwe]
         if sig.is_governance:
             gov = (sig.gov_severity or "WARNING").upper()
@@ -385,15 +399,23 @@ class SynthesisReconciler:
                 clusters.append([sig])
         return clusters
 
-    @staticmethod
-    def _same_root_cause(a: _Signal, b: _Signal) -> bool:
+    _RELATED_CWES = {
+        ("CWE-327", "CWE-916"),
+    }
+
+    @classmethod
+    def _same_root_cause(cls, a: _Signal, b: _Signal) -> bool:
         if a.file != b.file:
             return False
         if abs(a.line - b.line) > _ADJACENCY:
             return False
-        # Same CWE, or one side's CWE unknown (import warning has no CWE but sits by the call).
+        # Same CWE, related CWE pair (e.g. CWE-916 and CWE-327), or one side's CWE unknown.
         if a.cwe and b.cwe:
-            return a.cwe == b.cwe
+            if a.cwe == b.cwe:
+                return True
+            if (a.cwe, b.cwe) in cls._RELATED_CWES or (b.cwe, a.cwe) in cls._RELATED_CWES:
+                return True
+            return False
         return True
 
     @staticmethod
@@ -439,9 +461,11 @@ class SynthesisReconciler:
                 return None
             severity = "LOW"
         else:
+            worst_raw = max((s.raw_severity for s in non_import), key=lambda s: _SEV_RANK.get(s, 0))
+            cluster_desc = " ".join(s.description for s in non_import if s.description)
             rep = _Signal(
                 file=cluster[0].file, line=min(s.line for s in non_import), cwe=canonical_cwe,
-                source="", description="", fix="", raw_severity=non_import[0].raw_severity,
+                source="", description=cluster_desc, fix="", raw_severity=worst_raw,
                 is_governance=all(s.is_governance for s in non_import),
                 gov_severity=next((s.gov_severity for s in non_import if s.gov_severity), None),
             )
@@ -598,11 +622,10 @@ class SynthesisReconciler:
     @staticmethod
     def _limitations_note() -> str:
         return (
-            "Coverage & limitations: this pipeline is pattern/Bandit-based static analysis with an "
+            "Coverage & limitations: this pipeline combines pattern/Bandit-based static analysis with an "
             "AST call-graph — it has no dataflow/taint tracking. It reliably flags direct, single-"
-            "site sinks (raw SQL, os.system/eval, pickle, weak hashes, hardcoded secrets) but "
-            "cannot reliably detect defects that require following data across calls or state: "
-            "second-order/stored injection, SSRF, disabled TLS verification / SSLContext downgrades, "
-            "many path-traversal variants, auth/authorization logic flaws, and race conditions. "
-            "Absence of a finding here is not proof of safety — treat this as one layer, not a full audit."
+            "site sinks (raw SQL, os.system/eval, pickle, weak hashes, hardcoded secrets) while complex cross-statement "
+            "state mutations, concurrency, and algorithmic performance traps are surfaced via multi-agent review "
+            "(findings sourced from 'llm-crew' reflect synthesized expert advisory analysis) and verified where possible "
+            "through sandbox testing. Absence of a finding here is not proof of safety — treat this as one layer, not a full audit."
         )

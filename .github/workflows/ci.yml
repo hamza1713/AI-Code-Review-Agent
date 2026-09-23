@@ -31,6 +31,37 @@ jobs:
         run: |
           pytest -v tests/
 
+      - name: Build isolated test image
+        if: matrix.python-version == '3.12'
+        run: |
+          docker build -t code-review-sandbox:test sandbox
+          echo "REVIEW_SANDBOX_IMAGE=$(docker image inspect code-review-sandbox:test --format '{{.Id}}')" >> "$GITHUB_ENV"
+
       - name: Run subprocess-backed test suite (bandit/ruff CLI, sandbox execution)
         run: |
           pytest -v -m slow tests/
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: frontend/test-results

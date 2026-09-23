@@ -10,7 +10,7 @@ interface ReviewInputProps {
 const SAMPLE_SQLI_DIFF = `diff --git a/app/user_auth.py b/app/user_auth.py
 --- a/app/user_auth.py
 +++ b/app/user_auth.py
-@@ -12,6 +12,16 @@
+@@ -12,0 +13,8 @@
 +def authenticate_user(username, password):
 +    # Query user database directly without parameterized query
 +    query = f"SELECT * FROM users WHERE username = '{username}'"
@@ -24,7 +24,7 @@ const SAMPLE_SQLI_DIFF = `diff --git a/app/user_auth.py b/app/user_auth.py
 const SAMPLE_CLEAN_DIFF = `diff --git a/app/math_utils.py b/app/math_utils.py
 --- a/app/math_utils.py
 +++ b/app/math_utils.py
-@@ -5,4 +5,8 @@
+@@ -5,2 +5,5 @@
 -def add(a, b):
 -    return a + b
 +def calculate_total(a: float, b: float) -> float:
@@ -37,7 +37,7 @@ const SAMPLE_CLEAN_DIFF = `diff --git a/app/math_utils.py b/app/math_utils.py
 const SAMPLE_GOV_VIOLATION_DIFF = `diff --git a/services/payment.py b/services/payment.py
 --- a/services/payment.py
 +++ b/services/payment.py
-@@ -20,6 +20,10 @@
+@@ -20,0 +21,5 @@
 +def process_transaction(card_token, amount):
 +    # Violates governance rule: no raw print statements in production
 +    print(f"Processing transaction for token: {card_token}")
@@ -72,6 +72,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
     isDragActive: isFileDragActive
   } = useDropzone({
     onDrop: onDropFile,
+    onDropRejected: () => { setSelectedFile(null); setErrorMessage('Choose one source file no larger than 2 MB.'); },
     multiple: false,
     maxSize: 2 * 1024 * 1024
   });
@@ -99,6 +100,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
     isDragActive: isZipDragActive
   } = useDropzone({
     onDrop: onDropZip,
+    onDropRejected: () => { setSelectedZip(null); setErrorMessage('Choose one .zip archive no larger than 2 MB.'); },
     multiple: false,
     accept: { 'application/zip': ['.zip'] },
     maxSize: 2 * 1024 * 1024
@@ -142,22 +144,23 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
   };
 
   return (
-    <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 sm:p-5 shadow-lg relative overflow-hidden">
+    <div className="input-panel bg-[#12151c] border border-slate-800/80 rounded-2xl p-5 sm:p-7 shadow-lg relative overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3 relative z-10">
+      <div className="flex flex-col justify-between pb-5 border-b border-slate-800/80 gap-3 relative z-10">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Submit Code for Review</span>
+            <span>Start a new review</span>
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Analyze code against security pattern heuristics, AST cross-file impact, and team governance policies.
+            Choose your source, add your code, and let the review begin.
           </p>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex bg-slate-900/90 p-1 rounded-lg border border-slate-800 self-start sm:self-auto overflow-x-auto">
+        <div className="flex bg-slate-900/90 p-1 rounded-lg border border-slate-800 w-full flex-wrap gap-1">
           <button
             type="button"
+            aria-pressed={activeTab === 'diff'}
             onClick={() => { setActiveTab('diff'); setErrorMessage(null); }}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'diff'
@@ -170,6 +173,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           </button>
           <button
             type="button"
+            aria-pressed={activeTab === 'github'}
             onClick={() => { setActiveTab('github'); setErrorMessage(null); }}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'github'
@@ -182,6 +186,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           </button>
           <button
             type="button"
+            aria-pressed={activeTab === 'file'}
             onClick={() => { setActiveTab('file'); setErrorMessage(null); }}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'file'
@@ -194,6 +199,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           </button>
           <button
             type="button"
+            aria-pressed={activeTab === 'zip'}
             onClick={() => { setActiveTab('zip'); setErrorMessage(null); }}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'zip'
@@ -214,7 +220,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
         {activeTab === 'diff' && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-slate-300">Unified Git Diff Content</span>
+              <label htmlFor="review-diff" className="text-sm font-medium text-slate-300">Your code changes</label>
               {/* Presets */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
@@ -247,10 +253,11 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
             <div className="relative rounded-xl border border-slate-800 bg-[#0a0c10] overflow-hidden focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
               <textarea
+                id="review-diff"
                 value={diffContent}
                 onChange={(e) => setDiffContent(e.target.value)}
-                placeholder={`diff --git a/app/user_auth.py b/app/user_auth.py\n--- a/app/user_auth.py\n+++ b/app/user_auth.py\n@@ -10,6 +10,12 @@\n+def authenticate_user(username, password):\n+    query = f"SELECT * FROM users WHERE username = '{username}'"\n+    return db.query(query)`}
-                rows={10}
+                placeholder={`diff --git a/app/user_auth.py b/app/user_auth.py\n--- a/app/user_auth.py\n+++ b/app/user_auth.py\n@@ -10,0 +11,3 @@\n+def authenticate_user(username, password):\n+    query = f"SELECT * FROM users WHERE username = '{username}'"\n+    return db.query(query)`}
+                rows={13}
                 className="w-full bg-transparent p-3.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none resize-y leading-relaxed"
                 spellCheck={false}
               />
@@ -280,9 +287,10 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               </p>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-slate-300">GitHub PR URL or Shorthand</label>
+                <label htmlFor="review-pr-url" className="text-[11px] font-semibold text-slate-300">GitHub PR URL or Shorthand</label>
                 <div className="flex items-center gap-2">
                   <input
+                    id="review-pr-url"
                     type="text"
                     value={prUrl}
                     onChange={(e) => setPrUrl(e.target.value)}
@@ -387,7 +395,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mt-3 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2.5">
+          <div role="alert" className="mt-3 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
             <span>{errorMessage}</span>
           </div>
@@ -411,7 +419,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Run Multi-Agent Review</span>
+            <span>Review code</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

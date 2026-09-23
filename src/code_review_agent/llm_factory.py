@@ -92,6 +92,8 @@ class LLMFactory:
         llm_kwargs: Dict[str, Any] = {
             "model": resolved_model,
             "max_tokens": resolved_max_tokens,
+            "timeout": 45,
+            "max_retries": 1,
         }
 
         if api_key:
