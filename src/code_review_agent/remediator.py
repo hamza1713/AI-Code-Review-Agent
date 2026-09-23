@@ -249,12 +249,16 @@ class AutoRemediator:
         r"^master$",
         r"^release(?:/.*|$)",
         r"^prod(?:uction)?(?:/.*|$)",
+        r"^default$",
+        r"^trunk$",
     ]
 
     @classmethod
     def is_branch_protected(cls, branch: str, custom_blocked: Optional[List[str]] = None) -> bool:
         """Check if target branch is protected from direct automated remediation commits."""
         clean = (branch or "").strip()
+        if not clean:
+            return True
         patterns = list(cls.PROTECTED_BRANCH_PATTERNS)
         if custom_blocked:
             for b in custom_blocked:
@@ -269,7 +273,7 @@ class AutoRemediator:
     ) -> str:
         """
         Apply a structured patch ensuring expected_old_text matches before patching.
-        Raises PatchMismatchError if expected_old_text does not match.
+        Raises PatchMismatchError if expected_old_text does not match or replacement fails.
         """
         if patch.expected_old_text not in original_content:
             orig_stripped = "\n".join(l.strip() for l in original_content.splitlines())
@@ -279,12 +283,17 @@ class AutoRemediator:
                     f"Structured patch mismatch for '{patch.file_path}': expected code block not found in target file."
                 )
 
-        return cls.apply_code_patch(
+        patched = cls.apply_code_patch(
             original_content=original_content,
             snippet=patch.expected_old_text,
             replacement=patch.replacement_text,
             target_line=patch.target_line
         )
+        if patch.expected_old_text != patch.replacement_text and patched == original_content:
+            raise PatchMismatchError(
+                f"Structured patch for '{patch.file_path}' could not be matched/applied to target content."
+            )
+        return patched
 
     @classmethod
     def _get_db_connection(cls) -> sqlite3.Connection:
@@ -412,6 +421,12 @@ class AutoRemediator:
             replacement=manifest["expected_old_text"]
         )
 
+        if manifest.get("replacement_text") != manifest.get("expected_old_text") and rolled_back_content == current_content:
+            return {
+                "status": "error",
+                "message": f"Rollback failed: replacement text was not found in current content of '{file_path}'"
+            }
+
         commit_message = f"revert: rollback remediation {remediation_id} on {file_path}"
         commit_result = resolved_client.commit_file_change(
             owner=owner,
@@ -486,12 +501,12 @@ class AutoRemediator:
                 logger.warning(f"Could not fetch PR metadata: {e}")
 
         # Guardrail 1: Strict Branch Guardrails
-        if cls.is_branch_protected(branch):
+        if cls.is_branch_protected(branch) or (pr_meta and pr_meta.base_ref and branch == pr_meta.base_ref):
             return {
                 "status": "error",
                 "message": (
                     f"Strict branch guardrail violation: automated remediation commits to protected "
-                    f"branch '{branch}' are forbidden. Commits must target a feature or PR branch."
+                    f"or default target branch '{branch}' are forbidden. Commits must target a feature or PR branch."
                 ),
                 "fingerprint": fingerprint,
                 "branch": branch
@@ -608,6 +623,37 @@ class AutoRemediator:
                 target_line=finding.line_number
             )
 
+        if patched_content == original_content:
+            return {
+                "status": "error",
+                "message": f"Remediation patch produced no changes to '{finding.file_path}'.",
+                "fingerprint": finding.fingerprint
+            }
+
+        repo_id = f"{owner}/{repo}" if owner and repo else (Path(repo_root).name if repo_root else "default")
+        from code_review_agent.webhook_queue import WebhookJobQueue
+        queue_instance = WebhookJobQueue()
+        rem_op_key = f"remediation:{repo_id}#{pull_number or branch}:{finding.fingerprint}"
+        if queue_instance.is_operation_executed(rem_op_key):
+            existing_op = queue_instance.get_external_operation(rem_op_key)
+            result_data = {}
+            if existing_op and existing_op.get("result_json"):
+                try:
+                    result_data = json.loads(existing_op["result_json"])
+                except Exception:
+                    pass
+            return {
+                "status": "success",
+                "remediation_id": f"rem_idempotent_{finding.fingerprint[:8]}",
+                "commit_sha": result_data.get("sha", ""),
+                "commit_url": "",
+                "file_path": finding.file_path,
+                "fingerprint": finding.fingerprint,
+                "rule_id": finding.rule_id,
+                "branch": branch,
+                "message": "Remediation already applied (idempotent duplicate request)."
+            }
+
         # Commit changes
         commit_message = custom_message or (
             f"fix({finding.category.lower()}): apply remediation for {finding.rule_id} [{finding.fingerprint}]"
@@ -632,8 +678,21 @@ class AutoRemediator:
             }
 
         commit_sha_after = commit_result.get("sha", "")
-        repo_id = f"{owner}/{repo}" if owner and repo else (Path(repo_root).name if repo_root else "default")
         remediation_id = f"rem_{uuid.uuid4().hex[:12]}"
+
+        queue_instance.record_external_operation(
+            operation_key=rem_op_key,
+            operation_type="apply_remediation",
+            target_id=f"{repo_id}#{pull_number or branch}",
+            payload={"fingerprint": finding.fingerprint, "file_path": finding.file_path, "branch": branch},
+            status="SUCCESS",
+            result={"sha": commit_sha_after}
+        )
+
+        expected_old_text = (
+            (structured_patch.expected_old_text if structured_patch else None)
+            or finding.snippet
+        )
 
         # Guardrail 5: Record rollback manifest and audit trail
         manifest = RollbackManifest(
@@ -646,7 +705,7 @@ class AutoRemediator:
             commit_sha_after=commit_sha_after,
             actor=actor,
             timestamp=time.time(),
-            expected_old_text=finding.snippet,
+            expected_old_text=expected_old_text,
             replacement_text=patch_code,
             status="COMMITTED"
         )

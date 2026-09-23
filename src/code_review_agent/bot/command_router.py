@@ -900,11 +900,15 @@ class CommandRouter:
             )
 
         pr_ident = f"{owner}/{repo}#{pull_number}" if owner and repo and pull_number else (pr_metadata.get("html_url") or "local")
+        actor_name = pr_metadata.get("author") or kwargs.get("sender") or "maintainer"
+        reviewed_head_sha = pr_metadata.get("head_sha")
         result = AutoRemediator.apply_remediation(
             pr_identifier=pr_ident,
             fingerprint=fingerprint,
             client=client,
-            repo_root=repo_root
+            repo_root=repo_root,
+            reviewed_head=reviewed_head_sha,
+            actor=actor_name
         )
 
         if result.get("status") == "success":

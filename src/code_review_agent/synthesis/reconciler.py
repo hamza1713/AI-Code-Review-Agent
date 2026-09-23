@@ -570,16 +570,22 @@ class SynthesisReconciler:
                 kind="confirms_vulnerability", badge="🔴 VULNERABILITY CONFIRMED", positive=False,
                 proves="A generated test reproduced the defect on the actual PR code — this confirms the vulnerability; it is not a passing/safe signal.",
             )
+        stub_warn = ""
+        if getattr(te, "mock_stub_warning", None):
+            stub_warn = f"\n> ⚠️ **Mock Stub Warning**: {te.mock_stub_warning}"
+        elif getattr(te, "trust_grade", None) == "HEALED_MOCK_STUBBED":
+            stub_warn = "\n> ⚠️ **Mock Stub Warning**: Dependencies were stubbed in-memory with MagicMock. Behavior not validated against real packages."
+
         if badge_in in ("PASSING", "PASSED") or te.status == "PASSED":
             if kind == "confirms_fix":
                 return TestEvidence(
                     kind="confirms_fix", badge="🟢 FIX VERIFIED", positive=True,
-                    proves="A post-fix regression test passed — the proposed fix behaves as intended.",
+                    proves="A post-fix regression test passed — the proposed fix behaves as intended." + stub_warn,
                 )
             # A pass on a current-behavior (confirms-vulnerability) suite confirms the defect.
             return TestEvidence(
                 kind="confirms_vulnerability", badge="🔴 VULNERABILITY CONFIRMED", positive=False,
-                proves="The suite asserts the current (buggy) behavior and passed — this CONFIRMS the defect is present. A green 'passing' here would be misleading.",
+                proves="The suite asserts the current (buggy) behavior and passed — this CONFIRMS the defect is present. A green 'passing' here would be misleading." + stub_warn,
             )
         # ERROR / TIMEOUT / anything else → not proven either way.
         return TestEvidence(

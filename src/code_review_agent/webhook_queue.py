@@ -322,8 +322,10 @@ class WebhookJobQueue:
                    OR (status = 'RETRYING' AND (scheduled_at IS NULL OR scheduled_at <= ?))
                    OR (status = 'PROCESSING' AND (
                         (lease_expires_at IS NOT NULL AND lease_expires_at < ?)
-                        OR (heartbeat_at IS NOT NULL AND heartbeat_at < ?)
-                        OR (locked_at IS NOT NULL AND locked_at < ?)
+                        OR (lease_expires_at IS NULL AND (
+                            (heartbeat_at IS NOT NULL AND heartbeat_at < ?)
+                            OR (locked_at IS NOT NULL AND locked_at < ?)
+                        ))
                    ))
                 ORDER BY priority DESC, created_at ASC
                 LIMIT 1
@@ -879,44 +881,67 @@ def execute_platform_review(payload: Dict[str, Any], pr_identifier: str) -> Dict
     else:
         event = "COMMENT"
 
-    # 6. Post review report with deduplicated comments
-    try:
-        client.post_pull_request_review(
-            owner=owner, repo=repo, pull_number=pull_number,
-            event=event, body=response.full_report,
-            commit_id=meta.head_sha or None, comments=deduped_comments,
-        )
-    except Exception as post_err:
-        logger.error(f"Could not post review for {pr_identifier}: {post_err}")
+    # 6. Post review report with deduplicated comments (Idempotent across retries)
+    queue_instance = WebhookJobQueue()
+    review_op_key = f"review:{owner}/{repo}#{pull_number}:{meta.head_sha or 'none'}"
+    if not queue_instance.is_operation_executed(review_op_key):
+        try:
+            client.post_pull_request_review(
+                owner=owner, repo=repo, pull_number=pull_number,
+                event=event, body=response.full_report,
+                commit_id=meta.head_sha or None, comments=deduped_comments,
+            )
+            queue_instance.record_external_operation(
+                operation_key=review_op_key,
+                operation_type="post_pull_request_review",
+                target_id=f"{owner}/{repo}#{pull_number}",
+                payload={"head_sha": meta.head_sha, "event": event, "comments_count": len(deduped_comments)},
+                status="SUCCESS"
+            )
+        except Exception as post_err:
+            logger.error(f"Could not post review for {pr_identifier}: {post_err}")
+    else:
+        logger.info(f"⏭️ Review report already posted for {pr_identifier} at {meta.head_sha}; skipping duplicate side effect.")
 
-    # 7. Update final commit status / check-run
+    # 7. Update final commit status / check-run (Idempotent across retries)
     if meta.head_sha:
         conclusion = "success" if event == "APPROVE" else "failure"
-        annotations = [
-            {
-                "path": f.file_path,
-                "start_line": f.line_number,
-                "end_line": f.line_number,
-                "annotation_level": "failure" if f.severity in ("CRITICAL", "HIGH") else "warning",
-                "title": f.rule_id or f.name,
-                "message": f.description
-            }
-            for f in (response.findings or [])
-            if (f.fingerprint or "").lower() not in suppressed_fps
-        ]
-        try:
-            client.create_or_update_check_run(
-                owner=owner,
-                repo=repo,
-                head_sha=meta.head_sha,
-                name="AI Code Review",
-                status="completed",
-                conclusion=conclusion,
-                title=f"AI Code Review: {response.verdict}",
-                summary=f"Analysis completed with verdict **{response.verdict}** ({len(response.findings)} findings, {len(deduped_comments)} new comments).",
-                annotations=annotations
-            )
-        except Exception as e:
-            logger.warning(f"Could not post final commit status/check-run for {pr_identifier}: {e}")
+        status_op_key = f"status:{owner}/{repo}#{pull_number}:{meta.head_sha}:{conclusion}"
+        if not queue_instance.is_operation_executed(status_op_key):
+            annotations = [
+                {
+                    "path": f.file_path,
+                    "start_line": f.line_number,
+                    "end_line": f.line_number,
+                    "annotation_level": "failure" if f.severity in ("CRITICAL", "HIGH") else "warning",
+                    "title": f.rule_id or f.name,
+                    "message": f.description
+                }
+                for f in (response.findings or [])
+                if (f.fingerprint or "").lower() not in suppressed_fps
+            ]
+            try:
+                client.create_or_update_check_run(
+                    owner=owner,
+                    repo=repo,
+                    head_sha=meta.head_sha,
+                    name="AI Code Review",
+                    status="completed",
+                    conclusion=conclusion,
+                    title=f"AI Code Review: {response.verdict}",
+                    summary=f"Analysis completed with verdict **{response.verdict}** ({len(response.findings)} findings, {len(deduped_comments)} new comments).",
+                    annotations=annotations
+                )
+                queue_instance.record_external_operation(
+                    operation_key=status_op_key,
+                    operation_type="check_run",
+                    target_id=f"{owner}/{repo}#{pull_number}",
+                    payload={"conclusion": conclusion, "verdict": response.verdict},
+                    status="SUCCESS"
+                )
+            except Exception as e:
+                logger.warning(f"Could not post final commit status/check-run for {pr_identifier}: {e}")
+        else:
+            logger.info(f"⏭️ Commit status/check-run already posted for {pr_identifier} at {meta.head_sha}; skipping duplicate.")
 
     return response.model_dump()

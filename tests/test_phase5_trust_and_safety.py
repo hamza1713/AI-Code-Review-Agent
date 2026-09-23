@@ -688,3 +688,266 @@ class TestSuppressionGovernance:
 
         assert unsuppress_entry["action"] == "UNSUPPRESS"
         assert unsuppress_entry["fingerprint"] == fp
+
+
+# =============================================================================
+# 6. Deep Edge Cases, Side-Effect Idempotency & Production Security
+# =============================================================================
+
+
+class TestPhase5DeepEdgeCasesAndRegressions:
+    """Rigorous verification of edge cases, idempotency, heartbeat resilience, and operational endpoints."""
+
+    @pytest.mark.parametrize("protected_name", [
+        "default",
+        "trunk",
+        "",
+        "   ",
+        None
+    ])
+    def test_default_and_empty_branch_guardrail(self, protected_name):
+        assert AutoRemediator.is_branch_protected(protected_name) is True
+
+    def test_apply_remediation_blocks_pr_base_ref(self, test_db_path):
+        mock_client = MagicMock()
+        mock_pr_meta = MagicMock()
+        mock_pr_meta.head_ref = "develop"
+        mock_pr_meta.base_ref = "develop"  # Target branch is same
+        mock_pr_meta.head_sha = "abc12345"
+        mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
+
+        result = AutoRemediator.apply_remediation(
+            pr_identifier="org/repo#12",
+            fingerprint="9a4b2f1e00112233",
+            client=mock_client,
+            bypass_policy=True
+        )
+        assert result["status"] == "error"
+        assert "Strict branch guardrail violation" in result["message"]
+
+    def test_rollback_remediation_noop_failure(self, test_db_path):
+        rem_id = f"rem_{uuid.uuid4().hex[:8]}"
+        manifest = RollbackManifest(
+            remediation_id=rem_id,
+            repo_id="acme/service",
+            pr_id="1",
+            branch="feat",
+            file_path="app.py",
+            blob_sha_before="sha_before",
+            commit_sha_after="sha_after",
+            actor="tester",
+            timestamp=time.time(),
+            expected_old_text="old_code()",
+            replacement_text="new_code()",
+            status="COMMITTED"
+        )
+        AutoRemediator.record_remediation_audit(manifest)
+
+        mock_client = MagicMock()
+        # Mock file content where replacement_text is absent
+        mock_client.fetch_file_content.return_value = "def unrelated():\n    pass\n"
+
+        res = AutoRemediator.rollback_remediation(rem_id, client=mock_client)
+        assert res["status"] == "error"
+        assert "replacement text was not found" in res["message"]
+
+    def test_apply_remediation_idempotent_skips_duplicate_commit(self, test_db_path, tmp_path):
+        mock_client = MagicMock()
+        mock_pr_meta = MagicMock()
+        mock_pr_meta.head_ref = "feature/idempotent-fix"
+        mock_pr_meta.base_ref = "main"
+        mock_pr_meta.head_sha = "sha_head_100"
+        mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
+        mock_client.fetch_pull_request_diff.return_value = (
+            "diff --git a/app.py b/app.py\n"
+            "@@ -1,2 +1,2 @@\n"
+            "-query = f\"SELECT * FROM users WHERE id = {uid}\"\n"
+            "+query = \"SELECT * FROM users WHERE id = :uid\"\n"
+        )
+        mock_client.fetch_file_content.return_value = "query = f\"SELECT * FROM users WHERE id = {uid}\"\n"
+        mock_client.commit_file_change.return_value = {"sha": "commit_first_run"}
+
+        fp = "idem12345678"
+        # Create a mock finding with matching fingerprint
+        finding = SastFinding(
+            rule_id="SQLI-01",
+            name="SQL Injection",
+            description="Potential SQL injection vulnerability",
+            severity="HIGH",
+            file_path="app.py",
+            line_number=1,
+            snippet="query = f\"SELECT * FROM users WHERE id = {uid}\"",
+            fix_recommendation="Use parameterized query: `query = \"SELECT * FROM users WHERE id = :uid\"`",
+            fingerprint=fp
+        )
+
+        with patch.object(AutoRemediator, "find_target_finding", return_value=finding):
+            # First execution -> commits change
+            res1 = AutoRemediator.apply_remediation(
+                pr_identifier="org/repo#20",
+                fingerprint=fp,
+                client=mock_client,
+                bypass_policy=True
+            )
+            assert res1["status"] == "success"
+            assert res1["commit_sha"] == "commit_first_run"
+            assert mock_client.commit_file_change.call_count == 1
+
+            # Second execution -> detects existing operation and returns idempotent success without committing
+            res2 = AutoRemediator.apply_remediation(
+                pr_identifier="org/repo#20",
+                fingerprint=fp,
+                client=mock_client,
+                bypass_policy=True
+            )
+            assert res2["status"] == "success"
+            assert "idempotent" in res2["message"].lower()
+            # Commit was NOT called a second time
+            assert mock_client.commit_file_change.call_count == 1
+
+    def test_assertion_integrity_multiset_detects_duplicate_deleted_assertion(self):
+        orig = (
+            "def test_multi_assert():\n"
+            "    assert check() is True\n"
+            "    do_work()\n"
+            "    assert check() is True\n"
+        )
+        # Cand deleted the second assert
+        cand = (
+            "def test_multi_assert():\n"
+            "    assert check() is True\n"
+            "    do_work()\n"
+        )
+        assert TestSelfHealer.verify_assertion_integrity(orig, cand) is False
+
+    def test_assertion_integrity_syntax_error_in_original_not_falsely_rejected(self):
+        orig_with_syntax_err = (
+            "def test_broken_syntax():\n"
+            "    assert calculate(5) == 25\n"
+            "    val = (unclosed_call(\n"
+        )
+        cand_healed = (
+            "def test_broken_syntax():\n"
+            "    assert calculate(5) == 25\n"
+            "    val = (unclosed_call())\n"
+        )
+        # Should not crash or falsely reject intact assertion
+        assert TestSelfHealer.verify_assertion_integrity(orig_with_syntax_err, cand_healed) is True
+
+    def test_mock_stub_warning_in_reconciled_test_evidence(self):
+        from code_review_agent.synthesis.reconciler import SynthesisReconciler
+
+        te = TestExecutionResult(
+            executed=True,
+            status="PASSED",
+            evidence_badge="PASSING",
+            trust_grade="HEALED_MOCK_STUBBED",
+            mock_stub_warning="Dependencies were stubbed in-memory with MagicMock."
+        )
+        rec = SynthesisReconciler.reconcile(
+            sast_findings=[],
+            rule_violations=[],
+            test_execution=te,
+            generated_tests="def test_sample(): assert True",
+            pr_content="+def foo(): pass"
+        )
+        assert rec.test_evidence is not None
+        assert "Mock Stub Warning" in rec.test_evidence.proves
+        assert "in-memory" in rec.test_evidence.proves.lower()
+
+    def test_execute_platform_review_idempotent_side_effects(self, test_db_path, tmp_path):
+        from contextlib import contextmanager
+        from code_review_agent.webhook_queue import execute_platform_review
+        from code_review_agent.platform.base import PlatformPRIdentifier, PlatformPRMetadata
+
+        fake_client = MagicMock()
+        fake_client.fetch_pull_request_diff.return_value = "diff --git a/x b/x\n+ok\n"
+        fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(head_sha="sha_idem_99", head_ref="feat")
+        fake_client.list_pull_request_review_comments.return_value = []
+
+        ident = PlatformPRIdentifier(
+            platform="github", owner_or_project="idem-org", repo_or_slug="idem-repo", pr_id=5,
+            raw_identifier="idem-org/idem-repo/pull/5",
+        )
+
+        fake_response = MagicMock()
+        fake_response.verdict = "APPROVE"
+        fake_response.findings = []
+        fake_response.inline_comments = []
+        fake_response.full_report = "## report"
+        fake_response.model_dump.return_value = {"verdict": "APPROVE"}
+
+        @contextmanager
+        def fake_checkout(*args, **kwargs):
+            yield str(tmp_path)
+
+        with patch("code_review_agent.platform.factory.get_platform_client", return_value=(fake_client, ident)), \
+             patch("code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout), \
+             patch("code_review_agent.review_service.ReviewService.execute_review", return_value=fake_response):
+
+            # First run: posts review and check-run
+            execute_platform_review({}, "idem-org/idem-repo/pull/5")
+            assert fake_client.post_pull_request_review.call_count == 1
+            assert fake_client.create_or_update_check_run.call_count >= 1
+
+            # Second run on same PR and head_sha (e.g. queue retry): skips duplicate side effects
+            execute_platform_review({}, "idem-org/idem-repo/pull/5")
+            assert fake_client.post_pull_request_review.call_count == 1  # Still 1! Not duplicated!
+
+    def test_worker_heartbeat_prevents_stale_job_theft(self, test_db_path):
+        q = WebhookJobQueue()
+        job_id = q.enqueue(pr_identifier="org/repo#99", payload={"test": True})
+
+        # Claim with short initial lease
+        claimed = q.claim_next_job(worker_id="worker-A", lease_duration=1.0)
+        assert claimed is not None
+        assert claimed["job_id"] == job_id
+
+        # Worker-A issues heartbeat extending lease to 60s
+        pulse = q.heartbeat_job(job_id=job_id, worker_id="worker-A", lease_duration=60.0)
+        assert pulse is True
+
+        # Worker-B attempts to claim next job with a 0s lock timeout threshold
+        # Because Worker-A's lease_expires_at is in the future, Worker-B must NOT steal it
+        steal_attempt = q.claim_next_job(worker_id="worker-B", lock_timeout_seconds=0.001)
+        assert steal_attempt is None
+
+    def test_operational_endpoints_fail_closed_without_token(self, monkeypatch):
+        from fastapi.testclient import TestClient
+        from code_review_agent.webhook_server import app
+
+        monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
+        monkeypatch.delenv("REVIEW_API_TOKEN", raising=False)
+        client = TestClient(app)
+
+        # Operational endpoints fail closed (503 Service Unavailable when token unconfigured)
+        assert client.get("/jobs").status_code == 503
+        assert client.get("/api/cache/stats").status_code == 503
+        assert client.get("/api/suppressions").status_code == 503
+        assert client.post("/api/remediation/apply", json={}).status_code == 503
+
+        # With token configured, invalid bearer returns 401 Unauthorized
+        monkeypatch.setenv("REVIEW_API_TOKEN", "a" * 32)
+        assert client.get("/jobs", headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert client.get("/api/cache/stats", headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert client.get("/api/suppressions", headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert client.post("/api/remediation/apply", json={}, headers={"Authorization": "Bearer wrong"}).status_code == 401
+
+    def test_slash_command_apply_enforces_stale_head_sha(self, test_db_path):
+        mock_client = MagicMock()
+        mock_pr_meta = MagicMock()
+        mock_pr_meta.head_ref = "feature/security-fix"
+        mock_pr_meta.head_sha = "new_head_pushed_commit_999"
+        mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
+
+        with patch("code_review_agent.bot.command_router.get_platform_client", return_value=(mock_client, MagicMock(owner_or_project="org", repo_or_slug="repo", pr_id=1, platform="github"))):
+            res = CommandRouter.dispatch(
+                "/apply 9a4b2f1e00112233",
+                pr_url="https://github.com/org/repo/pull/1",
+                author_association="OWNER",
+                pr_metadata={"head_sha": "stale_old_reviewed_sha_111", "author": "alice"},
+                client=mock_client,
+                auto_post=False
+            )
+            assert res.status == "ERROR"
+            assert "Stale Head SHA check failed" in res.response_markdown

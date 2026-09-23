@@ -331,7 +331,7 @@ class SuppressionStore:
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
 
-            query += " ORDER BY timestamp DESC LIMIT ?;"
+            query += " ORDER BY timestamp DESC, id DESC LIMIT ?;"
             params.append(limit)
 
             rows = conn.execute(query, tuple(params)).fetchall()

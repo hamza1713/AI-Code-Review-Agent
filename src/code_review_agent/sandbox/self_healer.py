@@ -7,6 +7,7 @@ and applies deterministic repairs and in-memory mock stubs to stabilize test exe
 import ast
 import re
 import sys
+from collections import Counter
 from enum import Enum
 from typing import Callable, List, Optional, Set, Tuple
 from code_review_agent.config import logger
@@ -226,28 +227,53 @@ class TestSelfHealer:
         """
         Verify that test assertions have not been silently rewritten, weakened, or removed.
         Parses AST of both and ensures every assert node in original_code remains present in candidate_code.
+        If original_code contains syntax defects that AST cannot parse, falls back to normalized line matching.
         """
+        orig_clean = cls.heal_syntax(original_code)
+        cand_clean = cls.heal_syntax(candidate_code)
+
         try:
-            orig_clean = cls.heal_syntax(original_code)
-            cand_clean = cls.heal_syntax(candidate_code)
-            orig_tree = ast.parse(orig_clean)
             cand_tree = ast.parse(cand_clean)
         except SyntaxError:
             return False
 
-        orig_asserts = [
-            ast.dump(node) for node in ast.walk(orig_tree) if isinstance(node, ast.Assert)
-        ]
-        cand_asserts = [
-            ast.dump(node) for node in ast.walk(cand_tree) if isinstance(node, ast.Assert)
-        ]
+        try:
+            orig_tree = ast.parse(orig_clean)
+            orig_asserts = [
+                ast.dump(node) for node in ast.walk(orig_tree) if isinstance(node, ast.Assert)
+            ]
+            cand_asserts = [
+                ast.dump(node) for node in ast.walk(cand_tree) if isinstance(node, ast.Assert)
+            ]
 
-        # All original asserts must be preserved in the candidate
-        for a in orig_asserts:
-            if a not in cand_asserts:
-                logger.warning("🚫 Assertion integrity violation: an assert statement was altered or removed!")
-                return False
-        return True
+            orig_counts = Counter(orig_asserts)
+            cand_counts = Counter(cand_asserts)
+
+            for a, count in orig_counts.items():
+                if cand_counts.get(a, 0) < count:
+                    logger.warning("🚫 Assertion integrity violation: an assert statement was altered or removed!")
+                    return False
+            return True
+        except SyntaxError:
+            # Fallback for when original code has syntax flaws being healed:
+            # Verify that any assert lines in original code are preserved in candidate
+            orig_assert_lines = [
+                re.sub(r"\s+", " ", l.strip())
+                for l in orig_clean.splitlines()
+                if re.match(r"^\s*assert\b", l)
+            ]
+            cand_assert_lines = [
+                re.sub(r"\s+", " ", l.strip())
+                for l in cand_clean.splitlines()
+                if re.match(r"^\s*assert\b", l)
+            ]
+            orig_line_counts = Counter(orig_assert_lines)
+            cand_line_counts = Counter(cand_assert_lines)
+            for l, count in orig_line_counts.items():
+                if cand_line_counts.get(l, 0) < count:
+                    logger.warning("🚫 Assertion integrity violation (syntax fallback): an assert line was altered or removed!")
+                    return False
+            return True
 
     @classmethod
     def heal_code(cls, code: str, error_log: str) -> str:
