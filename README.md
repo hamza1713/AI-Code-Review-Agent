@@ -5,24 +5,24 @@
 <div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12%20|%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-2.0.0-informational)](pyproject.toml)
+[![Version](https://img.shields.io/badge/Version-2.5.0-informational)](pyproject.toml)
 [![CrewAI](https://img.shields.io/badge/Framework-CrewAI%20Flows-FF4B4B?logo=ai&logoColor=white)](https://crewai.com)
 [![Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-8E75B2?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
 [![Static Analysis](https://img.shields.io/badge/SAST-AST%20Folding%20|%20Semgrep%20|%20Bandit%20|%20Ruff-00D26A)](https://semgrep.dev)
-[![Tests](https://img.shields.io/badge/Tests-254%20Passed%20|%20100%25%20Recall-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-407%20Passed%20|%20100%25%20Recall-brightgreen)](tests/)
 [![Benchmark F1](https://img.shields.io/badge/Benchmark_F1-88.4%25-brightgreen)](#-evaluation--benchmarks)
 [![OASIS SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-4A90E2)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blueviolet?logo=anthropic)](https://modelcontextprotocol.io)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**A production-grade multi-agent code intelligence platform that combines deterministic static analysis, deep AST constant folding & variable indirection tracing, semantic repository-wide retrieval (RAG), codified team governance, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandboxed subprocess before reporting them.**
+**A production-grade multi-agent code intelligence platform that combines deterministic static analysis, deep AST constant folding & variable indirection tracing, semantic repository-wide retrieval (RAG), codified team governance, dynamic test self-healing, and collaborative LLM agent reasoning — and then *proves* its findings by executing generated regression tests in a sandboxed environment before reporting them.**
 
-It talks to developers directly in PRs via slash commands, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs on GitHub, GitLab, Bitbucket, or fully offline on a local repo.
+It talks to developers directly in PRs via slash commands, applies safe 1-click AST patches with branch guardrails and rollback manifests, manages finding suppressions with 30-day TTLs, learns your team's accepted conventions over time, checks each PR against its linked ticket, and runs across GitHub, GitLab, Bitbucket, or fully offline on a local repo.
 
-[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [AST Constant Folding](#-ast-constant-folding--deep-variable-indirection) • [Empirical Evidence](#-empirical-test-evidence) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine) • [Benchmarks](#-evaluation--benchmarks) • [Roadmap](#-roadmap)
+[Key Capabilities](#-key-capabilities) • [Architecture](#-architecture) • [AST Constant Folding](#-ast-constant-folding--deep-variable-indirection) • [Empirical Evidence & Self-Healing](#-empirical-test-evidence--self-healing) • [Remediation Safety](#-remediation-safety-engine--rollback-manifests) • [Suppression Governance](#-finding-suppression-governance--auditability) • [Semantic RAG](#-semantic-codebase-context-rag) • [PR Bot](#-interactive-pr-bot--slash-commands) • [Team Memory](#-team-memory--learning-loop) • [Ticket Compliance](#-ticket--intent-compliance) • [Multi-Platform](#-multi-platform-support) • [MCP Server](#-mcp-server) • [Quickstart](#-quickstart) • [Governance](#-team-governance-engine) • [Benchmarks](#-evaluation--benchmarks) • [Roadmap](#-roadmap)
 
 </div>
 
@@ -83,23 +83,25 @@ This system is built on two ideas most reviewers skip:
 |---|---|
 | 🛡️ **Multi-Layer SAST & AST** | AST Constant Folding Engine (bitwise masks, stdlib), Variable Indirection Tracer, Semgrep + Bandit + Ruff, quote-aware comment filter |
 | 🕸️ **AST Call-Graph Memory** | Native Python AST indexer (fully-qualified symbols), cross-file caller impact map, per-target `repo_root` scoping |
-| 🧪 **Empirical Test Evidence** | Generated pytest suite runs in isolated sandbox, `REPRODUCED`/`PASSING`/`UNVERIFIED`/`HEURISTIC` evidence badges, 100% benchmark recall |
+| 🧪 **Empirical Evidence & Self-Healing** | Generated pytest suite runs in isolated sandbox, `TestSelfHealer` iterative repair, AST multiset assertion integrity verification, 4-tier evidence trust grading (`EMPIRICAL_ORIGINAL_PASSED`, `HEALED_SYNTAX_REPAIRED`, `HEALED_MOCK_STUBBED`, `UNVERIFIED`) |
+| 🔧 **Remediation Safety Engine** | Structured AST patch coordinates (`StructuredPatch`), branch guardrails rejecting protected branches (`main`, `master`, `release/*`, `prod*`, `trunk`, `default`, empty, PR `base_ref`), stale HEAD SHA race condition checks, and automated `RollbackManifest` reversals |
+| 🗄️ **Suppression Governance** | Thread-safe `SuppressionStore` (SQLite WAL), 30-day default TTL with automatic expired filtering, severity ceilings blocking auto-approval of `CRITICAL`/`HIGH` issues, and tamper-evident `suppression_audit_log` |
+| 💬 **Comment Synchronization** | Machine-readable fingerprint tagging (`<!-- ai-code-review:fingerprint:... -->`), thread deduplication across pushes, and auto-resolution summaries when findings are fixed |
 | 🧠 **Semantic Codebase RAG** | AST-boundary chunk embedding, Gemini 3072-dim OR offline zero-dep hashing embedder, re-rank + noise filter + cross-repo retrieval |
-| 💬 **Interactive PR Bot** | `/describe /ask /improve /compliance /ticket /review /memory /learn /benchmark /help` slash commands |
+| 💬 **Interactive PR Bot** | `/apply`, `/suppress`, `/unsuppress`, `/explain`, `/rerun`, `/describe`, `/ask`, `/improve`, `/compliance`, `/ticket`, `/review`, `/memory`, `/learn`, `/benchmark`, `/help` slash commands with maintainer-only RBAC |
 | 🧑‍🏫 **Team Memory Loop** | Learns accepted suggestions verified against merged diff, injected as few-shot context, per-repo best-practices wiki |
 | 🎯 **Ticket & Intent Compliance** | Parses GitHub/Jira/Linear keys, acceptance-criteria audit, COMPLIANT / PARTIAL / NON-COMPLIANT card |
-| 🌐 **Multi-Platform Git Engine** | GitHub · GitLab · Bitbucket · Local air-gapped (`local://`), unified adapter interface + webhooks |
+| 🌐 **Multi-Platform Git Parity** | GitHub Check Runs with line-level annotations (and 403 PAT fallback), GitLab MR commit statuses, Bitbucket build statuses, Local air-gapped status ledger (`local://`) |
 | 🤖 **MCP Server (8 Tools)** | `review_diff`, `scan_sast_patterns`, `check_governance_rules`, `find_impacted_callers`, `query_semantic_context`, `get_team_memory`, `verify_ticket_compliance`, `generate_unit_tests` |
 | 📜 **Codified Governance Engine** | YAML-defined team policies, `BLOCKING`/`WARNING`/`INFO` severity tiers, deterministic zero-LLM-cost evaluation |
-| ⚡ **Synchronous API & Web UI** | `POST /api/review`, SSE progress streaming (`/api/review/stream`), React 19 dashboard with evidence badges |
+| ⚡ **Synchronous API & Web UI** | `POST /api/review`, SSE progress streaming (`/api/review/stream`), 1-click fix buttons, React 19 dashboard with evidence badges |
 | 💬 **Live PR Integration** | Real-time diff ingestion, line-level inline comments, 1-click GitHub suggestion blocks |
-| 📥 **Durable Task Queue** | SQLite WAL, ACID, `BEGIN IMMEDIATE` claim-safe multi-process worker |
+| 📥 **Durable Queue & Idempotency** | SQLite WAL, ACID, `BEGIN IMMEDIATE` claim-safe worker, `WorkerHeartbeatThread` active lease renewals, `external_operations_log` preventing duplicate external comments/commits upon retry, transient vs. terminal error classification |
 | 📊 **SARIF v2.1.0 Export** | GitHub Code Scanning ready, reviews persisted and queryable via `GET /jobs/{id}/result` |
 | ⚡ **Cost & Latency Telemetry** | Per-review token + USD cost tracking, SHA-256 memoization cache, hierarchical decision trace |
 | 🎓 **Skill-Based Agent System** | Reasoning protocols per agent, injected at build time from `agents.yaml` |
-| 🔒 **Output Guardrails** | Provenance-grounded findings, risk-level consistency check, deduplication enforcement |
-| 🔐 **Gateway Security** | Operator-token gate, per-IP rate limiting (30 req/min), 2 MiB request-size bounds, production auth mode |
-| 🐳 **One-Command Deployment** | Multi-stage Docker build (frontend + backend), `docker compose up --build` |
+| 🔒 **Output Guardrails & RBAC** | Provenance-grounded findings, risk-level consistency check, deduplication enforcement, fail-closed Bearer auth on operational endpoints (`/jobs`, `/api/cache/stats`, `/api/suppressions`, `/api/remediation/apply`) |
+| 🐳 **One-Command Deployment** | Multi-stage Docker build (frontend + backend), `docker compose up --scale worker=3` |
 
 ---
 
@@ -176,24 +178,51 @@ Safe controls (parameterized SQL, safe `chmod 0o600`, `subprocess.run` with `she
 
 ---
 
-## 🧪 Empirical Test Evidence
+## 🧪 Empirical Test Evidence & Self-Healing
 
 Every AI code reviewer has the same weakness: a finding is only as trustworthy as the model's confidence — and there's no way to tell a real defect from a hallucinated one from the comment alone. This system closes that gap.
 
-When the Tech Lead agent proposes a fix, it also writes a `pytest` suite that asserts the defect's *current* behavior. That suite is handed to [`SandboxTestRunner`](src/code_review_agent/sandbox/test_runner.py), which:
+When the Tech Lead agent proposes a fix, it also writes a `pytest` suite that asserts the defect's *current* behavior. That suite is evaluated by [`SandboxTestRunner`](src/code_review_agent/sandbox/test_runner.py) and [`TestSelfHealer`](src/code_review_agent/sandbox/self_healer.py):
 
-1. **Syntax-validates** the generated code first via `ast.parse()` — a syntax error short-circuits to `UNVERIFIED`, no wasted subprocess.
-2. **Materializes** the PR's added lines into a throwaway temp directory and executes the suite as an isolated subprocess — every key containing `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, or `CREDENTIAL` is stripped before the subprocess starts.
-3. **Maps** the actual exit code to an evidence badge:
+1. **Syntax Validation & Self-Healing**: If generated test code contains formatting defects, unclosed docstrings, or missing mocks, `TestSelfHealer.heal_and_run()` executes an iterative diagnostics and repair loop:
+   - Repairs syntax errors and strips markdown fences.
+   - Detects `ModuleNotFoundError` / `ImportError` and injects isolated in-memory `sys.modules[m] = MagicMock()` stubs.
+   - Automatically injects missing pytest fixtures.
+2. **AST Assertion Integrity Verification**: An AST multiset verifier (`collections.Counter` on AST `assert` nodes) strictly verifies that self-healing never modifies or deletes assertions to force a false pass. If assertions are tampered with, execution aborts with `AssertionIntegrityError`.
+3. **Container Isolation & Credential Scrubbing**: Runs in a hardened Docker container (`--network=none`, quota-limited CPU/RAM) or restricted local subprocess (`REVIEW_ALLOW_LOCAL_SANDBOX=false` by default). Every host environment variable containing `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, or `CREDENTIAL` is scrubbed before execution.
+4. **4-Tier Evidence Trust Grading**:
 
-| Badge | Meaning | How It Is Earned |
+| Evidence Trust Grade | Meaning | Guarantee |
 |---|---|---|
-| 🟢 `REPRODUCED` | The defect is real — the test failed exactly as predicted | `pytest` exit code 1: an assertion actually failed against the PR's code |
-| 🔵 `PASSING` | The generated test ran and passed | Used for regression tests validating a proposed fix |
-| 🟡 `UNVERIFIED` | Could not be proven either way | Syntax error, missing dependency, or sandbox timeout |
-| ⚪ `HEURISTIC` | No test was generated for this finding | Static-analysis-only signal — still shown, just labeled honestly |
+| 🟢 `EMPIRICAL_ORIGINAL_PASSED` | Pure empirical pass | Test passed unmodified in the isolated sandbox. Highest confidence. |
+| 🔵 `HEALED_SYNTAX_REPAIRED` | Syntax-repaired pass | Minor syntax flaws fixed; assertion logic strictly unchanged. |
+| 🟡 `HEALED_MOCK_STUBBED` | In-memory mock pass | Missing third-party modules stubbed in memory. Emits explicit PR warning callout. |
+| ⚪ `UNVERIFIED` | Unverified | Execution timed out, failed, or static-only heuristic. |
 
-> A finding tagged **`REPRODUCED`** isn't a model's opinion — it's a test that failed on your actual code, in a process that ran two seconds ago.
+---
+
+## 🔧 Remediation Safety Engine & Rollback Manifests
+
+Automated fixes must never introduce broken code or bypass release controls. The agent implements a deterministic, multi-layer **Remediation Safety Engine** ([`remediator.py`](src/code_review_agent/remediator.py)):
+
+* **Structured AST Patches (`StructuredPatch`)**: Patches specify precise coordinate ranges (`start_line`, `end_line`, `expected_old_text`, `replacement_text`). If the existing file content does not match `expected_old_text`, or if the patch results in a no-op, the mutation aborts with `PatchMismatchError`.
+* **Strict Branch Guardrails**: Rejects direct commits to protected branches (`main`, `master`, `release/*`, `prod*`, `trunk`, `default`, empty strings, and the PR's `base_ref`). Remediations can only target the PR's source feature branch.
+* **Stale HEAD SHA Verification**: Verifies `current_head_sha == reviewed_head_sha` immediately before committing. If the branch advanced while the review was computing, the commit is aborted with `StaleHeadShaError` to prevent race conditions.
+* **Rollback Manifest & Inversion (`RollbackManifest`)**: Every automated fix records a rollback ledger (`remediation_id`, `blob_sha_before`, `commit_sha_after`, `actor`, `timestamp`). If automated checks fail post-merge, [`rollback_remediation()`](src/code_review_agent/remediator.py) deterministically reverts the commit.
+* **Opt-In Policy**: Commits require explicit enablement in `.code-review.yaml` (`remediation.allow_direct_commits: false` by default).
+
+Developers can trigger fixes via the **1-Click Fix** button in the Web UI, the REST endpoint (`POST /api/remediation/apply`), or directly in PR comments with `/apply <fingerprint>`.
+
+---
+
+## 🗄️ Finding Suppression Governance & Auditability
+
+Teams need a way to suppress known issues or acceptable tech debt without compromising security standards. The platform provides a persistent, governed **Suppression Store** ([`suppression_store.py`](src/code_review_agent/suppression_store.py)):
+
+* **30-Day Default TTL**: Suppressions automatically expire after 30 days unless explicitly renewed. Expired entries are automatically filtered from active rule evaluations, preventing forgotten suppressions.
+* **Severity Ceilings**: Prevents developers from bypassing reviews by suppressing `CRITICAL` or `HIGH` vulnerabilities. Overriding a critical security finding requires explicit administrative policy.
+* **Tamper-Evident Audit Trail**: Every action (`SUPPRESS`, `UNSUPPRESS`, `EXPIRE`) is logged in SQLite WAL (`suppression_audit_log`) with author, reason, timestamp, and PR context.
+* **Bi-directional Synchronization**: Machine-readable fingerprints (`<!-- ai-code-review:fingerprint:... -->`) deduplicate comments across commits and auto-resolve resolved threads when fixes land.
 
 ---
 
@@ -251,6 +280,11 @@ Talk to the reviewer directly in a PR/MR comment. Commands run **off the request
 
 | Command | What It Does |
 |---|---|
+| `/apply <fingerprint>` | **1-Click Remediation**: Safely commits verified AST fix directly to PR source branch (with branch guardrails & stale HEAD SHA checks) |
+| `/suppress <fingerprint> [reason]` | **Finding Suppression**: Persists finding suppression into `SuppressionStore` with 30-day TTL |
+| `/unsuppress <fingerprint>` | **Re-enable Finding**: Removes suppression and re-audits finding |
+| `/explain <fingerprint>` | **Root Cause Explainer**: Analyzes diff to explain vulnerability mechanics, CWE links, and fix snippets |
+| `/rerun` | **Full Re-review**: Triggers fresh multi-agent code review on current PR head commit |
 | `/describe` | Generates a PR summary + walkthrough table + Mermaid diagram; merges into the description non-destructively (idempotent on re-run) |
 | `/ask <question>` | RAG + AST-grounded Q&A about the PR and codebase |
 | `/improve` | 1-click GitHub `suggestion` blocks for detected issues |
@@ -260,7 +294,7 @@ Talk to the reviewer directly in a PR/MR comment. Commands run **off the request
 | `/benchmark` | Runs the ground-truth benchmark and posts the scorecard |
 | `/review` · `/help` | Full multi-agent review · command catalog |
 
-**Security by default:** non-`/help` commands are gated by author association (`OWNER`/`MEMBER`/`COLLABORATOR` on GitHub, a `BOT_ALLOWED_USERS` allowlist on GitLab/Bitbucket — **fail closed** when unset). GitHub webhooks are HMAC-verified; GitLab uses a secret token; Bitbucket authenticates via a secret in the webhook URL.
+**Security by default:** `/apply` and `/suppress` commands are strictly gated by author association (`OWNER`/`MEMBER`/`COLLABORATOR` on GitHub, or maintainer allowlist on GitLab/Bitbucket — **fail closed** when unauthorized). Non-maintainer contributors receive an explicit 403 permission warning and cannot mutate branch code or suppress findings. GitHub webhooks are HMAC-verified; GitLab uses a secret token; Bitbucket authenticates via a secret in the webhook URL.
 
 ---
 
@@ -292,12 +326,12 @@ The LLM audit runs only on the COMPLEX path (never taxing the sub-second fast-pa
 
 One unified `GitPlatformClient` interface, four adapters — the bot, review flow, and durable queue worker are all **platform-agnostic**:
 
-| Platform | PR/MR Review | Slash Commands | Merge Learning | Webhook Auth |
-|---|:--:|:--:|:--:|:--:|
-| **GitHub** (cloud + Enterprise) | ✅ | ✅ | ✅ Full | HMAC-verified |
-| **GitLab** (cloud + self-hosted) | ✅ | ✅ | ✅ | Secret token |
-| **Bitbucket** Cloud | ✅ | ✅ | ⚠️ Roadmap | URL secret |
-| **Local** (air-gapped, `local://`) | ✅ | ✅ | n/a | Writes `REVIEW.md` |
+| Platform | PR/MR Review | Slash Commands | Status Checks & Check Runs | Merge Learning | Webhook Auth |
+|---|:--:|:--:|:--:|:--:|:--:|
+| **GitHub** (cloud + Enterprise) | ✅ | ✅ | ✅ Check Runs + Line Annotations (auto PAT fallback) | ✅ Full | HMAC-verified |
+| **GitLab** (cloud + self-hosted) | ✅ | ✅ | ✅ Commit Statuses (`running`, `success`, `failed`) | ✅ | Secret token |
+| **Bitbucket** Cloud | ✅ | ✅ | ✅ Build Statuses (`INPROGRESS`, `SUCCESSFUL`, `FAILED`) | ⚠️ Roadmap | URL secret |
+| **Local** (air-gapped, `local://`) | ✅ | ✅ | ✅ `.git/ai_review_status.json` | n/a | Writes `REVIEW.md` |
 
 The **local air-gapped adapter** runs the full review on a local repo with no tokens, no network, and no hosting platform — it reads the working-tree diff via the git CLI and writes `REVIEW.md` / `REVIEW_NOTES.md`. Ideal for regulated or offline environments.
 
@@ -431,31 +465,37 @@ AI-Code-Review-Agent/
 │       ├── ScopeDisclaimer.tsx         # Non-dismissible scope/limitations note
 │       └── Navbar.tsx                  # Top navigation bar
 │
-├── tests/                              # pytest suite — 254+ tests
+├── tests/                              # pytest suite — 407+ tests (100% ground-truth recall)
+│   ├── test_phase5_trust_and_safety.py # Remediation safety, guardrails, assertion integrity, TTL
+│   ├── test_self_healer.py             # Test self-healing repair loop & diagnostics
+│   ├── test_auto_remediator.py         # Multi-platform AST branch commits & rollback manifests
+│   ├── test_platform_commit_status.py  # Check runs, commit statuses, PAT fallback
+│   ├── test_suppression_store.py       # Suppression store CRUD, TTL, and severity ceilings
 │   └── eval/                           # Deterministic + LLM-as-judge evaluators
 │
 └── src/code_review_agent/
     ├── main.py                         # PRCodeReviewFlow — CrewAI Flow orchestrator + CLI
-    ├── models.py                       # Pydantic schemas (Diff, Findings, SARIF, Telemetry)
+    ├── models.py                       # Pydantic schemas (StructuredPatch, RollbackManifest, etc.)
     ├── review_service.py               # Sync review API — rate limiting, zip/file/PR ingestion
-    ├── webhook_server.py               # FastAPI gateway — HMAC, SSE streaming, job persistence
-    ├── webhook_queue.py                # SQLite WAL queue — BEGIN IMMEDIATE, crash recovery
+    ├── webhook_server.py               # FastAPI gateway — fail-closed Bearer auth, SSE streaming
+    ├── webhook_queue.py                # SQLite WAL queue — WorkerHeartbeatThread, side-effect ledger
     ├── mcp_server.py                   # MCP tool exposure (8 tools)
     ├── llm_factory.py                  # Multi-provider LLM factory (Gemini/OpenAI/Anthropic/Groq)
-    ├── github_client.py                # GitHub REST API — diffs, inline reviews
+    ├── github_client.py                # GitHub REST API — diffs, inline reviews, check runs
     ├── sarif_exporter.py               # OASIS SARIF v2.1.0 generator
     ├── cache.py                        # SHA-256 content-hash memoization
     ├── config.py                       # Centralized config with env-var binding
-    ├── benchmarks.py                   # Precision/Recall/F1 ground-truth harness
-    ├── gateway_security.py             # Operator-token gate and per-IP rate limiter
-    ├── remediator.py                   # Automated fix suggestion engine
-    ├── suppression_store.py            # Finding suppression / allowlist store
-    ├── comment_synchronizer.py         # Platform comment sync helper
+    ├── benchmarks.py                   # Precision/Recall/F1 ground-truth harness (14 cases)
+    ├── gateway_security.py             # Operator-token gate, constant-time Bearer auth & rate limiter
+    ├── remediator.py                   # Remediation safety engine, branch guardrails & rollbacks
+    ├── suppression_store.py            # Suppression store — 30-day TTL & suppression audit log
+    ├── comment_synchronizer.py         # Bi-directional comment synchronization & auto-resolution
     ├── diff_parser.py                  # Diff parsing and token-budget chunker
     ├── flow_parser.py                  # CrewAI flow state parser
     │
     ├── sandbox/
-    │   └── test_runner.py              # Isolated subprocess execution — evidence badges
+    │   ├── test_runner.py              # Isolated subprocess/Docker execution — evidence badges
+    │   └── self_healer.py              # Dynamic test self-healing & AST assertion integrity verifier
     │
     ├── context_engine/
     │   ├── code_graph.py               # Qualified-symbol indexer and caller resolver
@@ -776,9 +816,19 @@ The React 19 + TypeScript dashboard provides:
 
 ## 🧪 Testing
 
-The test suite contains over **254 automated tests** split into two tiers:
+The test suite contains over **407 automated tests** across fast, slow, and enterprise trust & safety tiers:
 
 ```bash
+# Run all standard tests
+pytest -v tests/
+
+# Dedicated Phase 5 Trust, Safety & Remediation Suite
+pytest -v tests/test_phase5_trust_and_safety.py
+
+# Benchmark evaluation (14 ground-truth PR test cases)
+python -m code_review_agent.benchmarks --publish
+
+# Fast tier vs slow subprocess tier
 pytest -v tests/            # fast tier — excludes slow, runs in-process only
 pytest -v -m slow tests/    # slow tier — subprocess-backed: bandit/ruff CLI, sandbox execution
 ruff check src/             # linting
@@ -790,6 +840,8 @@ pytest tests/eval/ -m eval
 **Fast tier covers:** diff parsing, SAST/governance engines, AST call graph, semantic RAG engine (embedders, vector store, retrieval), interactive bot (command routing, cross-platform authz), team-memory learning loop, ticket compliance, platform adapters (GitHub/GitLab/Bitbucket/local + queue worker), durable webhook queue (including concurrent-claim safety), gateway security, and MCP tool surface.
 
 **Slow tier covers:** actual Bandit/Ruff CLI detection accuracy, the ground-truth benchmark suite, and the sandbox's real test execution — including a check that its environment allowlist strips credential-shaped variables (`GEMINI_API_KEY`, `GITHUB_TOKEN`, etc.) before a generated test runs.
+
+**Trust & Safety tier covers:** structured AST patch coordinate matching, strict branch guardrails, stale HEAD SHA race condition checks, rollback manifests & reversal, 4-tier evidence trust grading, AST multiset assertion integrity verification, SQLite WAL external side-effect idempotency ledger, worker heartbeat lease renewals, transient vs. terminal error classification, fail-closed Bearer auth, and 30-day finding suppression TTLs with severity ceilings.
 
 ---
 
