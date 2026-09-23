@@ -51,6 +51,8 @@ env/
 flow_state.json
 result.dill
 *.html
+!frontend/index.html
+!src/code_review_agent/static/index.html
 *.sarif
 telemetry_metrics.json
 

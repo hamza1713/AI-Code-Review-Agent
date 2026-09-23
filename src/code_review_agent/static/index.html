@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Code Review Agent — In-Browser Multi-Agent Code Review</title>
+  <link rel="stylesheet" href="/static/style.css?v=2.0.2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">🛡️</span>
+        <div>
+          <h1>AI Code Review Agent</h1>
+          <p class="subtitle">Multi-Agent Static & Dynamic Code Intelligence</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge badge-outline">CrewAI Flows</span>
+        <span class="badge badge-outline">AST Code Graph</span>
+        <span class="badge badge-outline">Pattern Scanner</span>
+        <span class="badge badge-live">● Offline Engine Active</span>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Input Card -->
+      <section class="card input-card" id="inputSection">
+        <div class="card-header">
+          <h2>Submit Code for Review</h2>
+          <p class="section-desc">Paste a unified git diff, upload a single source file, or upload a small repository zip archive.</p>
+        </div>
+
+        <!-- Mode Tabs -->
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="diffTab" role="tab" aria-selected="true">
+            <span class="tab-icon">📝</span> Paste Diff
+          </button>
+          <button class="tab-btn" data-tab="fileTab" role="tab" aria-selected="false">
+            <span class="tab-icon">📄</span> Upload File
+          </button>
+          <button class="tab-btn" data-tab="zipTab" role="tab" aria-selected="false">
+            <span class="tab-icon">📦</span> Upload Zip
+          </button>
+        </div>
+
+        <!-- Tab 1: Paste Diff -->
+        <div class="tab-pane active" id="diffTab">
+          <div class="form-group">
+            <div class="textarea-header">
+              <label for="diffText">Unified Git Diff</label>
+              <button type="button" class="btn-text" id="loadSampleBtn">Load SQLi & Auth Sample Diff</button>
+            </div>
+            <textarea
+              id="diffText"
+              rows="12"
+              placeholder="diff --git a/app/user_auth.py b/app/user_auth.py&#10;--- a/app/user_auth.py&#10;+++ b/app/user_auth.py&#10;@@ -10,6 +10,12 @@&#10;+def authenticate_user(username, password):&#10;+    query = f&quot;SELECT * FROM users WHERE username = '{username}'&quot;&#10;+    return db.query(query)"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Tab 2: Upload File -->
+        <div class="tab-pane" id="fileTab">
+          <div class="dropzone" id="fileDropzone">
+            <span class="drop-icon">📄</span>
+            <p class="drop-title">Drag & drop a single source code file here</p>
+            <p class="drop-subtitle">Python (.py), JavaScript (.js, .ts), Go (.go), SQL (.sql), etc. (Max 2MB)</p>
+            <input type="file" id="fileInput" class="file-input" aria-label="Source code file">
+            <button type="button" class="btn btn-secondary" id="browseFileBtn">Browse File</button>
+            <div class="file-preview hidden" id="filePreview"></div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Upload Zip -->
+        <div class="tab-pane" id="zipTab">
+          <div class="dropzone" id="zipDropzone">
+            <span class="drop-icon">📦</span>
+            <p class="drop-title">Drag & drop a small project archive (.zip) here</p>
+            <p class="drop-subtitle">Max 20 files, max 2MB total. AST call graph will analyze cross-file callers across archive.</p>
+            <input type="file" id="zipInput" class="file-input" accept=".zip" aria-label="Project zip archive" title="Select a project zip archive">
+            <button type="button" class="btn btn-secondary" id="browseZipBtn">Browse Zip Archive</button>
+            <div class="file-preview hidden" id="zipPreview"></div>
+          </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="action-bar">
+          <button type="button" class="btn btn-primary" id="startReviewBtn">
+            <span class="btn-icon">⚡</span> Run Automated Code Review
+          </button>
+          <button type="button" class="btn btn-ghost" id="clearBtn">Clear</button>
+        </div>
+
+        <!-- Error Alert -->
+        <div class="alert alert-error hidden" id="errorAlert">
+          <span class="alert-icon">⚠️</span>
+          <div class="alert-body" id="errorText"></div>
+        </div>
+      </section>
+
+      <!-- Loading / Progress Stage Card -->
+      <section class="card progress-card hidden" id="progressSection">
+        <div class="progress-header">
+          <div class="spinner"></div>
+          <div>
+            <h3>Running Multi-Agent Review Pipeline...</h3>
+            <p class="progress-sub">Executing deterministic AST scans, governance rules, and AI synthesis</p>
+          </div>
+        </div>
+        <div class="pipeline-stages" id="pipelineStages">
+          <div class="stage-item active" id="stage1">
+            <span class="stage-icon">🔍</span>
+            <div class="stage-info">
+              <strong>Stage 1: Unified Diff Parsing & Chunking</strong>
+              <span>Extracts file hunks, adds 1-indexed target line maps</span>
+            </div>
+          </div>
+          <div class="stage-item" id="stage2">
+            <span class="stage-icon">⚡</span>
+            <div class="stage-info">
+              <strong>Stage 2: Quick Pattern Scanner (Heuristic Regex)</strong>
+              <span>Scans for SQL injection, secrets, command execution patterns</span>
+            </div>
+          </div>
+          <div class="stage-item" id="stage3">
+            <span class="stage-info">🕸️</span>
+            <div class="stage-info">
+              <strong>Stage 3: AST Code Graph & Symbol Indexing</strong>
+              <span>Indexes qualified symbols and resolves cross-file caller dependencies</span>
+            </div>
+          </div>
+          <div class="stage-item" id="stage4">
+            <span class="stage-info">📋</span>
+            <div class="stage-info">
+              <strong>Stage 4: Team Governance Rules Evaluation</strong>
+              <span>Validates changes against .code-review.yaml coding standards</span>
+            </div>
+          </div>
+          <div class="stage-item" id="stage5">
+            <span class="stage-info">🔀</span>
+            <div class="stage-info">
+              <strong>Stage 5: Dynamic Routing & Multi-Agent Synthesis</strong>
+              <span>Dispatches Senior Dev, Security Eng, Tech Lead for final verdict</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="results-container hidden" id="resultsSection">
+        <!-- Verdict Banner -->
+        <div class="verdict-banner" id="verdictBanner">
+          <div class="verdict-main">
+            <div class="verdict-tag" id="verdictTag">VERDICT</div>
+            <div class="verdict-details">
+              <h2 id="verdictTitle">Review Complete</h2>
+              <p id="verdictSummary" class="verdict-summary"></p>
+            </div>
+          </div>
+          <div class="confidence-gauge">
+            <span class="gauge-label">Confidence Score</span>
+            <span class="gauge-value" id="confidenceValue">--/100</span>
+          </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div class="results-grid">
+          <!-- Left Column: Findings & Governance -->
+          <div class="results-col">
+            <!-- Heuristic Security Pattern Findings -->
+            <div class="card panel-card">
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-icon">🚨</span>
+                  <div>
+                    <h3>Quick Pattern Scanner Findings</h3>
+                    <span class="panel-subtitle">Heuristic regex scanner for common security anti-patterns</span>
+                  </div>
+                </div>
+                <span class="count-badge" id="patternFindingsCount">0</span>
+              </div>
+              <div class="panel-body" id="patternFindingsList">
+                <p class="empty-msg">No security anti-patterns detected.</p>
+              </div>
+            </div>
+
+            <!-- Governance Rule Violations -->
+            <div class="card panel-card">
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-icon">⚠️</span>
+                  <div>
+                    <h3>Governance Rule Violations</h3>
+                    <span class="panel-subtitle">Policy constraints defined in .code-review.yaml</span>
+                  </div>
+                </div>
+                <span class="count-badge" id="governanceCount">0</span>
+              </div>
+              <div class="panel-body" id="governanceList">
+                <p class="empty-msg">All team governance rules and coding standards passed.</p>
+              </div>
+            </div>
+
+            <!-- Suggested Inline Comments -->
+            <div class="card panel-card" id="inlineCommentsCard">
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-icon">💬</span>
+                  <div>
+                    <h3>Line-Level Inline Suggestions</h3>
+                    <span class="panel-subtitle">Review suggestions formatted for 1-click apply</span>
+                  </div>
+                </div>
+                <span class="count-badge" id="inlineCommentsCount">0</span>
+              </div>
+              <div class="panel-body" id="inlineCommentsList">
+                <p class="empty-msg">No line-level inline comments generated.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Cross-File Impact & Unit Tests -->
+          <div class="results-col">
+            <!-- Cross-File Impact Panel -->
+            <div class="card panel-card">
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-icon">🕸️</span>
+                  <div>
+                    <h3>Cross-File Impact Analysis</h3>
+                    <span class="panel-subtitle">AST call graph caller resolution</span>
+                  </div>
+                </div>
+                <span class="badge badge-info" id="impactStatusBadge">Python AST</span>
+              </div>
+              <div class="panel-body" id="crossFileImpactBody">
+                <pre class="impact-pre" id="impactContent"></pre>
+              </div>
+            </div>
+
+            <!-- Generated Unit Tests -->
+            <div class="card panel-card">
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-icon">🧪</span>
+                  <div>
+                    <h3>Generated Pytest Test Suite</h3>
+                    <span class="panel-subtitle">AST-introspected parameter mocks and boundary cases</span>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" id="copyTestsBtn">Copy Tests</button>
+              </div>
+              <div class="panel-body" id="unitTestsBody">
+                <pre class="code-block" id="unitTestsContent"><code class="language-python"># No test suite generated for this change.</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Cost Footer -->
+        <div class="card telemetry-card" id="telemetryCard">
+          <div class="telemetry-grid">
+            <div class="telemetry-item">
+              <span class="telemetry-label">Execution Latency</span>
+              <span class="telemetry-value" id="tLatency">0.00s</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Total Tokens</span>
+              <span class="telemetry-value" id="tTokens">0</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Prompt / Completion</span>
+              <span class="telemetry-value" id="tBreakdown">0 / 0</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Estimated Cost</span>
+              <span class="telemetry-value highlight" id="tCost">$0.000000 USD</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Model Used</span>
+              <span class="telemetry-value" id="tModel">gemini-3.1-flash-lite-preview</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permanent Non-Dismissible Scope Note -->
+        <div class="scope-disclaimer">
+          <span class="scope-icon">ℹ️</span>
+          <div>
+            <strong>Capability Scope Notice:</strong>
+            <p id="scopeNoteText">Review performed via heuristic regex pattern scanning, AST Code Graph indexer (Python only), and governance rules engine. Not a full dataflow SAST or formal verification engine.</p>
+          </div>
+        </div>
+
+        <!-- Action to Review Another -->
+        <div class="bottom-action">
+          <button type="button" class="btn btn-secondary" id="reviewAnotherBtn">← Review Another Diff</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>AI Code Review Agent (Enterprise Edition v2.0) • Powered by CrewAI Flows & Google Gemini</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js?v=2.0.2"></script>
+</body>
+</html>
