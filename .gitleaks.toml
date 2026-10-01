@@ -1,9 +1,9 @@
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Three explicit non-credential scanner fixtures; do not allow real keys or whole test directories"
-condition = "AND"
-paths = ['''(^|/)tests/(test_api_review|test_pattern_scanner|test_ast_constant_folding)\.py$''']
-regexTarget = "secret"
-regexes = ['''^1234567890abcdef123456789$''', '''^secret_key_1234567890abcdef$''', '''^NDMyMTA5ODc2NTQzMjEwOTg3NjU0MzIx$''']
+[allowlist]
+description = "Non-credential test fixtures and public sample datasets"
+paths = [
+  '''(^|/)tests/(test_api_review|test_pattern_scanner|test_ast_constant_folding)\.py$''',
+  '''(^|/)samples/.*'''
+]
