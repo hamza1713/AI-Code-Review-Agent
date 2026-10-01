@@ -1,0 +1,59 @@
+{
+  "id": "httpx-3335",
+  "file": "cases/httpx-3335/input.diff",
+  "sha256": "4a048ca1f4de6e5c0d7be130e902ed69b23b2480013da11e788d3b32059221cb",
+  "source_repository": "encode/httpx",
+  "base_sha": "2763690e1b2c0f72505397f34fc3c7dc2971955a",
+  "head_sha": "ff94a9985a9f1695bee54de7762d956ee3b53ecd",
+  "source_diff_url": "https://github.com/encode/httpx/compare/2763690e1b2c0f72505397f34fc3c7dc2971955a...ff94a9985a9f1695bee54de7762d956ee3b53ecd.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3335",
+  "merged_at": "2024-10-10T13:17:24Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3335/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "docs/advanced/ssl.md",
+      "file": "cases/httpx-3335/head/docs/advanced/ssl.md",
+      "sha256": "9f520d497274c38a4b0ed1357f2ee6408613207ffd8fbc1f53d653e3d5f35529"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3335/head/httpx/_client.py",
+      "sha256": "47ca51be3aa50dc8fef8bdaf501e284cc9e719b9af94153a811d8f2646c13df8"
+    },
+    {
+      "path": "httpx/_compat.py",
+      "file": "cases/httpx-3335/head/httpx/_compat.py",
+      "sha256": "67df1abfd7e91a2b776b56a99d3e32bf0e328634efb4b9016f6380fde2e576a6"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3335/head/httpx/_config.py",
+      "sha256": "35b0e26f0b5ae2958901e10d8b7a389b9b1cc610ab83417df7552a053617fb69"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3335/head/httpx/_transports/default.py",
+      "sha256": "143cd6ada7d170cd30225d9fb0b58bad7adce5cac5f924fd298b33e7591b9991"
+    },
+    {
+      "path": "httpx/_types.py",
+      "file": "cases/httpx-3335/head/httpx/_types.py",
+      "sha256": "6f45dfca29619ccf7d4a06f36642e6bff5161ca06830e06710adb0370903f13a"
+    },
+    {
+      "path": "tests/test_config.py",
+      "file": "cases/httpx-3335/head/tests/test_config.py",
+      "sha256": "56595e32e85a7be1cbec1896dd834334ca4dc1536a874051b326832dd2267e57"
+    },
+    {
+      "path": "tests/test_utils.py",
+      "file": "cases/httpx-3335/head/tests/test_utils.py",
+      "sha256": "507e62205fe335d57612b880dfa5faf24d8c98b1bfe3bdc014e820b2b443a814"
+    }
+  ],
+  "input_snapshot_hash": "8938307dec8615dadb4b317f67b92be43b0f8796987f08e923870206cbe52324",
+  "label_status": "UNREVIEWED"
+}

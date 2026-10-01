@@ -1,0 +1,39 @@
+{
+  "id": "httpx-3178",
+  "file": "cases/httpx-3178/input.diff",
+  "sha256": "6d796eb556e0b2725f90340ba922ada650935a360b4d0a6db8c5041be4c648b2",
+  "source_repository": "encode/httpx",
+  "base_sha": "e9cabc8e1deb6548c5c5e2f453e343d39a2a5321",
+  "head_sha": "8b07286d060bf9c2980fc5003e0778bed82a4f4a",
+  "source_diff_url": "https://github.com/encode/httpx/compare/e9cabc8e1deb6548c5c5e2f453e343d39a2a5321...8b07286d060bf9c2980fc5003e0778bed82a4f4a.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3178",
+  "merged_at": "2024-10-29T14:10:33Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3178/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3178/head/CHANGELOG.md",
+      "sha256": "498646a0a06630d755b7799bc3782febbd81002dc3b4a672196412b80222350b"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3178/head/httpx/_config.py",
+      "sha256": "0c2c253524e7ef4acfebe0c12762eed8c47fce7d2a3454aead2ddfbc08be39a6"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3178/head/httpx/_transports/default.py",
+      "sha256": "7c9b1a2b668b9cc08b02e152f224a962832ae5f0fd3e535783c0e954c86a333f"
+    },
+    {
+      "path": "tests/client/test_proxies.py",
+      "file": "cases/httpx-3178/head/tests/client/test_proxies.py",
+      "sha256": "b08d5d510a985f2393fe858ccd111ec75e1d23c32d9e684fca859fe1fa78d567"
+    }
+  ],
+  "input_snapshot_hash": "957214c7225d2a3080e5db544ae1f2528ab1b76834826de6cbb6dc28800c8cff",
+  "label_status": "UNREVIEWED"
+}

@@ -6,11 +6,16 @@ Implements GitPlatformClient for Bitbucket Cloud via Bitbucket REST API v2.0.
 import hashlib
 import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 import httpx
 
 from code_review_agent.models import InlineComment
-from code_review_agent.platform.base import GitPlatformClient, PlatformPRIdentifier, PlatformPRMetadata
+from code_review_agent.platform.base import (
+    GitPlatformClient,
+    PlatformPRIdentifier,
+    PlatformPRMetadata,
+)
 
 
 class BitbucketPlatformClient(GitPlatformClient):
@@ -18,14 +23,16 @@ class BitbucketPlatformClient(GitPlatformClient):
 
     def __init__(
         self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        token: Optional[str] = None,
-        base_url: Optional[str] = None,
-        app_password: Optional[str] = None
+        username: str | None = None,
+        password: str | None = None,
+        token: str | None = None,
+        base_url: str | None = None,
+        app_password: str | None = None,
     ):
         self.username = username or os.environ.get("BITBUCKET_USERNAME", "")
-        self.password = password or app_password or os.environ.get("BITBUCKET_APP_PASSWORD", "")
+        self.password = (
+            password or app_password or os.environ.get("BITBUCKET_APP_PASSWORD", "")
+        )
         self.token = token or os.environ.get("BITBUCKET_TOKEN", "")
         self.base_url = (base_url or "https://api.bitbucket.org/2.0").rstrip("/")
 
@@ -38,7 +45,9 @@ class BitbucketPlatformClient(GitPlatformClient):
             headers["Authorization"] = f"Bearer {self.token}"
             return httpx.Client(headers=headers, timeout=timeout)
         elif self.username and self.password:
-            return httpx.Client(headers=headers, auth=(self.username, self.password), timeout=timeout)
+            return httpx.Client(
+                headers=headers, auth=(self.username, self.password), timeout=timeout
+            )
         return httpx.Client(headers=headers, timeout=timeout)
 
     def parse_pr_identifier(self, pr_identifier: str) -> PlatformPRIdentifier:
@@ -57,7 +66,7 @@ class BitbucketPlatformClient(GitPlatformClient):
                 owner_or_project=match.group(1),
                 repo_or_slug=match.group(2),
                 pr_id=int(match.group(3)),
-                raw_identifier=pr_identifier
+                raw_identifier=pr_identifier,
             )
 
         match = re.search(r"^([^/]+)/([^/]+)/pull-requests/(\d+)$", clean)
@@ -67,7 +76,7 @@ class BitbucketPlatformClient(GitPlatformClient):
                 owner_or_project=match.group(1),
                 repo_or_slug=match.group(2),
                 pr_id=int(match.group(3)),
-                raw_identifier=pr_identifier
+                raw_identifier=pr_identifier,
             )
 
         raise ValueError(
@@ -75,23 +84,28 @@ class BitbucketPlatformClient(GitPlatformClient):
             "Expected format: 'https://bitbucket.org/workspace/repo/pull-requests/123'"
         )
 
-    def fetch_pull_request_metadata(self, owner: str, repo: str, pull_number: int) -> PlatformPRMetadata:
+    def fetch_pull_request_metadata(
+        self, owner: str, repo: str, pull_number: int
+    ) -> PlatformPRMetadata:
         url = f"{self.base_url}/repositories/{owner}/{repo}/pullrequests/{pull_number}"
         with self._get_client() as client:
             resp = client.get(url)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to fetch Bitbucket PR from {url}: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch Bitbucket PR from {url}: [{resp.status_code}] {resp.text}"
+                )
             data = resp.json()
             return PlatformPRMetadata(
                 title=data.get("title", ""),
                 body=data.get("description") or "",
-                author=data.get("author", {}).get("display_name") or data.get("author", {}).get("nickname", ""),
+                author=data.get("author", {}).get("display_name")
+                or data.get("author", {}).get("nickname", ""),
                 head_sha=data.get("source", {}).get("commit", {}).get("hash", ""),
                 base_sha=data.get("destination", {}).get("commit", {}).get("hash", ""),
                 head_ref=data.get("source", {}).get("branch", {}).get("name", ""),
                 base_ref=data.get("destination", {}).get("branch", {}).get("name", ""),
                 state=data.get("state", "OPEN").lower(),
-                html_url=data.get("links", {}).get("html", {}).get("href", "")
+                html_url=data.get("links", {}).get("html", {}).get("href", ""),
             )
 
     def fetch_pull_request_diff(self, owner: str, repo: str, pull_number: int) -> str:
@@ -99,7 +113,9 @@ class BitbucketPlatformClient(GitPlatformClient):
         with self._get_client(timeout=45.0) as client:
             resp = client.get(url, headers={"Accept": "text/plain"})
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to fetch Bitbucket PR diff: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch Bitbucket PR diff: [{resp.status_code}] {resp.text}"
+                )
             return resp.text
 
     def post_pull_request_review(
@@ -109,16 +125,18 @@ class BitbucketPlatformClient(GitPlatformClient):
         pull_number: int,
         event: str,
         body: str,
-        commit_id: Optional[str] = None,
-        comments: Optional[List[InlineComment]] = None
-    ) -> Dict[str, Any]:
+        commit_id: str | None = None,
+        comments: list[InlineComment] | None = None,
+    ) -> dict[str, Any]:
         """Post top-level comment and inline feedback to Bitbucket PR."""
         url = f"{self.base_url}/repositories/{owner}/{repo}/pullrequests/{pull_number}/comments"
         full_comment = f"## 🤖 AI Code Review Verdict: **{event}**\n\n{body}"
         if comments:
             full_comment += "\n\n### 📝 Line-Level Findings\n"
             for c in comments:
-                full_comment += f"\n- **`{c.path}:L{c.line}`** ({c.severity}): {c.comment_body}\n"
+                full_comment += (
+                    f"\n- **`{c.path}:L{c.line}`** ({c.severity}): {c.comment_body}\n"
+                )
                 if c.suggestion_code:
                     full_comment += f"```suggestion\n{c.suggestion_code.strip()}\n```\n"
 
@@ -126,16 +144,14 @@ class BitbucketPlatformClient(GitPlatformClient):
         with self._get_client() as client:
             resp = client.post(url, json=payload)
             if resp.status_code not in (200, 201):
-                raise RuntimeError(f"Failed to post Bitbucket review: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to post Bitbucket review: [{resp.status_code}] {resp.text}"
+                )
             return resp.json()
 
     def post_issue_comment(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        body: str
-    ) -> Dict[str, Any]:
+        self, owner: str, repo: str, issue_number: int, body: str
+    ) -> dict[str, Any]:
         """Post comment to PR or Issue in Bitbucket."""
         url = f"{self.base_url}/repositories/{owner}/{repo}/pullrequests/{issue_number}/comments"
         payload = {"content": {"raw": body}}
@@ -146,7 +162,9 @@ class BitbucketPlatformClient(GitPlatformClient):
                 issue_url = f"{self.base_url}/repositories/{owner}/{repo}/issues/{issue_number}/comments"
                 resp = client.post(issue_url, json=payload)
                 if resp.status_code not in (200, 201):
-                    raise RuntimeError(f"Failed to post Bitbucket comment: [{resp.status_code}] {resp.text}")
+                    raise RuntimeError(
+                        f"Failed to post Bitbucket comment: [{resp.status_code}] {resp.text}"
+                    )
             return resp.json()
 
     def update_pull_request_description(
@@ -155,36 +173,35 @@ class BitbucketPlatformClient(GitPlatformClient):
         repo: str,
         pull_number: int,
         body: str,
-        title: Optional[str] = None
-    ) -> Dict[str, Any]:
+        title: str | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}/repositories/{owner}/{repo}/pullrequests/{pull_number}"
-        payload: Dict[str, Any] = {"description": body}
+        payload: dict[str, Any] = {"description": body}
         if title:
             payload["title"] = title
 
         with self._get_client() as client:
             resp = client.put(url, json=payload)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to update Bitbucket PR: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to update Bitbucket PR: [{resp.status_code}] {resp.text}"
+                )
             return resp.json()
 
-    def fetch_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int
-    ) -> Dict[str, Any]:
+    def fetch_issue(self, owner: str, repo: str, issue_number: int) -> dict[str, Any]:
         url = f"{self.base_url}/repositories/{owner}/{repo}/issues/{issue_number}"
         with self._get_client() as client:
             resp = client.get(url)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to fetch Bitbucket issue: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch Bitbucket issue: [{resp.status_code}] {resp.text}"
+                )
             data = resp.json()
             return {
                 "title": data.get("title", ""),
                 "body": data.get("content", {}).get("raw") or "",
                 "state": data.get("state", "new"),
-                "html_url": data.get("links", {}).get("html", {}).get("href", "")
+                "html_url": data.get("links", {}).get("html", {}).get("href", ""),
             }
 
     def list_pull_request_review_comments(
@@ -193,14 +210,14 @@ class BitbucketPlatformClient(GitPlatformClient):
         repo: str,
         pull_number: int,
         max_pages: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List PR comments, normalized to the learning loop's shape
         ({'body', 'user': {'login'}}). Deleted comments (no content) are skipped, and
         pagination follows Bitbucket's `next` links up to `max_pages`.
         """
         url = f"{self.base_url}/repositories/{owner}/{repo}/pullrequests/{pull_number}/comments?pagelen=100"
-        comments: List[Dict[str, Any]] = []
+        comments: list[dict[str, Any]] = []
         with self._get_client() as client:
             pages = 0
             while url and pages < max_pages:
@@ -227,8 +244,8 @@ class BitbucketPlatformClient(GitPlatformClient):
         state: str,  # 'pending', 'success', 'failure', 'error'
         description: str,
         context: str = "ai-code-review",
-        target_url: Optional[str] = None
-    ) -> Dict[str, Any]:
+        target_url: str | None = None,
+    ) -> dict[str, Any]:
         """Post commit build status update to Bitbucket Cloud API."""
         url = f"{self.base_url}/repositories/{owner}/{repo}/commit/{sha}/statuses/build"
         # Map generic status to Bitbucket state
@@ -236,15 +253,15 @@ class BitbucketPlatformClient(GitPlatformClient):
             "pending": "INPROGRESS",
             "success": "SUCCESSFUL",
             "failure": "FAILED",
-            "error": "FAILED"
+            "error": "FAILED",
         }.get(state.lower(), "INPROGRESS")
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "state": bb_state,
             "key": context,
             "name": "AI Code Review",
             "description": description[:140],
-            "url": target_url or "https://bitbucket.org"
+            "url": target_url or "https://bitbucket.org",
         }
 
         with self._get_client() as client:
@@ -254,11 +271,7 @@ class BitbucketPlatformClient(GitPlatformClient):
             return resp.json()
 
     def fetch_file_content(
-        self,
-        owner: str,
-        repo: str,
-        path: str,
-        ref: Optional[str] = None
+        self, owner: str, repo: str, path: str, ref: str | None = None
     ) -> str:
         """Fetch raw content of a file from Bitbucket repository."""
         url = f"{self.base_url}/repositories/{owner}/{repo}/src/{ref or 'HEAD'}/{path}"
@@ -275,24 +288,22 @@ class BitbucketPlatformClient(GitPlatformClient):
         branch: str,
         path: str,
         content: str,
-        commit_message: str
-    ) -> Dict[str, Any]:
+        commit_message: str,
+    ) -> dict[str, Any]:
         """Commit an updated file directly to a branch on Bitbucket."""
         if not self.username and not self.password and not self.token:
-            simulated_sha = "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            simulated_sha = (
+                "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            )
             return {
                 "sha": simulated_sha,
                 "html_url": f"https://bitbucket.org/{owner}/{repo}/commits/{simulated_sha}",
                 "branch": branch,
-                "path": path
+                "path": path,
             }
 
         url = f"{self.base_url}/repositories/{owner}/{repo}/src"
-        data = {
-            "message": commit_message,
-            "branch": branch,
-            path: content
-        }
+        data = {"message": commit_message, "branch": branch, path: content}
         with self._get_client(timeout=30.0) as client:
             resp = client.post(url, data=data)
             if resp.status_code in (200, 201):
@@ -300,9 +311,12 @@ class BitbucketPlatformClient(GitPlatformClient):
                     "sha": "committed",
                     "html_url": f"https://bitbucket.org/{owner}/{repo}/src/{branch}/{path}",
                     "branch": branch,
-                    "path": path
+                    "path": path,
                 }
             if resp.status_code in (401, 403):
-                raise PermissionError(f"Bitbucket credentials lack write permission for {owner}/{repo}:{branch}")
-            raise RuntimeError(f"Failed to commit file to Bitbucket: [{resp.status_code}] {resp.text}")
-
+                raise PermissionError(
+                    f"Bitbucket credentials lack write permission for {owner}/{repo}:{branch}"
+                )
+            raise RuntimeError(
+                f"Failed to commit file to Bitbucket: [{resp.status_code}] {resp.text}"
+            )

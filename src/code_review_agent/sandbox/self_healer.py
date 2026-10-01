@@ -6,10 +6,10 @@ and applies deterministic repairs and in-memory mock stubs to stabilize test exe
 
 import ast
 import re
-import sys
 from collections import Counter
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, List, Optional, Set, Tuple
+
 from code_review_agent.config import logger
 from code_review_agent.models import TestExecutionResult
 
@@ -31,7 +31,6 @@ class EvidenceTrustGrade(str, Enum):
 
 class AssertionIntegrityError(Exception):
     """Raised when an automated transformation alters or removes test assertions."""
-    pass
 
 
 class TestSelfHealer:
@@ -40,12 +39,13 @@ class TestSelfHealer:
     Repairs syntactical defects, stubs unavailable sandbox dependencies,
     and reconciles missing pytest fixtures.
     """
+
     __test__ = False
 
     @classmethod
-    def diagnose_failure(cls, code: str, error_log: str) -> List[FailureCategory]:
+    def diagnose_failure(cls, code: str, error_log: str) -> list[FailureCategory]:
         """Categorize failure causes from test code syntax and runtime error logs."""
-        categories: List[FailureCategory] = []
+        categories: list[FailureCategory] = []
 
         # Check Python syntax directly
         try:
@@ -57,8 +57,13 @@ class TestSelfHealer:
             return categories or [FailureCategory.UNKNOWN]
 
         # Missing modules / imports
-        if re.search(r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]?([a-zA-Z0-9_\.]+)['\"]?", error_log) or \
-           re.search(r"cannot import name ['\"]?([a-zA-Z0-9_]+)['\"]? from ['\"]?([a-zA-Z0-9_\.]+)['\"]?", error_log):
+        if re.search(
+            r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]?([a-zA-Z0-9_\.]+)['\"]?",
+            error_log,
+        ) or re.search(
+            r"cannot import name ['\"]?([a-zA-Z0-9_]+)['\"]? from ['\"]?([a-zA-Z0-9_\.]+)['\"]?",
+            error_log,
+        ):
             categories.append(FailureCategory.MISSING_MODULE)
 
         # Missing fixtures
@@ -66,7 +71,10 @@ class TestSelfHealer:
             categories.append(FailureCategory.FIXTURE_ERROR)
 
         # Syntax error reported by runner / pytest
-        if "SyntaxError:" in error_log and FailureCategory.SYNTAX_ERROR not in categories:
+        if (
+            "SyntaxError:" in error_log
+            and FailureCategory.SYNTAX_ERROR not in categories
+        ):
             categories.append(FailureCategory.SYNTAX_ERROR)
 
         # Assertion failure
@@ -154,14 +162,20 @@ class TestSelfHealer:
         Detect missing third-party modules or uninstalled packages and inject
         safe in-memory MagicMock stubs so tests can execute inside minimal sandboxes.
         """
-        missing_modules: Set[str] = set()
+        missing_modules: set[str] = set()
 
-        for match in re.finditer(r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]?([a-zA-Z0-9_\.]+)['\"]?", error_log):
+        for match in re.finditer(
+            r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]?([a-zA-Z0-9_\.]+)['\"]?",
+            error_log,
+        ):
             mod = match.group(1).strip()
             if mod:
                 missing_modules.add(mod)
 
-        for match in re.finditer(r"cannot import name ['\"]?([a-zA-Z0-9_]+)['\"]? from ['\"]?([a-zA-Z0-9_\.]+)['\"]?", error_log):
+        for match in re.finditer(
+            r"cannot import name ['\"]?([a-zA-Z0-9_]+)['\"]? from ['\"]?([a-zA-Z0-9_\.]+)['\"]?",
+            error_log,
+        ):
             item = match.group(1).strip()
             parent = match.group(2).strip()
             if parent:
@@ -171,7 +185,7 @@ class TestSelfHealer:
         if not missing_modules:
             return code
 
-        all_stubs: Set[str] = set()
+        all_stubs: set[str] = set()
         for mod in missing_modules:
             parts = mod.split(".")
             for i in range(1, len(parts) + 1):
@@ -181,10 +195,10 @@ class TestSelfHealer:
             "# --- Auto-Healed Dependency Stubs (TestSelfHealer) ---",
             "import sys",
             "from unittest.mock import MagicMock",
-            "for _stub_mod in " + repr(sorted(list(all_stubs))) + ":",
+            "for _stub_mod in " + repr(sorted(all_stubs)) + ":",
             "    if _stub_mod not in sys.modules:",
             "        sys.modules[_stub_mod] = MagicMock()",
-            "# -----------------------------------------------------\n"
+            "# -----------------------------------------------------\n",
         ]
         stub_header = "\n".join(stub_lines)
 
@@ -195,9 +209,11 @@ class TestSelfHealer:
         """
         Detect missing pytest fixtures and inject mock fixture definitions.
         """
-        missing_fixtures: Set[str] = set()
+        missing_fixtures: set[str] = set()
 
-        for match in re.finditer(r"fixture ['\"]?([a-zA-Z0-9_]+)['\"]? not found", error_log):
+        for match in re.finditer(
+            r"fixture ['\"]?([a-zA-Z0-9_]+)['\"]? not found", error_log
+        ):
             fix = match.group(1).strip()
             if fix:
                 missing_fixtures.add(fix)
@@ -208,22 +224,23 @@ class TestSelfHealer:
         fixture_lines = [
             "\n# --- Auto-Healed Pytest Fixtures (TestSelfHealer) ---",
             "import pytest",
-            "from unittest.mock import MagicMock"
+            "from unittest.mock import MagicMock",
         ]
-        for fix in sorted(list(missing_fixtures)):
-            fixture_lines.extend([
-                f"@pytest.fixture",
-                f"def {fix}():",
-                f"    return MagicMock()",
-                ""
-            ])
-        fixture_lines.append("# -----------------------------------------------------\n")
+        for fix in sorted(missing_fixtures):
+            fixture_lines.extend(
+                ["@pytest.fixture", f"def {fix}():", "    return MagicMock()", ""]
+            )
+        fixture_lines.append(
+            "# -----------------------------------------------------\n"
+        )
         fixture_header = "\n".join(fixture_lines)
 
         return fixture_header + "\n" + code
 
     @classmethod
-    def verify_assertion_integrity(cls, original_code: str, candidate_code: str) -> bool:
+    def verify_assertion_integrity(
+        cls, original_code: str, candidate_code: str
+    ) -> bool:
         """
         Verify that test assertions have not been silently rewritten, weakened, or removed.
         Parses AST of both and ensures every assert node in original_code remains present in candidate_code.
@@ -240,10 +257,14 @@ class TestSelfHealer:
         try:
             orig_tree = ast.parse(orig_clean)
             orig_asserts = [
-                ast.dump(node) for node in ast.walk(orig_tree) if isinstance(node, ast.Assert)
+                ast.dump(node)
+                for node in ast.walk(orig_tree)
+                if isinstance(node, ast.Assert)
             ]
             cand_asserts = [
-                ast.dump(node) for node in ast.walk(cand_tree) if isinstance(node, ast.Assert)
+                ast.dump(node)
+                for node in ast.walk(cand_tree)
+                if isinstance(node, ast.Assert)
             ]
 
             orig_counts = Counter(orig_asserts)
@@ -251,27 +272,31 @@ class TestSelfHealer:
 
             for a, count in orig_counts.items():
                 if cand_counts.get(a, 0) < count:
-                    logger.warning("🚫 Assertion integrity violation: an assert statement was altered or removed!")
+                    logger.warning(
+                        "🚫 Assertion integrity violation: an assert statement was altered or removed!"
+                    )
                     return False
             return True
         except SyntaxError:
             # Fallback for when original code has syntax flaws being healed:
             # Verify that any assert lines in original code are preserved in candidate
             orig_assert_lines = [
-                re.sub(r"\s+", " ", l.strip())
-                for l in orig_clean.splitlines()
-                if re.match(r"^\s*assert\b", l)
+                re.sub(r"\s+", " ", line_item.strip())
+                for line_item in orig_clean.splitlines()
+                if re.match(r"^\s*assert\b", line_item)
             ]
             cand_assert_lines = [
-                re.sub(r"\s+", " ", l.strip())
-                for l in cand_clean.splitlines()
-                if re.match(r"^\s*assert\b", l)
+                re.sub(r"\s+", " ", line_item.strip())
+                for line_item in cand_clean.splitlines()
+                if re.match(r"^\s*assert\b", line_item)
             ]
             orig_line_counts = Counter(orig_assert_lines)
             cand_line_counts = Counter(cand_assert_lines)
-            for l, count in orig_line_counts.items():
-                if cand_line_counts.get(l, 0) < count:
-                    logger.warning("🚫 Assertion integrity violation (syntax fallback): an assert line was altered or removed!")
+            for line_item, count in orig_line_counts.items():
+                if cand_line_counts.get(line_item, 0) < count:
+                    logger.warning(
+                        "🚫 Assertion integrity violation (syntax fallback): an assert line was altered or removed!"
+                    )
                     return False
             return True
 
@@ -288,11 +313,11 @@ class TestSelfHealer:
     @classmethod
     def heal_and_run(
         cls,
-        runner_func: Callable[[str, Optional[str]], TestExecutionResult],
+        runner_func: Callable[[str, str | None], TestExecutionResult],
         test_code: str,
-        pr_content: Optional[str] = None,
-        max_attempts: int = 2
-    ) -> Tuple[TestExecutionResult, str]:
+        pr_content: str | None = None,
+        max_attempts: int = 2,
+    ) -> tuple[TestExecutionResult, str]:
         """
         Iterative healing loop:
         1. Run test code using the provided runner.
@@ -327,7 +352,6 @@ class TestSelfHealer:
 
         current_code = clean_initial
         used_mock_stubs = False
-        repaired_syntax_only = False
 
         for attempt in range(1, max_attempts + 1):
             error_log = f"{result.stdout}\n{result.stderr}\n{getattr(result, 'raw_output', '')}\n{result.summary_message}"
@@ -340,25 +364,34 @@ class TestSelfHealer:
 
             # Assertions must never be silently rewritten to force tests to pass
             if FailureCategory.ASSERTION_FAILURE in categories and len(categories) == 1:
-                logger.info("🩺 TestSelfHealer: Failure is purely AssertionError; assertions must not be rewritten.")
+                logger.info(
+                    "🩺 TestSelfHealer: Failure is purely AssertionError; assertions must not be rewritten."
+                )
                 break
 
             healed_code = cls.heal_code(current_code, error_log)
 
             # Verify that assertions were not modified
             if not cls.verify_assertion_integrity(test_code, healed_code):
-                logger.warning("🩺 TestSelfHealer: Candidate healed code altered assertions; rejecting transformation.")
+                logger.warning(
+                    "🩺 TestSelfHealer: Candidate healed code altered assertions; rejecting transformation."
+                )
                 raise AssertionIntegrityError(
                     "Assertion integrity violation: an automated healing transformation attempted to alter or delete test assertions."
                 )
 
-            if FailureCategory.MISSING_MODULE in categories or FailureCategory.FIXTURE_ERROR in categories:
+            if (
+                FailureCategory.MISSING_MODULE in categories
+                or FailureCategory.FIXTURE_ERROR in categories
+            ):
                 used_mock_stubs = True
             elif FailureCategory.SYNTAX_ERROR in categories:
-                repaired_syntax_only = True
+                pass
 
             if healed_code == current_code:
-                logger.info("🩺 TestSelfHealer: no further deterministic repairs possible.")
+                logger.info(
+                    "🩺 TestSelfHealer: no further deterministic repairs possible."
+                )
                 break
 
             current_code = healed_code
@@ -367,17 +400,23 @@ class TestSelfHealer:
             healed_result.healed_test_suite = current_code
 
             if healed_result.status == "PASSED":
-                logger.info(f"✅ TestSelfHealer: test suite successfully healed on attempt {attempt}!")
+                logger.info(
+                    f"✅ TestSelfHealer: test suite successfully healed on attempt {attempt}!"
+                )
                 healed_result.self_healed = True
                 healed_result.heal_attempts = attempt
                 if used_mock_stubs:
-                    healed_result.trust_grade = EvidenceTrustGrade.HEALED_MOCK_STUBBED.value
+                    healed_result.trust_grade = (
+                        EvidenceTrustGrade.HEALED_MOCK_STUBBED.value
+                    )
                     healed_result.mock_stub_warning = (
                         "Explicit warning: Dependencies or fixtures were stubbed in-memory with MagicMock. "
                         "Execution is simulated and behavior has not been validated against live third-party packages."
                     )
                 else:
-                    healed_result.trust_grade = EvidenceTrustGrade.HEALED_SYNTAX_REPAIRED.value
+                    healed_result.trust_grade = (
+                        EvidenceTrustGrade.HEALED_SYNTAX_REPAIRED.value
+                    )
 
                 healed_result.summary_message = (
                     f"Generated tests passed after self-healing (attempt {attempt}, grade={healed_result.trust_grade}): "

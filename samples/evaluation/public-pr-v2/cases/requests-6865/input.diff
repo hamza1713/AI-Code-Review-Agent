@@ -1,0 +1,13 @@
+diff --git a/src/requests/sessions.py b/src/requests/sessions.py
+index 7d34b29f5a..578cc44d5c 100644
+--- a/src/requests/sessions.py
++++ b/src/requests/sessions.py
+@@ -422,6 +422,8 @@ def __init__(self):
+         #: expired certificates, which will make your application vulnerable to
+         #: man-in-the-middle (MitM) attacks.
+         #: Only set this to `False` for testing.
++        #: If verify is set to a string, it must be the path to a CA bundle file
++        #: that will be used to verify the TLS certificate.
+         self.verify = True
+ 
+         #: SSL client certificate default, if String, path to ssl client

@@ -28,12 +28,10 @@ the report's counts, severities, and score are guaranteed consistent — not mer
 
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from code_review_agent.models import SastFinding, RuleViolation, TestExecutionResult
-
+from code_review_agent.models import RuleViolation, SastFinding, TestExecutionResult
 
 # ── Canonical severity scale ────────────────────────────────────────────────
 CANONICAL_SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]  # ascending
@@ -41,7 +39,14 @@ _SEV_RANK = {s: i for i, s in enumerate(CANONICAL_SEVERITIES)}
 
 # Bounded-score parameters (calibrated non-saturating scoring).
 _WEIGHT = {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "LOW": 2, "INFO": 1}
-_CEILING = {"CRITICAL": 65, "HIGH": 78, "MEDIUM": 88, "LOW": 95, "INFO": 98, "NONE": 100}
+_CEILING = {
+    "CRITICAL": 65,
+    "HIGH": 78,
+    "MEDIUM": 88,
+    "LOW": 95,
+    "INFO": 98,
+    "NONE": 100,
+}
 _FLOOR = {"CRITICAL": 15, "HIGH": 25, "MEDIUM": 45, "LOW": 65, "INFO": 85, "NONE": 100}
 _DECAY = 0.5  # geometric decay → the k-th defect of a severity penalizes half as much
 
@@ -49,62 +54,98 @@ _DECAY = 0.5  # geometric decay → the k-th defect of a severity penalizes half
 _ADJACENCY = 3
 
 # ── CWE → canonical severity (impact + exploitability), not analyzer default ─
-_CWE_SEVERITY: Dict[str, str] = {
-    "CWE-89": "CRITICAL",   # SQL injection
-    "CWE-78": "CRITICAL",   # OS command injection
-    "CWE-77": "CRITICAL",   # command injection
-    "CWE-94": "CRITICAL",   # code injection
-    "CWE-95": "CRITICAL",   # eval injection
-    "CWE-502": "HIGH",      # insecure deserialization
-    "CWE-798": "HIGH",      # hardcoded credentials
-    "CWE-259": "HIGH",      # hardcoded password
-    "CWE-256": "HIGH",      # plaintext password storage/compare
-    "CWE-22": "HIGH",       # path traversal
-    "CWE-79": "HIGH",       # XSS
-    "CWE-611": "HIGH",      # XXE
-    "CWE-918": "HIGH",      # SSRF
-    "CWE-319": "HIGH",      # cleartext transmission
-    "CWE-295": "HIGH",      # improper cert validation / disabled TLS verify
-    "CWE-732": "HIGH",      # incorrect permission assignment (world-writable 0o777)
-    "CWE-327": "MEDIUM",    # broken/weak crypto
-    "CWE-326": "MEDIUM",    # inadequate encryption strength
-    "CWE-330": "MEDIUM",    # weak randomness
-    "CWE-20": "MEDIUM",     # improper input validation
+_CWE_SEVERITY: dict[str, str] = {
+    "CWE-89": "CRITICAL",  # SQL injection
+    "CWE-78": "CRITICAL",  # OS command injection
+    "CWE-77": "CRITICAL",  # command injection
+    "CWE-94": "CRITICAL",  # code injection
+    "CWE-95": "CRITICAL",  # eval injection
+    "CWE-502": "HIGH",  # insecure deserialization
+    "CWE-798": "HIGH",  # hardcoded credentials
+    "CWE-259": "HIGH",  # hardcoded password
+    "CWE-256": "HIGH",  # plaintext password storage/compare
+    "CWE-22": "HIGH",  # path traversal
+    "CWE-79": "HIGH",  # XSS
+    "CWE-611": "HIGH",  # XXE
+    "CWE-918": "HIGH",  # SSRF
+    "CWE-319": "HIGH",  # cleartext transmission
+    "CWE-295": "HIGH",  # improper cert validation / disabled TLS verify
+    "CWE-732": "HIGH",  # incorrect permission assignment (world-writable 0o777)
+    "CWE-327": "MEDIUM",  # broken/weak crypto
+    "CWE-326": "MEDIUM",  # inadequate encryption strength
+    "CWE-330": "MEDIUM",  # weak randomness
+    "CWE-20": "MEDIUM",  # improper input validation
     "CWE-916": "CRITICAL",  # use of password hash with insufficient computational effort
-    "CWE-760": "HIGH",      # use of one-way hash without a salt
-    "CWE-362": "HIGH",      # concurrent execution / race condition / unsynchronized access
-    "CWE-674": "HIGH",      # uncontrolled recursion
-    "CWE-369": "MEDIUM",    # divide by zero
-    "CWE-208": "MEDIUM",    # observable timing discrepancy
-    "CWE-703": "LOW",       # improper exception handling / silent swallow
-    "CWE-390": "LOW",       # detection of error condition without action
+    "CWE-760": "HIGH",  # use of one-way hash without a salt
+    "CWE-362": "HIGH",  # concurrent execution / race condition / unsynchronized access
+    "CWE-674": "HIGH",  # uncontrolled recursion
+    "CWE-369": "MEDIUM",  # divide by zero
+    "CWE-208": "MEDIUM",  # observable timing discrepancy
+    "CWE-703": "LOW",  # improper exception handling / silent swallow
+    "CWE-390": "LOW",  # detection of error condition without action
 }
 
 # ── CWE correction rules (rule 6) — detect the real defect from evidence text ─
 # Ordered: first match wins. Corrects inherited mislabels regardless of firing rule.
-_CWE_CORRECTIONS: List[Tuple[re.Pattern, str]] = [
+_CWE_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\beval\s*\(", re.I), "CWE-95"),
     (re.compile(r"\bexec\s*\(", re.I), "CWE-95"),
-    (re.compile(r"pickle\.(?:loads?|load)\s*\(|yaml\.load\s*\((?!.*Safe)", re.I), "CWE-502"),
-    (re.compile(r"os\.system\s*\(|subprocess\.[a-z_]+\([^)]*shell\s*=\s*True", re.I), "CWE-78"),
+    (
+        re.compile(r"pickle\.(?:loads?|load)\s*\(|yaml\.load\s*\((?!.*Safe)", re.I),
+        "CWE-502",
+    ),
+    (
+        re.compile(r"os\.system\s*\(|subprocess\.[a-z_]+\([^)]*shell\s*=\s*True", re.I),
+        "CWE-78",
+    ),
     (re.compile(r"hashlib\.(?:md5|sha1)\s*\(", re.I), "CWE-327"),
-    (re.compile(r"(?:SELECT|INSERT|UPDATE|DELETE)\b.*?(?:\{|\+|%\s*\()", re.I | re.S), "CWE-89"),
+    (
+        re.compile(
+            r"(?:SELECT|INSERT|UPDATE|DELETE)\b.*?(?:\{|\+|%\s*\()", re.I | re.S
+        ),
+        "CWE-89",
+    ),
     (re.compile(r"os\.chmod\s*\([^,]+,\s*(?:0o?777|0o?666)", re.I), "CWE-732"),
-    (re.compile(r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)", re.I), "CWE-703"),
+    (
+        re.compile(
+            r"except(?:\s+Exception)?\s*:\s*(?:\r?\n\+?\s*)?(?:pass|\.\.\.)", re.I
+        ),
+        "CWE-703",
+    ),
     (re.compile(r"random\.(?:choice|random|randint|randrange)", re.I), "CWE-330"),
-    (re.compile(r"check_hostname\s*=\s*False|verify_mode\s*=\s*ssl\.CERT_NONE|verify\s*=\s*False", re.I), "CWE-295"),
+    (
+        re.compile(
+            r"check_hostname\s*=\s*False|verify_mode\s*=\s*ssl\.CERT_NONE|verify\s*=\s*False",
+            re.I,
+        ),
+        "CWE-295",
+    ),
     (re.compile(r"open\s*\(\s*os\.path\.join", re.I), "CWE-22"),
 ]
 
 # Governance rule_id keywords → the security CWE they proxy (else pure style).
-_GOV_CWE_HINTS: List[Tuple[str, str]] = [
-    ("raw-sql", "CWE-89"), ("sql", "CWE-89"),
-    ("plaintext-password", "CWE-256"), ("password", "CWE-256"),
-    ("eval", "CWE-95"), ("pickle", "CWE-502"), ("secret", "CWE-798"),
+_GOV_CWE_HINTS: list[tuple[str, str]] = [
+    ("raw-sql", "CWE-89"),
+    ("sql", "CWE-89"),
+    ("plaintext-password", "CWE-256"),
+    ("password", "CWE-256"),
+    ("eval", "CWE-95"),
+    ("pickle", "CWE-502"),
+    ("secret", "CWE-798"),
 ]
 
 # Governance rule_id keywords that are production-only STYLE rules (rule 4 scoping).
-_STYLE_RULE_KEYWORDS = ("print", "sleep", "wildcard", "import", "logging", "log", "todo", "naming", "format")
+_STYLE_RULE_KEYWORDS = (
+    "print",
+    "sleep",
+    "wildcard",
+    "import",
+    "logging",
+    "log",
+    "todo",
+    "naming",
+    "format",
+)
 
 # Bandit import-blacklist tests (B401–B415): the *import* of a risky module is context,
 # not a sink — it must never inherit the sink's severity. It is folded into the real use
@@ -133,6 +174,7 @@ def _is_safe_subprocess(snippet: str) -> bool:
     # No f-string / concatenation / %-format → Python defaults to shell=False (safe).
     return not re.search(r"f[\"']|\s\+\s|%s|%\s*\(|\.format\s*\(", text)
 
+
 # Path fragments that are NOT production code (production-only rules don't apply).
 _NON_PROD_PATH = re.compile(
     r"(^|/)(tests?|test|examples?|samples?|scripts?|benchmarks?|fixtures?|conftest)(/|\.|_|$)"
@@ -144,59 +186,80 @@ _NON_PROD_PATH = re.compile(
 @dataclass
 class _Signal:
     """A single normalized analyzer signal before merging."""
+
     file: str
     line: int
-    cwe: Optional[str]
+    cwe: str | None
     source: str
     description: str
     fix: str
     raw_severity: str
     is_governance: bool = False
-    gov_severity: Optional[str] = None  # BLOCKING/WARNING/INFO for governance
+    gov_severity: str | None = None  # BLOCKING/WARNING/INFO for governance
     is_style_rule: bool = False
     rule_id: str = ""
     snippet: str = ""
-    is_import: bool = False       # a risky *import* (context, not a sink)
-    is_low_conf: bool = False     # a low-confidence Bandit heuristic (B603/B607/B110)
+    is_import: bool = False  # a risky *import* (context, not a sink)
+    is_low_conf: bool = False  # a low-confidence Bandit heuristic (B603/B607/B110)
 
 
 class ReconciledFinding(BaseModel):
     """ONE consolidated defect — the atomic unit everything else counts and scores from."""
+
     id: str
     title: str
     severity: str = Field(..., description="Canonical: CRITICAL/HIGH/MEDIUM/LOW/INFO")
-    cwe: Optional[str] = None
+    cwe: str | None = None
     file: str
     line: int
-    sources: List[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
     fix: str = ""
     blocking: bool = False
     rationale: str = ""
+    rule_id: str = ""
+    snippet: str = ""
+    category: str = "QUALITY"
 
 
 class TestEvidence(BaseModel):
     """Honest interpretation of the generated-test run (rule 3)."""
-    kind: str = Field(default="none", description="confirms_vulnerability | confirms_fix | mixed | none")
+
+    kind: str = Field(
+        default="none",
+        description="confirms_vulnerability | confirms_fix | mixed | none",
+    )
     badge: str = Field(default="HEURISTIC", description="Honest badge label")
-    positive: bool = Field(default=False, description="True only when a fix is verified")
-    proves: str = Field(default="", description="Plain-English statement of what the result actually proves")
+    positive: bool = Field(
+        default=False, description="True only when a fix is verified"
+    )
+    proves: str = Field(
+        default="",
+        description="Plain-English statement of what the result actually proves",
+    )
 
 
 class ReconciledReport(BaseModel):
     """The final, internally consistent report the pipeline emits."""
-    findings: List[ReconciledFinding] = Field(default_factory=list)
+
+    findings: list[ReconciledFinding] = Field(default_factory=list)
     findings_count: int = 0
     worst_severity: str = "NONE"
     score: int = 100
     score_breakdown: str = ""
     verdict: str = "APPROVE"
-    blocking_reasons: List[str] = Field(default_factory=list)
+    blocking_reasons: list[str] = Field(default_factory=list)
     test_evidence: TestEvidence = Field(default_factory=TestEvidence)
     limitations_note: str = ""
 
     def to_markdown(self) -> str:
         """Render the reconciled report as a consistent Markdown section for delivery."""
-        sev_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵", "INFO": "⚪"}
+        sev_icon = {
+            "CRITICAL": "🔴",
+            "HIGH": "🟠",
+            "MEDIUM": "🟡",
+            "LOW": "🔵",
+            "INFO": "⚪",
+        }
         lines = [
             "## 🧮 Reconciled Findings (final synthesis)",
             "",
@@ -223,7 +286,9 @@ class ReconciledReport(BaseModel):
                 )
             lines.append("")
         else:
-            lines.append("_No deduplicated defects were reconciled from the analyzers._\n")
+            lines.append(
+                "_No deduplicated defects were reconciled from the analyzers._\n"
+            )
 
         te = self.test_evidence
         lines.append(f"### 🧪 Empirical Test Evidence — {te.badge}")
@@ -232,27 +297,42 @@ class ReconciledReport(BaseModel):
         lines.append(f"> ℹ️ {self.limitations_note}")
         return "\n".join(lines)
 
-    def self_check(self) -> List[str]:
+    def self_check(self) -> list[str]:
         """Return contract violations (empty == internally consistent). Used in tests and asserts."""
-        problems: List[str] = []
+        problems: list[str] = []
         if self.findings_count != len(self.findings):
-            problems.append(f"findings_count {self.findings_count} != len(findings) {len(self.findings)}")
+            problems.append(
+                f"findings_count {self.findings_count} != len(findings) {len(self.findings)}"
+            )
         # No defect may carry two severities (ids are unique per defect here).
-        seen = {}
+        seen: dict[str, str] = {}
         for f in self.findings:
             if f.id in seen and seen[f.id] != f.severity:
-                problems.append(f"defect {f.id} has two severities: {seen[f.id]} and {f.severity}")
+                problems.append(
+                    f"defect {f.id} has two severities: {seen[f.id]} and {f.severity}"
+                )
             seen[f.id] = f.severity
             if f.severity not in _WEIGHT:
-                problems.append(f"defect {f.id} has non-canonical severity {f.severity}")
+                problems.append(
+                    f"defect {f.id} has non-canonical severity {f.severity}"
+                )
         # A passing/positive badge must never sit next to a confirmed vulnerability.
-        if self.test_evidence.positive and self.test_evidence.kind == "confirms_vulnerability":
+        if (
+            self.test_evidence.positive
+            and self.test_evidence.kind == "confirms_vulnerability"
+        ):
             problems.append("positive test badge on a confirms_vulnerability suite")
         # Verdict must be consistent with worst severity.
         if self.worst_severity == "CRITICAL" and self.verdict != "ESCALATE":
             problems.append("CRITICAL present but verdict is not ESCALATE")
-        if self.worst_severity in ("LOW", "INFO", "NONE") and self.verdict == "ESCALATE" and not self.blocking_reasons:
-            problems.append("verdict ESCALATE with only low-severity findings and no blocking reason")
+        if (
+            self.worst_severity in ("LOW", "INFO", "NONE")
+            and self.verdict == "ESCALATE"
+            and not self.blocking_reasons
+        ):
+            problems.append(
+                "verdict ESCALATE with only low-severity findings and no blocking reason"
+            )
         return problems
 
 
@@ -262,12 +342,12 @@ class SynthesisReconciler:
     @classmethod
     def reconcile(
         cls,
-        sast_findings: Optional[List[SastFinding]] = None,
-        rule_violations: Optional[List[RuleViolation]] = None,
-        test_execution: Optional[TestExecutionResult] = None,
+        sast_findings: list[SastFinding] | None = None,
+        rule_violations: list[RuleViolation] | None = None,
+        test_execution: TestExecutionResult | None = None,
         generated_tests: str = "",
         pr_content: str = "",
-        crew_findings: Optional[List[SastFinding]] = None,
+        crew_findings: list[SastFinding] | None = None,
     ) -> ReconciledReport:
         all_sast = list(sast_findings or []) + list(crew_findings or [])
         signals = cls._collect_signals(all_sast, rule_violations or [], pr_content)
@@ -277,7 +357,9 @@ class SynthesisReconciler:
         imports = [s for s in signals if s.is_import]
         clusters = cls._cluster([s for s in signals if not s.is_import])
         cls._fold_imports(clusters, imports)
-        findings = [f for f in (cls._merge_cluster(c) for c in clusters) if f is not None]
+        findings = [
+            f for f in (cls._merge_cluster(c) for c in clusters) if f is not None
+        ]
         # Stable order: severity desc, then file, then line.
         findings.sort(key=lambda f: (-_SEV_RANK[f.severity], f.file, f.line))
 
@@ -301,46 +383,77 @@ class SynthesisReconciler:
 
     # ── Signal collection & CWE/severity normalization ──────────────────────
     @classmethod
-    def _collect_signals(cls, sast, governance, pr_content) -> List[_Signal]:
+    def _collect_signals(cls, sast, governance, pr_content) -> list[_Signal]:
         main_guard = cls._main_guard_lines(pr_content)
-        signals: List[_Signal] = []
+        signals: list[_Signal] = []
 
         for f in sast:
             cwe = cls._correct_cwe(f.cwe, f"{f.description} {f.snippet} {f.rule_id}")
             rid = (f.rule_id or "").upper()
             snippet = f.snippet or ""
-            is_import = bool(_IMPORT_LINE.match(snippet)) or any(b in rid for b in _IMPORT_BLACKLIST_IDS)
+            is_import = bool(_IMPORT_LINE.match(snippet)) or any(
+                b in rid for b in _IMPORT_BLACKLIST_IDS
+            )
             is_low_conf = any(b in rid for b in _LOW_CONFIDENCE_IDS)
-            signals.append(_Signal(
-                file=f.file_path, line=f.line_number, cwe=cwe,
-                source=(f.analyzer_source or f.rule_id or "sast"),
-                description=f.description, fix=f.fix_recommendation, raw_severity=f.severity,
-                rule_id=rid, snippet=snippet, is_import=is_import, is_low_conf=is_low_conf,
-            ))
+            signals.append(
+                _Signal(
+                    file=f.file_path,
+                    line=f.line_number,
+                    cwe=cwe,
+                    source=(f.analyzer_source or f.rule_id or "sast"),
+                    description=f.description,
+                    fix=f.fix_recommendation,
+                    raw_severity=f.severity,
+                    rule_id=rid,
+                    snippet=snippet,
+                    is_import=is_import,
+                    is_low_conf=is_low_conf,
+                )
+            )
 
         for v in governance:
             rid = (v.rule_id or "").lower()
             gov_cwe = next((c for kw, c in _GOV_CWE_HINTS if kw in rid), None)
             is_style = any(kw in rid for kw in _STYLE_RULE_KEYWORDS) and gov_cwe is None
             # Rule 4: production-only style rules don't apply to non-production code.
-            if is_style and (cls._non_production(v.file_path) or main_guard.get(v.file_path, 10**9) <= v.line_number):
+            if is_style and (
+                cls._non_production(v.file_path)
+                or main_guard.get(v.file_path, 10**9) <= v.line_number
+            ):
                 # Downgrade to INFO with reason rather than dropping — surfaced, not escalated.
-                signals.append(_Signal(
-                    file=v.file_path, line=v.line_number, cwe=None, source=v.rule_id,
-                    description=f"{v.description} (scoped to INFO: not production code)",
-                    fix=v.suggested_fix, raw_severity="INFO",
-                    is_governance=True, gov_severity="INFO", is_style_rule=True,
-                ))
+                signals.append(
+                    _Signal(
+                        file=v.file_path,
+                        line=v.line_number,
+                        cwe=None,
+                        source=v.rule_id,
+                        description=f"{v.description} (scoped to INFO: not production code)",
+                        fix=v.suggested_fix,
+                        raw_severity="INFO",
+                        is_governance=True,
+                        gov_severity="INFO",
+                        is_style_rule=True,
+                    )
+                )
                 continue
-            signals.append(_Signal(
-                file=v.file_path, line=v.line_number, cwe=gov_cwe, source=v.rule_id,
-                description=v.description, fix=v.suggested_fix, raw_severity=v.severity,
-                is_governance=True, gov_severity=(v.severity or "WARNING").upper(), is_style_rule=is_style,
-            ))
+            signals.append(
+                _Signal(
+                    file=v.file_path,
+                    line=v.line_number,
+                    cwe=gov_cwe,
+                    source=v.rule_id,
+                    description=v.description,
+                    fix=v.suggested_fix,
+                    raw_severity=v.severity,
+                    is_governance=True,
+                    gov_severity=(v.severity or "WARNING").upper(),
+                    is_style_rule=is_style,
+                )
+            )
         return signals
 
     @staticmethod
-    def _normalize_cwe(cwe: Optional[str]) -> Optional[str]:
+    def _normalize_cwe(cwe: str | None) -> str | None:
         """Normalize CWE string so it consistently has exactly one CWE- prefix."""
         if not cwe:
             return None
@@ -350,7 +463,7 @@ class SynthesisReconciler:
         return f"CWE-{cleaned}" if cleaned else None
 
     @classmethod
-    def _correct_cwe(cls, cwe: Optional[str], evidence: str) -> Optional[str]:
+    def _correct_cwe(cls, cwe: str | None, evidence: str) -> str | None:
         """Rule 6: assign the CWE that matches the defect, correcting inherited mislabels."""
         norm = cls._normalize_cwe(cwe)
         # Preserve specific targeted CWEs from specialized analyzers
@@ -371,23 +484,28 @@ class SynthesisReconciler:
         if sig.is_low_conf:
             return "LOW"
         if sig.cwe and sig.cwe in _CWE_SEVERITY:
-            if sig.cwe == "CWE-327" and (sig.raw_severity == "CRITICAL" or "password" in (sig.description or "").lower()):
+            if sig.cwe == "CWE-327" and (
+                sig.raw_severity == "CRITICAL"
+                or "password" in (sig.description or "").lower()
+            ):
                 return "CRITICAL"
             return _CWE_SEVERITY[sig.cwe]
         if sig.is_governance:
             gov = (sig.gov_severity or "WARNING").upper()
             # Blocking governance is a real must-fix (HIGH); warnings are low; info is info.
-            return {"BLOCKING": "HIGH", "WARNING": "LOW", "INFO": "INFO"}.get(gov, "LOW")
+            return {"BLOCKING": "HIGH", "WARNING": "LOW", "INFO": "INFO"}.get(
+                gov, "LOW"
+            )
         # Unknown-CWE security signal: fall back to a conservative normalization of its raw level.
         raw = (sig.raw_severity or "MEDIUM").upper()
         return raw if raw in _WEIGHT else "MEDIUM"
 
     # ── Deduplication / clustering (rule 1) ─────────────────────────────────
     @classmethod
-    def _cluster(cls, signals: List[_Signal]) -> List[List[_Signal]]:
+    def _cluster(cls, signals: list[_Signal]) -> list[list[_Signal]]:
         """Union signals that share a root cause: same file, and same CWE (or an unknown CWE)
         within the adjacency window — collapsing multi-rule same-line and import+call pairs."""
-        clusters: List[List[_Signal]] = []
+        clusters: list[list[_Signal]] = []
         for sig in signals:
             placed = False
             for cluster in clusters:
@@ -413,23 +531,31 @@ class SynthesisReconciler:
         if a.cwe and b.cwe:
             if a.cwe == b.cwe:
                 return True
-            if (a.cwe, b.cwe) in cls._RELATED_CWES or (b.cwe, a.cwe) in cls._RELATED_CWES:
+            if (a.cwe, b.cwe) in cls._RELATED_CWES or (
+                b.cwe,
+                a.cwe,
+            ) in cls._RELATED_CWES:
                 return True
             return False
         return True
 
     @staticmethod
-    def _cluster_cwe(cluster: List[_Signal]) -> Optional[str]:
+    def _cluster_cwe(cluster: list[_Signal]) -> str | None:
         """Canonical CWE of a cluster, preferring a known security CWE from its use (non-import) signals."""
         use_cwes = [s.cwe for s in cluster if s.cwe and not s.is_import]
         all_cwes = [s.cwe for s in cluster if s.cwe]
         return next(
             (c for c in use_cwes if c in _CWE_SEVERITY),
-            next((c for c in all_cwes if c in _CWE_SEVERITY), (all_cwes[0] if all_cwes else None)),
+            next(
+                (c for c in all_cwes if c in _CWE_SEVERITY),
+                (all_cwes[0] if all_cwes else None),
+            ),
         )
 
     @classmethod
-    def _fold_imports(cls, clusters: List[List[_Signal]], imports: List[_Signal]) -> None:
+    def _fold_imports(
+        cls, clusters: list[list[_Signal]], imports: list[_Signal]
+    ) -> None:
         """Fold each risky import into the same-file, same-CWE use cluster it belongs to
         (regardless of distance). Imports with no matching use become their own INFO finding."""
         for imp in imports:
@@ -437,7 +563,12 @@ class SynthesisReconciler:
             for c in clusters:
                 if all(s.is_import for s in c):
                     continue  # don't fold one lone import into another
-                if c and c[0].file == imp.file and imp.cwe and cls._cluster_cwe(c) == imp.cwe:
+                if (
+                    c
+                    and c[0].file == imp.file
+                    and imp.cwe
+                    and cls._cluster_cwe(c) == imp.cwe
+                ):
                     target = c
                     break
             if target is not None:
@@ -446,7 +577,7 @@ class SynthesisReconciler:
                 clusters.append([imp])
 
     @classmethod
-    def _merge_cluster(cls, cluster: List[_Signal]) -> Optional[ReconciledFinding]:
+    def _merge_cluster(cls, cluster: list[_Signal]) -> ReconciledFinding | None:
         """Emit ONE consolidated finding, or None to drop a spurious low-confidence warning."""
         canonical_cwe = cls._cluster_cwe(cluster)
         non_import = [s for s in cluster if not s.is_import]
@@ -456,25 +587,45 @@ class SynthesisReconciler:
             severity = "INFO"
         elif all(s.is_low_conf for s in non_import):
             # Low-confidence subprocess heuristics on a provably-safe call are spurious → drop.
-            subprocess_lc = [s for s in non_import if any(b in s.rule_id for b in ("B603", "B607"))]
-            if subprocess_lc and len(subprocess_lc) == len(non_import) and all(_is_safe_subprocess(s.snippet) for s in subprocess_lc):
+            subprocess_lc = [
+                s for s in non_import if any(b in s.rule_id for b in ("B603", "B607"))
+            ]
+            if (
+                subprocess_lc
+                and len(subprocess_lc) == len(non_import)
+                and all(_is_safe_subprocess(s.snippet) for s in subprocess_lc)
+            ):
                 return None
             severity = "LOW"
         else:
-            worst_raw = max((s.raw_severity for s in non_import), key=lambda s: _SEV_RANK.get(s, 0))
+            worst_raw = max(
+                (s.raw_severity for s in non_import), key=lambda s: _SEV_RANK.get(s, 0)
+            )
             cluster_desc = " ".join(s.description for s in non_import if s.description)
             rep = _Signal(
-                file=cluster[0].file, line=min(s.line for s in non_import), cwe=canonical_cwe,
-                source="", description=cluster_desc, fix="", raw_severity=worst_raw,
+                file=cluster[0].file,
+                line=min(s.line for s in non_import),
+                cwe=canonical_cwe,
+                source="",
+                description=cluster_desc,
+                fix="",
+                raw_severity=worst_raw,
                 is_governance=all(s.is_governance for s in non_import),
-                gov_severity=next((s.gov_severity for s in non_import if s.gov_severity), None),
+                gov_severity=next(
+                    (s.gov_severity for s in non_import if s.gov_severity), None
+                ),
             )
             severity = cls._signal_severity(rep)
 
         sources = sorted({s.source for s in cluster if s.source})
         line = min(s.line for s in (non_import or cluster))
-        description = next((s.description for s in (non_import or cluster) if s.description), "Security/quality defect")
-        fix = next((s.fix for s in cluster if s.fix), "Review and remediate the flagged code.")
+        description = next(
+            (s.description for s in (non_import or cluster) if s.description),
+            "Security/quality defect",
+        )
+        fix = next(
+            (s.fix for s in cluster if s.fix), "Review and remediate the flagged code."
+        )
         blocking = severity == "CRITICAL" or any(
             s.is_governance and (s.gov_severity == "BLOCKING") for s in cluster
         )
@@ -486,25 +637,48 @@ class SynthesisReconciler:
             f"{', '.join(sorted({s.raw_severity for s in cluster}))})."
         )
         return ReconciledFinding(
-            id=fid, title=description[:120], severity=severity, cwe=canonical_cwe,
-            file=cluster[0].file, line=line, sources=sources, fix=fix,
-            blocking=blocking, rationale=rationale,
+            id=fid,
+            title=description[:120],
+            severity=severity,
+            cwe=canonical_cwe,
+            file=cluster[0].file,
+            line=line,
+            sources=sources,
+            fix=fix,
+            blocking=blocking,
+            rationale=rationale,
+            rule_id=next(
+                (s.rule_id for s in (non_import or cluster) if s.rule_id),
+                canonical_cwe or "REVIEW",
+            ),
+            snippet=next(
+                (s.snippet for s in (non_import or cluster) if s.snippet), description
+            ),
+            category=(
+                "GOVERNANCE"
+                if all(s.is_governance for s in cluster)
+                else "SECURITY"
+                if canonical_cwe
+                else "ARCHITECTURE"
+                if any("ARCH" in s.rule_id for s in cluster)
+                else "QUALITY"
+            ),
         )
 
     # ── Bounded, non-saturating score (rule 5) ──────────────────────────────
     @classmethod
-    def _worst_severity(cls, findings: List[ReconciledFinding]) -> str:
+    def _worst_severity(cls, findings: list[ReconciledFinding]) -> str:
         if not findings:
             return "NONE"
         return max((f.severity for f in findings), key=lambda s: _SEV_RANK[s])
 
     @classmethod
-    def _score(cls, findings: List[ReconciledFinding], worst: str) -> Tuple[int, str]:
+    def _score(cls, findings: list[ReconciledFinding], worst: str) -> tuple[int, str]:
         ceiling = _CEILING[worst]
         if not findings:
             return 100, "No deduplicated findings → score 100 (ceiling, no penalties)."
 
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for f in findings:
             counts[f.severity] = counts.get(f.severity, 0) + 1
 
@@ -515,14 +689,15 @@ class SynthesisReconciler:
             if not n:
                 continue
             # Diminishing: w * 2 * (1 - decay^n)  — bounded by 2w regardless of n.
-            penalty = _WEIGHT[sev] * 2 * (1 - _DECAY ** n)
+            penalty = _WEIGHT[sev] * 2 * (1 - _DECAY**n)
             total_penalty += penalty
             terms.append(f"-{penalty:.1f} ({n}x {sev})")
 
         raw = ceiling - total_penalty
         score = max(_FLOOR[worst], round(raw))
         breakdown = (
-            f"Ceiling {ceiling} (worst: {worst}) " + " ".join(terms)
+            f"Ceiling {ceiling} (worst: {worst}) "
+            + " ".join(terms)
             + f" = {round(raw)}"
             + (f" (floored to {score})" if score != round(raw) else "")
         )
@@ -530,10 +705,13 @@ class SynthesisReconciler:
 
     # ── Verdict (rule 4: low severity never drives the top line) ─────────────
     @classmethod
-    def _verdict(cls, findings: List[ReconciledFinding], worst: str) -> Tuple[str, List[str]]:
+    def _verdict(
+        cls, findings: list[ReconciledFinding], worst: str
+    ) -> tuple[str, list[str]]:
         blocking_reasons = [
             f"{f.severity} {f.cwe or ''} in {f.file}:L{f.line} — {f.title}".strip()
-            for f in findings if f.blocking
+            for f in findings
+            if f.blocking
         ]
         if worst == "CRITICAL" or blocking_reasons:
             return "ESCALATE", blocking_reasons
@@ -544,10 +722,14 @@ class SynthesisReconciler:
 
     # ── Test-evidence semantics (rule 3) ────────────────────────────────────
     @classmethod
-    def _interpret_tests(cls, te: Optional[TestExecutionResult], source: str) -> TestEvidence:
+    def _interpret_tests(
+        cls, te: TestExecutionResult | None, source: str
+    ) -> TestEvidence:
         if te is None or not getattr(te, "executed", False) or (te.status == "SKIPPED"):
             return TestEvidence(
-                kind="none", badge="⚪ HEURISTIC", positive=False,
+                kind="none",
+                badge="⚪ HEURISTIC",
+                positive=False,
                 proves="No generated test was executed for these findings (static-analysis signal only).",
             )
 
@@ -567,7 +749,9 @@ class SynthesisReconciler:
         if badge_in in ("REPRODUCED",) or te.status == "REPRODUCED_DEFECT":
             # A predicted defect assertion fired — the vulnerability reproduced.
             return TestEvidence(
-                kind="confirms_vulnerability", badge="🔴 VULNERABILITY CONFIRMED", positive=False,
+                kind="confirms_vulnerability",
+                badge="🔴 VULNERABILITY CONFIRMED",
+                positive=False,
                 proves="A generated test reproduced the defect on the actual PR code — this confirms the vulnerability; it is not a passing/safe signal.",
             )
         stub_warn = ""
@@ -579,17 +763,25 @@ class SynthesisReconciler:
         if badge_in in ("PASSING", "PASSED") or te.status == "PASSED":
             if kind == "confirms_fix":
                 return TestEvidence(
-                    kind="confirms_fix", badge="🟢 FIX VERIFIED", positive=True,
-                    proves="A post-fix regression test passed — the proposed fix behaves as intended." + stub_warn,
+                    kind="confirms_fix",
+                    badge="🟢 FIX VERIFIED",
+                    positive=True,
+                    proves="A post-fix regression test passed — the proposed fix behaves as intended."
+                    + stub_warn,
                 )
             # A pass on a current-behavior (confirms-vulnerability) suite confirms the defect.
             return TestEvidence(
-                kind="confirms_vulnerability", badge="🔴 VULNERABILITY CONFIRMED", positive=False,
-                proves="The suite asserts the current (buggy) behavior and passed — this CONFIRMS the defect is present. A green 'passing' here would be misleading." + stub_warn,
+                kind="confirms_vulnerability",
+                badge="🔴 VULNERABILITY CONFIRMED",
+                positive=False,
+                proves="The suite asserts the current (buggy) behavior and passed — this CONFIRMS the defect is present. A green 'passing' here would be misleading."
+                + stub_warn,
             )
         # ERROR / TIMEOUT / anything else → not proven either way.
         return TestEvidence(
-            kind=kind, badge="🟡 UNVERIFIED", positive=False,
+            kind=kind,
+            badge="🟡 UNVERIFIED",
+            positive=False,
             proves="The generated test could not be run to a conclusive result (syntax error, missing dependency, or timeout) — the finding stands on static analysis alone.",
         )
 
@@ -599,10 +791,10 @@ class SynthesisReconciler:
         return bool(_NON_PROD_PATH.search(path or ""))
 
     @staticmethod
-    def _main_guard_lines(pr_content: str) -> Dict[str, int]:
+    def _main_guard_lines(pr_content: str) -> dict[str, int]:
         """Best-effort: first added-line number of an `if __name__ == '__main__':` per file.
         Findings in that file at or below this line are treated as `__main__` scope."""
-        result: Dict[str, int] = {}
+        result: dict[str, int] = {}
         if not pr_content:
             return result
         current_file = None

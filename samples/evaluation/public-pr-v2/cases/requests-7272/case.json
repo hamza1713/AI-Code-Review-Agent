@@ -1,0 +1,119 @@
+{
+  "id": "requests-7272",
+  "file": "cases/requests-7272/input.diff",
+  "sha256": "0fcebf8929d66ee7525bb4d4017e6a4228b044d5c17fdf150020bcc80ed012db",
+  "source_repository": "psf/requests",
+  "base_sha": "8f6cda9969f4a98c45ea2922f6bcbefc02256202",
+  "head_sha": "4cf9bb5cb159ad54165e1808666154a7509da4e6",
+  "source_diff_url": "https://github.com/psf/requests/compare/8f6cda9969f4a98c45ea2922f6bcbefc02256202...4cf9bb5cb159ad54165e1808666154a7509da4e6.diff",
+  "source_url": "https://github.com/psf/requests/pull/7272",
+  "merged_at": "2026-05-03T19:38:48Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7272/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": ".github/workflows/typecheck.yml",
+      "file": "cases/requests-7272/head/.github/workflows/typecheck.yml",
+      "sha256": "6e17e943ed8f9728fb8601103997f7b4f9ad458e56719aa8ab57e75cc5fdd078"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/requests-7272/head/pyproject.toml",
+      "sha256": "a9ea6d4c04b69354c1b7cbeea76f52a480987baf1070209f02facf327b58b877"
+    },
+    {
+      "path": "src/requests/__init__.py",
+      "file": "cases/requests-7272/head/src/requests/__init__.py",
+      "sha256": "311157e7fa4aa9166c827d5237e6fd694eeb5ca549ee40e2e90f89f21abcd56e"
+    },
+    {
+      "path": "src/requests/_internal_utils.py",
+      "file": "cases/requests-7272/head/src/requests/_internal_utils.py",
+      "sha256": "4c7d8d132c9898fc7d715e473f3ac74785ddc4ab96d2c9240f87835dc6d981ff"
+    },
+    {
+      "path": "src/requests/_types.py",
+      "file": "cases/requests-7272/head/src/requests/_types.py",
+      "sha256": "b57a1460185921b040cd0ce61b60285555656d9da963dc5d700ada0eb3bd0447"
+    },
+    {
+      "path": "src/requests/adapters.py",
+      "file": "cases/requests-7272/head/src/requests/adapters.py",
+      "sha256": "f04d154c9ba9419df4a9b153ff545692895f730315822bae18bdcad697883a4d"
+    },
+    {
+      "path": "src/requests/api.py",
+      "file": "cases/requests-7272/head/src/requests/api.py",
+      "sha256": "4d15480ac046f089209798e8650476ef4a28ebe6f81b400758f8ef42ec6b5509"
+    },
+    {
+      "path": "src/requests/auth.py",
+      "file": "cases/requests-7272/head/src/requests/auth.py",
+      "sha256": "e93951a552d4c3c5fd9b84a5e1d49b03caaba4723c4ff112da6053600ec85a65"
+    },
+    {
+      "path": "src/requests/compat.py",
+      "file": "cases/requests-7272/head/src/requests/compat.py",
+      "sha256": "5d79ba289690b5015044341a1f7bc7d24134fc13a2db3efcf852515bf9aa18b4"
+    },
+    {
+      "path": "src/requests/cookies.py",
+      "file": "cases/requests-7272/head/src/requests/cookies.py",
+      "sha256": "0a1ce6140f2b9420522c5080e356e689fa796c2522f55ca10826f5ed8e0a723c"
+    },
+    {
+      "path": "src/requests/exceptions.py",
+      "file": "cases/requests-7272/head/src/requests/exceptions.py",
+      "sha256": "c5e18f3352454968e337bb3056f0867df2f37c0a0d2c1a77dc05e7e0b3c0411b"
+    },
+    {
+      "path": "src/requests/help.py",
+      "file": "cases/requests-7272/head/src/requests/help.py",
+      "sha256": "723519bb1884da18d84f6b2fb78f7ebf7fb57f732070b6025ae071dac6a2d179"
+    },
+    {
+      "path": "src/requests/hooks.py",
+      "file": "cases/requests-7272/head/src/requests/hooks.py",
+      "sha256": "ebd8a02475d31a0e473a8f553e9501ff43645b9563885ad52844e7a63f0d76ab"
+    },
+    {
+      "path": "src/requests/models.py",
+      "file": "cases/requests-7272/head/src/requests/models.py",
+      "sha256": "3e1a988ed7be0506d463f28918c1f88585ed666d50d256e85848349301cbefec"
+    },
+    {
+      "path": "src/requests/py.typed",
+      "file": "cases/requests-7272/head/src/requests/py.typed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/requests/sessions.py",
+      "file": "cases/requests-7272/head/src/requests/sessions.py",
+      "sha256": "71e70083f193973946e71633e242861dc9e4c589883f0684948c678290b846f7"
+    },
+    {
+      "path": "src/requests/status_codes.py",
+      "file": "cases/requests-7272/head/src/requests/status_codes.py",
+      "sha256": "1950f47c89cf18019787e07d8ce48f66d6b38e622f7d94d70a90247fee6c040e"
+    },
+    {
+      "path": "src/requests/structures.py",
+      "file": "cases/requests-7272/head/src/requests/structures.py",
+      "sha256": "ba9460c39078f25e6f1d2a24ac941ac6f8d2ee97197fa8c8d0c262d8a1e67a02"
+    },
+    {
+      "path": "src/requests/utils.py",
+      "file": "cases/requests-7272/head/src/requests/utils.py",
+      "sha256": "1d42a9a591dcc2be174b4ebb1931861ddeec503766afbbe5bb86d3e1ca249f65"
+    },
+    {
+      "path": "tests/test_requests.py",
+      "file": "cases/requests-7272/head/tests/test_requests.py",
+      "sha256": "83092e6d0844babd43e2691457ff7be27d26f4025d45c9ba37ad7fc2f363e55b"
+    }
+  ],
+  "input_snapshot_hash": "846c64d37f01b36f7f4fb173689d8925d10f85341c7389061401dfc11dc194b9",
+  "label_status": "UNREVIEWED"
+}

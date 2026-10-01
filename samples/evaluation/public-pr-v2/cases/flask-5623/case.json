@@ -1,0 +1,79 @@
+{
+  "id": "flask-5623",
+  "file": "cases/flask-5623/input.diff",
+  "sha256": "8534f019e23ba3d212d4fbf8ccd99cc5428752dd9508490017bd2ea35d7774b8",
+  "source_repository": "pallets/flask",
+  "base_sha": "e8b91cd38aadafdf733558bbcea4810fa65bb849",
+  "head_sha": "1d610e44b396d11113bb6a5d168cc5e996a6dfb9",
+  "source_diff_url": "https://github.com/pallets/flask/compare/e8b91cd38aadafdf733558bbcea4810fa65bb849...1d610e44b396d11113bb6a5d168cc5e996a6dfb9.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5623",
+  "merged_at": "2024-10-31T19:32:11Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5623/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": ".github/workflows/tests.yaml",
+      "file": "cases/flask-5623/head/.github/workflows/tests.yaml",
+      "sha256": "eecb649354daf63873b2f56df382c6ae65f842dfef764b4b07d5938206d5b394"
+    },
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5623/head/CHANGES.rst",
+      "sha256": "65e442ba1819779ffc55436f7e649a9056151f411207b671a71e70edadf0ac55"
+    },
+    {
+      "path": "docs/async-await.rst",
+      "file": "cases/flask-5623/head/docs/async-await.rst",
+      "sha256": "d8ccc9c865191b6465eb45e421af4a4c89372fcf9f7251ba5b0b99f54fe55a5e"
+    },
+    {
+      "path": "docs/extensiondev.rst",
+      "file": "cases/flask-5623/head/docs/extensiondev.rst",
+      "sha256": "f430c2d64bd2e6e6bc3a45ba165ec6ea66f7f29e17d3cda82eff77d3679a99cf"
+    },
+    {
+      "path": "docs/installation.rst",
+      "file": "cases/flask-5623/head/docs/installation.rst",
+      "sha256": "e64eca82360fb0fcae6d818918fd80ee679e09bea3c5c21901e69ca6f0306265"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/flask-5623/head/pyproject.toml",
+      "sha256": "35617122730d5359249356442f9b80503b4dc856a7d8531ebd4d84192250fc3a"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5623/head/src/flask/app.py",
+      "sha256": "192c27301abde2fc0284a0250b8d92296912fdbf6ff8066e7842636627a66785"
+    },
+    {
+      "path": "src/flask/config.py",
+      "file": "cases/flask-5623/head/src/flask/config.py",
+      "sha256": "3e2a85d033da9ba1d6d051f8087d61a574c17b7d0d4b38cf10ec2bcf56fa92dd"
+    },
+    {
+      "path": "src/flask/helpers.py",
+      "file": "cases/flask-5623/head/src/flask/helpers.py",
+      "sha256": "77992ab90aeb812d013366af360dc8cc4a078e2002e1b41f99d4a3bd26fd5d00"
+    },
+    {
+      "path": "src/flask/sansio/scaffold.py",
+      "file": "cases/flask-5623/head/src/flask/sansio/scaffold.py",
+      "sha256": "abac0ce18e1a60c18637f2e2b6c8f73d82a9052dd9beeb74c610e6a4110715da"
+    },
+    {
+      "path": "src/flask/typing.py",
+      "file": "cases/flask-5623/head/src/flask/typing.py",
+      "sha256": "6fb98c048780a0e70023fbc5cf385f3a6eca799fe7f3af1220cc3ac695f92984"
+    },
+    {
+      "path": "tox.ini",
+      "file": "cases/flask-5623/head/tox.ini",
+      "sha256": "9649863c81f41e233bb87cdd30863310f56ee74784fa708ac4807cbef6d59e4b"
+    }
+  ],
+  "input_snapshot_hash": "7f4a9976965ee84abc74dbab00276c2afd57a97d11c0e1c5bf2c0f41f4d4747e",
+  "label_status": "UNREVIEWED"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "httpx-3366",
+  "file": "cases/httpx-3366/input.diff",
+  "sha256": "a5dd028488edfcb540adf9c8296aab9d47a281ad70421613741de8aa6c395513",
+  "source_repository": "encode/httpx",
+  "base_sha": "9a0561eed7236c1fe5daeaf64bc9682aea424d16",
+  "head_sha": "8b9897b93cd285d24d7954fae2afdb7451cd319e",
+  "source_diff_url": "https://github.com/encode/httpx/compare/9a0561eed7236c1fe5daeaf64bc9682aea424d16...8b9897b93cd285d24d7954fae2afdb7451cd319e.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3366",
+  "merged_at": "2024-10-28T13:52:50Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3366/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "httpx/__init__.py",
+      "file": "cases/httpx-3366/head/httpx/__init__.py",
+      "sha256": "8230c40ce95b64f6dca746bb6387f76a3aa72dac51ab3c6c2ab259d0961ff9f6"
+    },
+    {
+      "path": "httpx/_api.py",
+      "file": "cases/httpx-3366/head/httpx/_api.py",
+      "sha256": "2812e9e615243485352b25f8ba709cf31f955561e0f53a55b6c6017db76cc688"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3366/head/httpx/_client.py",
+      "sha256": "763ae09f3366e533e1b7a60ff162cb309c3c7a71aa57cd48ff5f58da7a272e1a"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3366/head/httpx/_config.py",
+      "sha256": "5595cf681cb54ff842f8b6514d5f0313b5d2822c81c03a6c5b49c705d88671dc"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3366/head/httpx/_transports/default.py",
+      "sha256": "aa729f3a31244eb23f7ac9b3da3360c7915fa9f9d9c75143727abaa8c729781f"
+    }
+  ],
+  "input_snapshot_hash": "15051060057d7ffeb5c14a29b9c47a513c75ccc8c7dc9a04ecb7954099b6d1c2",
+  "label_status": "UNREVIEWED"
+}

@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from code_review_agent.learning.team_memory import TeamMemoryStore, BestPractice
-from code_review_agent.learning.suggestion_tracker import SuggestionTracker
-from code_review_agent.models import InlineComment
 from code_review_agent.bot.command_router import CommandRouter
+from code_review_agent.learning.suggestion_tracker import SuggestionTracker
+from code_review_agent.learning.team_memory import BestPractice, TeamMemoryStore
+from code_review_agent.models import InlineComment
 
 
 class TestTeamMemoryStore:
@@ -26,7 +26,7 @@ class TestTeamMemoryStore:
                 description="Our async services standardize on httpx client.",
                 good_pattern="import httpx\nasync with httpx.AsyncClient() as client: ...",
                 bad_pattern="import requests\nresp = requests.get(...)",
-                times_accepted=1
+                times_accepted=1,
             )
             store.record_practice("owner/repo", practice)
 
@@ -43,7 +43,7 @@ class TestTeamMemoryStore:
                 id="use-httpx",
                 title="Use httpx",
                 description="First rule description",
-                times_accepted=1
+                times_accepted=1,
             )
             store.record_practice("owner/repo", p1)
 
@@ -52,7 +52,7 @@ class TestTeamMemoryStore:
                 id="use-httpx",
                 title="Use httpx updated",
                 description="Updated rule description",
-                times_accepted=1
+                times_accepted=1,
             )
             updated = store.record_practice("owner/repo", p2)
             assert updated.times_accepted == 2
@@ -72,7 +72,7 @@ class TestTeamMemoryStore:
                 good_code="db.execute('SELECT * FROM users WHERE id = %s', (uid,))",
                 bad_code="db.execute(f'SELECT * FROM users WHERE id = {uid}')",
                 category="security",
-                source_pr="test/repo#42"
+                source_pr="test/repo#42",
             )
             assert "parameterized" in p.id
             assert p.category == "security"
@@ -90,7 +90,7 @@ class TestTeamMemoryStore:
                 title="Standardize on Pydantic v2",
                 description="Use model_dump() instead of dict().",
                 good_code="payload = model.model_dump()",
-                bad_code="payload = model.dict()"
+                bad_code="payload = model.dict()",
             )
 
             prompt = store.format_team_memory_prompt("my/repo")
@@ -106,7 +106,7 @@ class TestTeamMemoryStore:
                 repo_id="my/repo",
                 title="Sample rule",
                 description="Sample desc",
-                good_code="print('ok')"
+                good_code="print('ok')",
             )
             assert len(store.get_practices("my/repo")) == 1
             assert store.clear_memory("my/repo") is True
@@ -128,22 +128,19 @@ class TestSuggestionTracker:
                     severity="CRITICAL",
                     comment_body="SQL Injection: parameterized query required",
                     why="User input is concatenated into query string",
-                    suggestion_code="return db.query('SELECT * FROM users WHERE id = %s', (user_id,))"
+                    suggestion_code="return db.query('SELECT * FROM users WHERE id = %s', (user_id,))",
                 ),
                 InlineComment(
                     path="app/utils.py",
                     line=20,
                     severity="WARNING",
                     comment_body="Prefer list comprehension over map",
-                    suggestion_code="return [x * 2 for x in items]"
-                )
+                    suggestion_code="return [x * 2 for x in items]",
+                ),
             ]
 
             learned = tracker.process_merged_pr(
-                owner="acme",
-                repo="backend",
-                pr_number=99,
-                applied_suggestions=comments
+                owner="acme", repo="backend", pr_number=99, applied_suggestions=comments
             )
             assert len(learned) == 2
             assert store.get_practices("acme/backend")[0].times_accepted == 1
@@ -160,10 +157,7 @@ class TestSuggestionTracker:
             ]
 
             learned = tracker.process_merged_pr(
-                owner="acme",
-                repo="core",
-                pr_number=101,
-                review_comments=raw_comments
+                owner="acme", repo="core", pr_number=101, review_comments=raw_comments
             )
             assert len(learned) == 1
             practices = store.get_practices("acme/core")
@@ -178,18 +172,26 @@ class TestSuggestionTracker:
             tracker = SuggestionTracker(memory_store=store)
 
             comments = [
-                {"body": "💡 Use sha256\n```suggestion\nreturn hashlib.sha256(data).hexdigest()\n```",
-                 "user": {"login": "review-bot"}},
-                {"body": "💡 Ignored idea\n```suggestion\nreturn never_applied_helper_xyz(data)\n```",
-                 "user": {"login": "review-bot"}},
+                {
+                    "body": "💡 Use sha256\n```suggestion\nreturn hashlib.sha256(data).hexdigest()\n```",
+                    "user": {"login": "review-bot"},
+                },
+                {
+                    "body": "💡 Ignored idea\n```suggestion\nreturn never_applied_helper_xyz(data)\n```",
+                    "user": {"login": "review-bot"},
+                },
             ]
             merged_diff = (
                 "diff --git a/h.py b/h.py\n--- a/h.py\n+++ b/h.py\n"
                 "@@ -1,1 +1,1 @@\n+    return hashlib.sha256(data).hexdigest()\n"
             )
             # Simulate the webhook path (no comments passed → tracker fetches + verifies).
-            with patch.object(tracker, "_fetch_candidates", return_value=(comments, merged_diff, True)):
-                learned = tracker.process_merged_pr(owner="acme", repo="core", pr_number=7)
+            with patch.object(
+                tracker, "_fetch_candidates", return_value=(comments, merged_diff, True)
+            ):
+                learned = tracker.process_merged_pr(
+                    owner="acme", repo="core", pr_number=7
+                )
 
             assert len(learned) == 1
             assert "sha256" in (learned[0].good_pattern or "")
@@ -199,15 +201,32 @@ class TestSuggestionTracker:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = TeamMemoryStore(cache_dir=tmpdir)
             tracker = SuggestionTracker(memory_store=store)
-            comments = [{"body": "💡 x\n```suggestion\nreturn foo_bar_baz()\n```", "user": {"login": "b"}}]
-            with patch.object(tracker, "_fetch_candidates", return_value=(comments, "", True)):
-                learned = tracker.process_merged_pr(owner="acme", repo="core", pr_number=8)
+            comments = [
+                {
+                    "body": "💡 x\n```suggestion\nreturn foo_bar_baz()\n```",
+                    "user": {"login": "b"},
+                }
+            ]
+            with patch.object(
+                tracker, "_fetch_candidates", return_value=(comments, "", True)
+            ):
+                learned = tracker.process_merged_pr(
+                    owner="acme", repo="core", pr_number=8
+                )
             assert learned == []
 
     def test_suggestion_applied_helper(self):
         added = "return hashlib.sha256(data).hexdigest()"
-        assert SuggestionTracker._suggestion_applied("hashlib.sha256(data).hexdigest()", added) is True
-        assert SuggestionTracker._suggestion_applied("totally_absent_call()", added) is False
+        assert (
+            SuggestionTracker._suggestion_applied(
+                "hashlib.sha256(data).hexdigest()", added
+            )
+            is True
+        )
+        assert (
+            SuggestionTracker._suggestion_applied("totally_absent_call()", added)
+            is False
+        )
         assert SuggestionTracker._suggestion_applied("anything", "") is False
 
     def test_merge_routes_to_platform_client(self):
@@ -226,7 +245,9 @@ class TestSuggestionTracker:
                 learned = tracker.process_merged_pr("grp", "proj", 5, platform="gitlab")
 
             get_client.assert_called_once_with("gitlab")
-            assert learned == []  # GitLab adapter lists no review comments yet → learns nothing safely
+            assert (
+                learned == []
+            )  # GitLab adapter lists no review comments yet → learns nothing safely
 
 
 class TestBotMemoryCommands:
@@ -239,7 +260,8 @@ class TestBotMemoryCommands:
                 res = CommandRouter.dispatch(
                     "/learn Always use pytest fixtures for mock databases",
                     pr_url="https://github.com/myorg/myapp/pull/12",
-                    auto_post=False
+                    auto_post=False,
+                    trusted_operator=True,
                 )
                 assert res.command == "learn"
                 assert res.status == "SUCCESS"
@@ -249,13 +271,19 @@ class TestBotMemoryCommands:
                 mem_res = CommandRouter.dispatch(
                     "/memory",
                     pr_url="https://github.com/myorg/myapp/pull/12",
-                    auto_post=False
+                    auto_post=False,
+                    trusted_operator=True,
                 )
                 assert mem_res.command == "memory"
                 assert mem_res.status == "SUCCESS"
                 assert "Always use pytest fixtures" in mem_res.response_markdown
 
     def test_learn_command_validation(self):
-        res = CommandRouter.dispatch("/learn hi", auto_post=False)
+        res = CommandRouter.dispatch(
+            "/learn hi", auto_post=False, trusted_operator=True
+        )
         assert res.status == "ERROR"
         assert "Please provide a convention description" in res.response_markdown
+
+
+pytestmark = pytest.mark.usefixtures("offline_repository_client")

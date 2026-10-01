@@ -1,0 +1,69 @@
+{
+  "id": "flask-5727",
+  "file": "cases/flask-5727/input.diff",
+  "sha256": "f3debc1b2ecb3b666451d5ac050d054d34a6fa1a49bd4140f7fe067feae991f3",
+  "source_repository": "pallets/flask",
+  "base_sha": "e7851665071cb93b3c70b1e7103f82d1e6d01f5d",
+  "head_sha": "0109e496f6ca68de29480fe6413e81b1d3f86aa9",
+  "source_diff_url": "https://github.com/pallets/flask/compare/e7851665071cb93b3c70b1e7103f82d1e6d01f5d...0109e496f6ca68de29480fe6413e81b1d3f86aa9.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5727",
+  "merged_at": "2025-05-12T01:04:35Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5727/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": ".github/workflows/lock.yaml",
+      "file": "cases/flask-5727/head/.github/workflows/lock.yaml",
+      "sha256": "1539cb23c54fc10e2b49a3a69c9df9d30ecd768351e9f24193e2d32213f78618"
+    },
+    {
+      "path": ".github/workflows/pre-commit.yaml",
+      "file": "cases/flask-5727/head/.github/workflows/pre-commit.yaml",
+      "sha256": "35d6b1f4c197e49406987db8028610e0f2802f30cd7c12b2a31a03d6034d6fca"
+    },
+    {
+      "path": ".github/workflows/publish.yaml",
+      "file": "cases/flask-5727/head/.github/workflows/publish.yaml",
+      "sha256": "7ed47db08745cfc0d384c4e7a1a656e9800e615e230dc2c4816c9a4f7a141345"
+    },
+    {
+      "path": ".github/workflows/tests.yaml",
+      "file": "cases/flask-5727/head/.github/workflows/tests.yaml",
+      "sha256": "ecf83fefb221833c8345056e29c86ce4f84aceef95093dd98d6a64b85a1e2fc6"
+    },
+    {
+      "path": ".gitignore",
+      "file": "cases/flask-5727/head/.gitignore",
+      "sha256": "a23e3badc7c5092fd3529fbe465c342a97a309ad2a2f74b5f795732d5b8169d8"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "file": "cases/flask-5727/head/.pre-commit-config.yaml",
+      "sha256": "88861bfb6708949a6ff41e7dfe00377772d4989da713a5c4734d1e02e9c62566"
+    },
+    {
+      "path": ".readthedocs.yaml",
+      "file": "cases/flask-5727/head/.readthedocs.yaml",
+      "sha256": "86214302cbc2ec1e25b78876a17947b130c43e08185cae6c67f0c9eb1d9eb9c4"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/flask-5727/head/pyproject.toml",
+      "sha256": "227c2430fe1180b8fbd224ce7c7ffefb15356d96e0da464a43b6bd73abe481f6"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5727/head/src/flask/app.py",
+      "sha256": "5c6aa0151b0b8018732280761d27eda0c4c83378630e21faadd57b73783720a7"
+    },
+    {
+      "path": "uv.lock",
+      "file": "cases/flask-5727/head/uv.lock",
+      "sha256": "4310578ed837d3c966f88a90e48d4c432a24e40c72f7e3d98539568c97c7e072"
+    }
+  ],
+  "input_snapshot_hash": "1a75c145968722c7c975aaea79d1582a382f214fd9db47a020f93287977289d2",
+  "label_status": "UNREVIEWED"
+}

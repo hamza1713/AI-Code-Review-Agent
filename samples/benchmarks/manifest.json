@@ -10,12 +10,9 @@
         "category": "SECURITY",
         "cwe": "CWE-89",
         "severity": "CRITICAL",
-        "keywords": [
-          "sql",
-          "injection",
-          "query",
-          "user_id"
-        ]
+        "file_path": "app/services/user_service.py",
+        "line_number": 11,
+        "rule_ids": []
       }
     ]
   },
@@ -30,21 +27,17 @@
         "category": "SECURITY",
         "cwe": "CWE-798",
         "severity": "CRITICAL",
-        "keywords": [
-          "secret",
-          "aws",
-          "key"
-        ]
+        "file_path": "app/config/auth.py",
+        "line_number": 5,
+        "rule_ids": []
       },
       {
         "category": "SECURITY",
         "cwe": "CWE-798",
         "severity": "CRITICAL",
-        "keywords": [
-          "secret",
-          "password",
-          "key"
-        ]
+        "file_path": "app/config/auth.py",
+        "line_number": 6,
+        "rule_ids": []
       }
     ]
   },
@@ -59,12 +52,9 @@
         "category": "SECURITY",
         "cwe": "CWE-78",
         "severity": "HIGH",
-        "keywords": [
-          "command",
-          "injection",
-          "subprocess",
-          "shell"
-        ]
+        "file_path": "app/utils/system.py",
+        "line_number": 10,
+        "rule_ids": []
       }
     ]
   },
@@ -79,12 +69,9 @@
         "category": "SECURITY",
         "cwe": "CWE-502",
         "severity": "CRITICAL",
-        "keywords": [
-          "pickle",
-          "deserialization",
-          "cookie",
-          "session"
-        ]
+        "file_path": "app/cache/session_store.py",
+        "line_number": 13,
+        "rule_ids": []
       }
     ]
   },
@@ -99,12 +86,9 @@
         "category": "SECURITY",
         "cwe": "CWE-256",
         "severity": "HIGH",
-        "keywords": [
-          "password",
-          "plaintext",
-          "compare",
-          "user.password"
-        ]
+        "file_path": "app/auth/verifier.py",
+        "line_number": 13,
+        "rule_ids": []
       }
     ]
   },
@@ -127,11 +111,10 @@
         "category": "QUALITY",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "n+1",
-          "query",
-          "loop",
-          "order"
+        "file_path": "app/repositories/order_repository.py",
+        "line_number": 17,
+        "rule_ids": [
+          "QUAL-NPLUS1-001"
         ]
       }
     ]
@@ -147,10 +130,11 @@
         "category": "QUALITY",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "except",
-          "swallow",
-          "pass"
+        "file_path": "app/handlers/event_handler.py",
+        "line_number": 22,
+        "rule_ids": [
+          "SEC-EXCEPT-001",
+          "SEC-EXCEPT-001"
         ]
       }
     ]
@@ -166,18 +150,20 @@
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "print",
-          "logger"
+        "file_path": "app/controllers/user_controller.py",
+        "line_number": 11,
+        "rule_ids": [
+          "gov-no-print-statements"
         ]
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "print",
-          "logger"
+        "file_path": "app/controllers/user_controller.py",
+        "line_number": 13,
+        "rule_ids": [
+          "gov-no-print-statements"
         ]
       }
     ]
@@ -193,20 +179,20 @@
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "wildcard",
-          "import",
-          "*"
+        "file_path": "app/routes/api.py",
+        "line_number": 1,
+        "rule_ids": [
+          "gov-no-wildcard-imports"
         ]
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "wildcard",
-          "import",
-          "*"
+        "file_path": "app/routes/api.py",
+        "line_number": 2,
+        "rule_ids": [
+          "gov-no-wildcard-imports"
         ]
       }
     ]
@@ -222,10 +208,10 @@
         "category": "ARCHITECTURE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "signature",
-          "parameter",
-          "breaking"
+        "file_path": "app/services/payment_service.py",
+        "line_number": 5,
+        "rule_ids": [
+          "ARCH-SIG-001"
         ]
       }
     ]
@@ -241,26 +227,26 @@
         "category": "SECURITY",
         "cwe": "CWE-89",
         "severity": "CRITICAL",
-        "keywords": [
-          "sql",
-          "injection"
-        ]
+        "file_path": "app/legacy/auth_manager.py",
+        "line_number": 15,
+        "rule_ids": []
       },
       {
         "category": "SECURITY",
         "cwe": "CWE-256",
         "severity": "HIGH",
-        "keywords": [
-          "password",
-          "plaintext"
-        ]
+        "file_path": "app/legacy/auth_manager.py",
+        "line_number": 18,
+        "rule_ids": []
       },
       {
         "category": "GOVERNANCE",
         "cwe": "",
         "severity": "WARNING",
-        "keywords": [
-          "print"
+        "file_path": "app/legacy/auth_manager.py",
+        "line_number": 12,
+        "rule_ids": [
+          "gov-no-print-statements"
         ]
       }
     ]
@@ -276,21 +262,9 @@
         "category": "SECURITY",
         "cwe": "CWE-327",
         "severity": "MEDIUM",
-        "keywords": [
-          "md5",
-          "hash",
-          "crypto"
-        ]
-      },
-      {
-        "category": "SECURITY",
-        "cwe": "CWE-327",
-        "severity": "MEDIUM",
-        "keywords": [
-          "bandit",
-          "md5",
-          "hashlib"
-        ]
+        "file_path": "auth/hasher.py",
+        "line_number": 14,
+        "rule_ids": []
       }
     ]
   },
@@ -305,11 +279,9 @@
         "category": "SECURITY",
         "cwe": "CWE-22",
         "severity": "HIGH",
-        "keywords": [
-          "path",
-          "traversal",
-          "open"
-        ]
+        "file_path": "handlers/file_server.py",
+        "line_number": 19,
+        "rule_ids": []
       }
     ]
   }

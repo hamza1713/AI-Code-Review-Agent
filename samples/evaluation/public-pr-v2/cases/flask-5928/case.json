@@ -1,0 +1,69 @@
+{
+  "id": "flask-5928",
+  "file": "cases/flask-5928/input.diff",
+  "sha256": "af1e3da769b080a8eca9bee551fffe88d0de4b6fdd7d71e0d96fdebb76fe2212",
+  "source_repository": "pallets/flask",
+  "base_sha": "7b0088693ece1bd3a9238a6fdf56ed8df7a4d43b",
+  "head_sha": "fbb6f0bc4c60a0bada0e03c3480d0ccf30a3c1df",
+  "source_diff_url": "https://github.com/pallets/flask/compare/7b0088693ece1bd3a9238a6fdf56ed8df7a4d43b...fbb6f0bc4c60a0bada0e03c3480d0ccf30a3c1df.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5928",
+  "merged_at": "2026-02-20T04:00:34Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5928/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5928/head/CHANGES.rst",
+      "sha256": "060b8b65018ca0258b662de8ba06c69a889a7b0cca4034799d937e97cd83dbe9"
+    },
+    {
+      "path": "docs/appcontext.rst",
+      "file": "cases/flask-5928/head/docs/appcontext.rst",
+      "sha256": "3ebab65913d88ec2f27fb111c5ecbd1f5214a62a48f11bf011c5e25803a9f03b"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5928/head/src/flask/app.py",
+      "sha256": "09a3a1a7b3d1f174a4d274da2c329f9377745bbf6f138b17c3187352f7466a15"
+    },
+    {
+      "path": "src/flask/ctx.py",
+      "file": "cases/flask-5928/head/src/flask/ctx.py",
+      "sha256": "fdff186ec6f47fa5a15fe5947c843bbd2ee20ab0be34036ea8dedaaa89c58f9f"
+    },
+    {
+      "path": "src/flask/helpers.py",
+      "file": "cases/flask-5928/head/src/flask/helpers.py",
+      "sha256": "048de3f018b1a494d52332a861b66782fb9a07a7e1ea0c239f41a8203cf8a0ea"
+    },
+    {
+      "path": "tests/test_appctx.py",
+      "file": "cases/flask-5928/head/tests/test_appctx.py",
+      "sha256": "43b4a6355ab16fd5c98a7d188eca102ee427928a2bed158782cb557dfdec37cc"
+    },
+    {
+      "path": "tests/test_basic.py",
+      "file": "cases/flask-5928/head/tests/test_basic.py",
+      "sha256": "02f801a3648fa63d8117111b1d8e3219aa946062f584fd9b252de5db6ac8ec17"
+    },
+    {
+      "path": "tests/test_blueprints.py",
+      "file": "cases/flask-5928/head/tests/test_blueprints.py",
+      "sha256": "027a62594526fac11cc7d512375c4d86b539d2ebde51d9629e6d2377f7a5ba7d"
+    },
+    {
+      "path": "tests/test_helpers.py",
+      "file": "cases/flask-5928/head/tests/test_helpers.py",
+      "sha256": "04d700b48f3d5e3139ebe1e162df30bf9a223213c82c50b4f77b3692b111c011"
+    },
+    {
+      "path": "tests/test_testing.py",
+      "file": "cases/flask-5928/head/tests/test_testing.py",
+      "sha256": "6d3a048b696cb704b29dc09c712d0ac6e52cfe28d5068a324c1b0b54dcd6fdab"
+    }
+  ],
+  "input_snapshot_hash": "d18e9f350b7e995296db9535b2c62fcf21e040774150b8c3b40f8caa40be32e0",
+  "label_status": "UNREVIEWED"
+}

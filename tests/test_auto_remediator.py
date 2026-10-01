@@ -3,20 +3,17 @@ Unit and integration tests for AutoRemediator, 1-click branch commits,
 bot slash commands (/review apply), and REST API ingress.
 """
 
-import os
-import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
 from code_review_agent.bot.command_router import CommandRouter
-from code_review_agent.models import SastFinding
-from code_review_agent.platform.base import PlatformPRMetadata
+from code_review_agent.platform.bitbucket_adapter import BitbucketPlatformClient
 from code_review_agent.platform.github_adapter import GitHubPlatformClient
 from code_review_agent.platform.gitlab_adapter import GitLabPlatformClient
-from code_review_agent.platform.bitbucket_adapter import BitbucketPlatformClient
 from code_review_agent.platform.local_git_adapter import LocalGitPlatformClient
 from code_review_agent.remediator import AutoRemediator
 from code_review_agent.webhook_server import app
@@ -55,14 +52,28 @@ def test_local_git_adapter_commit_file_change():
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir)
         import subprocess
-        subprocess.run(["git", "init", "-b", "main"], cwd=repo_path, check=True, stdout=subprocess.DEVNULL)
-        subprocess.run(["git", "config", "user.name", "Test Reviewer"], cwd=repo_path, check=True)
-        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
+
+        subprocess.run(
+            ["git", "init", "-b", "main"],
+            cwd=repo_path,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test Reviewer"], cwd=repo_path, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo_path,
+            check=True,
+        )
 
         test_file = repo_path / "app.py"
         test_file.write_text("value = 1\n", encoding="utf-8")
         subprocess.run(["git", "add", "app.py"], cwd=repo_path, check=True)
-        subprocess.run(["git", "commit", "-m", "initial commit"], cwd=repo_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial commit"], cwd=repo_path, check=True
+        )
 
         adapter = LocalGitPlatformClient(repo_dir=str(repo_path))
 
@@ -77,7 +88,7 @@ def test_local_git_adapter_commit_file_change():
             branch="main",
             path="app.py",
             content="value = 2\n",
-            commit_message="fix(quality): update value"
+            commit_message="fix(quality): update value",
         )
 
         assert result["sha"] != "local-working-tree"
@@ -92,7 +103,7 @@ def test_github_commit_file_change_offline():
         branch="patch-1",
         path="service.py",
         content="safe_code = True\n",
-        commit_message="fix(security): sanitize"
+        commit_message="fix(security): sanitize",
     )
     assert result["branch"] == "patch-1"
     assert "simulated" in result["sha"]
@@ -106,7 +117,7 @@ def test_gitlab_commit_file_change_offline():
         branch="patch-1",
         path="service.py",
         content="safe_code = True\n",
-        commit_message="fix(security): sanitize"
+        commit_message="fix(security): sanitize",
     )
     assert result["branch"] == "patch-1"
     assert "simulated" in result["sha"]
@@ -120,13 +131,14 @@ def test_bitbucket_commit_file_change_offline():
         branch="patch-1",
         path="service.py",
         content="safe_code = True\n",
-        commit_message="fix(security): sanitize"
+        commit_message="fix(security): sanitize",
     )
     assert result["branch"] == "patch-1"
     assert "simulated" in result["sha"]
 
 
-def test_command_router_apply_slash_command():
+def test_command_router_apply_slash_command(queued_claim):
+    claim = queued_claim("https://github.com/org/repo/pull/12")
     fake_diff = """diff --git a/app.py b/app.py
 new file mode 100644
 --- /dev/null
@@ -138,6 +150,7 @@ new file mode 100644
 +"""
     # 1. Run explain to find the fingerprint
     from code_review_agent.tools.sast_scanner import SastEngine
+
     findings = SastEngine().scan_diff(fake_diff)
     assert len(findings) > 0
     target_fp = findings[0].fingerprint
@@ -151,7 +164,7 @@ new file mode 100644
             "file_path": "app.py",
             "fingerprint": target_fp,
             "rule_id": findings[0].rule_id,
-            "branch": "fix-sqli"
+            "branch": "fix-sqli",
         }
 
         # Dispatch /review apply <fp>
@@ -159,7 +172,9 @@ new file mode 100644
             f"/review apply {target_fp}",
             pr_url="https://github.com/org/repo/pull/12",
             raw_diff=fake_diff,
-            auto_post=False
+            auto_post=False,
+            trusted_operator=True,
+            _job_claim=claim,
         )
 
         assert res.status == "SUCCESS"
@@ -171,7 +186,9 @@ new file mode 100644
             f"/apply {target_fp}",
             pr_url="https://github.com/org/repo/pull/12",
             raw_diff=fake_diff,
-            auto_post=False
+            auto_post=False,
+            trusted_operator=True,
+            _job_claim=claim,
         )
         assert res2.status == "SUCCESS"
 
@@ -186,7 +203,7 @@ def test_webhook_api_remediation_apply():
             "file_path": "auth.py",
             "fingerprint": "abc123def4567890",
             "rule_id": "SAST-SQLI-001",
-            "branch": "patch-branch"
+            "branch": "patch-branch",
         }
 
         response = test_client.post(
@@ -194,11 +211,29 @@ def test_webhook_api_remediation_apply():
             json={
                 "pr_identifier": "https://github.com/org/repo/pull/10",
                 "fingerprint": "abc123def4567890",
-                "custom_message": "fix: resolve sqli"
-            }
+                "custom_message": "fix: resolve sqli",
+            },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
-        assert data["status"] == "success"
-        assert data["commit_sha"] == "123456789abc"
+        assert data["status"] == "accepted"
+        mock_apply.assert_not_called()
+        from code_review_agent.webhook_server import queue
+
+        job = queue.get_job(data["job_id"])
+        assert job["job_kind"] == "command"
+        import json
+
+        payload = (
+            queue._get_connection()
+            .execute(
+                "SELECT payload_json FROM webhook_jobs WHERE job_id=?",
+                (data["job_id"],),
+            )
+            .fetchone()[0]
+        )
+        assert json.loads(payload)["custom_message"] == "fix: resolve sqli"
+
+
+pytestmark = pytest.mark.usefixtures("offline_repository_client")

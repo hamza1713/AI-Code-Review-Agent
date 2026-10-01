@@ -1,0 +1,20 @@
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 530a4c2a5f..bfb44b9d60 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -22,6 +22,15 @@ def inner(*suffix):
+     return inner
+ 
+ 
++@pytest.fixture(autouse=True)
++def clean_proxy_environ(monkeypatch):
++    """Remove proxy related environment variables for every test."""
++    proxy_vars = ("http_proxy", "https_proxy", "no_proxy", "ftp_proxy", "all_proxy")
++    for var in proxy_vars:
++        monkeypatch.delenv(var, raising=False)
++        monkeypatch.delenv(var.upper(), raising=False)
++
++
+ @pytest.fixture
+ def httpbin(httpbin):
+     return prepare_url(httpbin)

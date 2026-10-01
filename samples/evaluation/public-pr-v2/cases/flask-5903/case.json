@@ -1,0 +1,29 @@
+{
+  "id": "flask-5903",
+  "file": "cases/flask-5903/input.diff",
+  "sha256": "147a253e6dc8059ff6716f6d0f09bde7218dee77eaf971e3e0d24060e3d992df",
+  "source_repository": "pallets/flask",
+  "base_sha": "407eb76b27884848383a37c7274654f0271e4bc4",
+  "head_sha": "3d03098a97ddc6a908aa4a50c2ef7381f8297d0a",
+  "source_diff_url": "https://github.com/pallets/flask/compare/407eb76b27884848383a37c7274654f0271e4bc4...3d03098a97ddc6a908aa4a50c2ef7381f8297d0a.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5903",
+  "merged_at": "2026-01-28T15:43:01Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5903/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "docs/tutorial/factory.rst",
+      "file": "cases/flask-5903/head/docs/tutorial/factory.rst",
+      "sha256": "d7d6d250af7771da4577244fa6f3c52a8e310a8bb91189f02c217eac0d4ed862"
+    },
+    {
+      "path": "examples/tutorial/flaskr/__init__.py",
+      "file": "cases/flask-5903/head/examples/tutorial/flaskr/__init__.py",
+      "sha256": "cc44165ea4444bc114aedba76cf2f15451f182df97629317589d46902742f118"
+    }
+  ],
+  "input_snapshot_hash": "3309f84deb08e4dca1ce5010f53d87ad9b1225ac67df20253c60d7791ca04c9d",
+  "label_status": "UNREVIEWED"
+}

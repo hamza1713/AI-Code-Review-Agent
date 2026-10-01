@@ -1,0 +1,238 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 53aaa6e0fa..1d32e53dc6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
+ 
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ 
+-## Version 0.28.0
++## [Unreleased]
+ 
+-Version 0.28.0 introduces an `httpx.SSLContext()` class and `ssl_context` parameter.
++This release introduces an `httpx.SSLContext()` class and `ssl_context` parameter.
+ 
+ * Added `httpx.SSLContext` class and `ssl_context` parameter. (#3022, #3335)
+ * The `verify` and `cert` arguments have been deprecated and will now raise warnings. (#3022, #3335)
+@@ -15,6 +15,7 @@ Version 0.28.0 introduces an `httpx.SSLContext()` class and `ssl_context` parame
+ * The `URL.raw` property has now been removed.
+ * Ensure JSON request bodies are compact. (#3363)
+ * Review URL percent escape sets, based on WHATWG spec. (#3371, #3373)
++* Ensure `certifi` and `httpcore` are only imported if required. (#3377)
+ 
+ ## 0.27.2 (27th August, 2024)
+ 
+diff --git a/httpx/__version__.py b/httpx/__version__.py
+index 0a684ac3a9..5eaaddbac9 100644
+--- a/httpx/__version__.py
++++ b/httpx/__version__.py
+@@ -1,3 +1,3 @@
+ __title__ = "httpx"
+ __description__ = "A next generation HTTP client, for Python 3."
+-__version__ = "0.28.0"
++__version__ = "0.27.2"
+diff --git a/httpx/_config.py b/httpx/_config.py
+index 2c9634a666..5a1a98a024 100644
+--- a/httpx/_config.py
++++ b/httpx/_config.py
+@@ -6,8 +6,6 @@
+ import typing
+ import warnings
+ 
+-import certifi
+-
+ from ._models import Headers
+ from ._types import HeaderTypes, TimeoutTypes
+ from ._urls import URL
+@@ -77,6 +75,8 @@ def __init__(
+         self,
+         verify: bool = True,
+     ) -> None:
++        import certifi
++
+         # ssl.SSLContext sets OP_NO_SSLv2, OP_NO_SSLv3, OP_NO_COMPRESSION,
+         # OP_CIPHER_SERVER_PREFERENCE, OP_SINGLE_DH_USE and OP_SINGLE_ECDH_USE
+         # by default. (from `ssl.create_default_context`)
+diff --git a/httpx/_main.py b/httpx/_main.py
+index 41c50f7413..3df37cf0ae 100644
+--- a/httpx/_main.py
++++ b/httpx/_main.py
+@@ -6,7 +6,6 @@
+ import typing
+ 
+ import click
+-import httpcore
+ import pygments.lexers
+ import pygments.util
+ import rich.console
+@@ -21,6 +20,9 @@
+ from ._models import Response
+ from ._status_codes import codes
+ 
++if typing.TYPE_CHECKING:
++    import httpcore  # pragma: no cover
++
+ 
+ def print_help() -> None:
+     console = rich.console.Console()
+diff --git a/httpx/_transports/default.py b/httpx/_transports/default.py
+index a1978c5ae9..50ff91055e 100644
+--- a/httpx/_transports/default.py
++++ b/httpx/_transports/default.py
+@@ -27,11 +27,13 @@
+ from __future__ import annotations
+ 
+ import contextlib
+-import ssl
+ import typing
+ from types import TracebackType
+ 
+-import httpcore
++if typing.TYPE_CHECKING:
++    import ssl  # pragma: no cover
++
++    import httpx  # pragma: no cover
+ 
+ from .._config import DEFAULT_LIMITS, Limits, Proxy, SSLContext, create_ssl_context
+ from .._exceptions import (
+@@ -66,9 +68,35 @@
+ 
+ __all__ = ["AsyncHTTPTransport", "HTTPTransport"]
+ 
++HTTPCORE_EXC_MAP: dict[type[Exception], type[httpx.HTTPError]] = {}
++
++
++def _load_httpcore_exceptions() -> dict[type[Exception], type[httpx.HTTPError]]:
++    import httpcore
++
++    return {
++        httpcore.TimeoutException: TimeoutException,
++        httpcore.ConnectTimeout: ConnectTimeout,
++        httpcore.ReadTimeout: ReadTimeout,
++        httpcore.WriteTimeout: WriteTimeout,
++        httpcore.PoolTimeout: PoolTimeout,
++        httpcore.NetworkError: NetworkError,
++        httpcore.ConnectError: ConnectError,
++        httpcore.ReadError: ReadError,
++        httpcore.WriteError: WriteError,
++        httpcore.ProxyError: ProxyError,
++        httpcore.UnsupportedProtocol: UnsupportedProtocol,
++        httpcore.ProtocolError: ProtocolError,
++        httpcore.LocalProtocolError: LocalProtocolError,
++        httpcore.RemoteProtocolError: RemoteProtocolError,
++    }
++
+ 
+ @contextlib.contextmanager
+ def map_httpcore_exceptions() -> typing.Iterator[None]:
++    global HTTPCORE_EXC_MAP
++    if len(HTTPCORE_EXC_MAP) == 0:
++        HTTPCORE_EXC_MAP = _load_httpcore_exceptions()
+     try:
+         yield
+     except Exception as exc:
+@@ -90,24 +118,6 @@ def map_httpcore_exceptions() -> typing.Iterator[None]:
+         raise mapped_exc(message) from exc
+ 
+ 
+-HTTPCORE_EXC_MAP = {
+-    httpcore.TimeoutException: TimeoutException,
+-    httpcore.ConnectTimeout: ConnectTimeout,
+-    httpcore.ReadTimeout: ReadTimeout,
+-    httpcore.WriteTimeout: WriteTimeout,
+-    httpcore.PoolTimeout: PoolTimeout,
+-    httpcore.NetworkError: NetworkError,
+-    httpcore.ConnectError: ConnectError,
+-    httpcore.ReadError: ReadError,
+-    httpcore.WriteError: WriteError,
+-    httpcore.ProxyError: ProxyError,
+-    httpcore.UnsupportedProtocol: UnsupportedProtocol,
+-    httpcore.ProtocolError: ProtocolError,
+-    httpcore.LocalProtocolError: LocalProtocolError,
+-    httpcore.RemoteProtocolError: RemoteProtocolError,
+-}
+-
+-
+ class ResponseStream(SyncByteStream):
+     def __init__(self, httpcore_stream: typing.Iterable[bytes]) -> None:
+         self._httpcore_stream = httpcore_stream
+@@ -138,6 +148,8 @@ def __init__(
+         verify: typing.Any = None,
+         cert: typing.Any = None,
+     ) -> None:
++        import httpcore
++
+         proxy = Proxy(url=proxy) if isinstance(proxy, (str, URL)) else proxy
+         if verify is not None or cert is not None:  # pragma: nocover
+             # Deprecated...
+@@ -225,6 +237,7 @@ def handle_request(
+         request: Request,
+     ) -> Response:
+         assert isinstance(request.stream, SyncByteStream)
++        import httpcore
+ 
+         req = httpcore.Request(
+             method=request.method,
+@@ -284,6 +297,8 @@ def __init__(
+         verify: typing.Any = None,
+         cert: typing.Any = None,
+     ) -> None:
++        import httpcore
++
+         proxy = Proxy(url=proxy) if isinstance(proxy, (str, URL)) else proxy
+         if verify is not None or cert is not None:  # pragma: nocover
+             # Deprecated...
+@@ -371,6 +386,7 @@ async def handle_async_request(
+         request: Request,
+     ) -> Response:
+         assert isinstance(request.stream, AsyncByteStream)
++        import httpcore
+ 
+         req = httpcore.Request(
+             method=request.method,
+diff --git a/tests/test_api.py b/tests/test_api.py
+index fe8083fc40..225f384ede 100644
+--- a/tests/test_api.py
++++ b/tests/test_api.py
+@@ -85,3 +85,18 @@ def test_stream(server):
+ def test_get_invalid_url():
+     with pytest.raises(httpx.UnsupportedProtocol):
+         httpx.get("invalid://example.org")
++
++
++# check that httpcore isn't imported until we do a request
++def test_httpcore_lazy_loading(server):
++    import sys
++
++    # unload our module if it is already loaded
++    if "httpx" in sys.modules:
++        del sys.modules["httpx"]
++        del sys.modules["httpcore"]
++    import httpx
++
++    assert "httpcore" not in sys.modules
++    _response = httpx.get(server.url)
++    assert "httpcore" in sys.modules
+diff --git a/tests/test_config.py b/tests/test_config.py
+index 9f86f83936..5d8748d169 100644
+--- a/tests/test_config.py
++++ b/tests/test_config.py
+@@ -188,3 +188,18 @@ def test_proxy_with_auth_from_url():
+ def test_invalid_proxy_scheme():
+     with pytest.raises(ValueError):
+         httpx.Proxy("invalid://example.com")
++
++
++def test_certifi_lazy_loading():
++    global httpx, certifi
++    import sys
++
++    del sys.modules["httpx"]
++    del sys.modules["certifi"]
++    del httpx
++    del certifi
++    import httpx
++
++    assert "certifi" not in sys.modules
++    _context = httpx.SSLContext()
++    assert "certifi" in sys.modules

@@ -1,0 +1,29 @@
+{
+  "id": "requests-7315",
+  "file": "cases/requests-7315/input.diff",
+  "sha256": "c3a9ebe4a538c2e91dbeb71cbaaf0236f7068a2c9f20e7f25fc72cb8968657f1",
+  "source_repository": "psf/requests",
+  "base_sha": "6360477c52303c9445b45fa8744b02d05a2f0905",
+  "head_sha": "cead573dedd928161ca7c402ddacbd8c8e05faee",
+  "source_diff_url": "https://github.com/psf/requests/compare/6360477c52303c9445b45fa8744b02d05a2f0905...cead573dedd928161ca7c402ddacbd8c8e05faee.diff",
+  "source_url": "https://github.com/psf/requests/pull/7315",
+  "merged_at": "2026-05-10T21:41:25Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7315/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": "src/requests/adapters.py",
+      "file": "cases/requests-7315/head/src/requests/adapters.py",
+      "sha256": "8048e074db53acaa0c3c9c7dc503d3d52486f8f19ea69c0028bf49efb198aff0"
+    },
+    {
+      "path": "tests/test_adapters.py",
+      "file": "cases/requests-7315/head/tests/test_adapters.py",
+      "sha256": "102494aa704f8505fb22fa476452f6aa3aae756da82fe2d5b2a2a3f366b38bf4"
+    }
+  ],
+  "input_snapshot_hash": "8d3729dbc7b9697aa51c9ad02265908a8215798ec9099159525f6b5be9d92f06",
+  "label_status": "UNREVIEWED"
+}

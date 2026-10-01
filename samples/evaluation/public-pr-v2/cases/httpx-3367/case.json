@@ -1,0 +1,54 @@
+{
+  "id": "httpx-3367",
+  "file": "cases/httpx-3367/input.diff",
+  "sha256": "81bfd10a829d0508892f5376c6df57e7b63dfaf09321474120c3e5a05a30a52c",
+  "source_repository": "encode/httpx",
+  "base_sha": "8e36f2bc685dfbe43cd7503bc1c422a6ed6e05a5",
+  "head_sha": "fa17a052f90af8b3cc90ffa4589adf17f5c4a663",
+  "source_diff_url": "https://github.com/encode/httpx/compare/8e36f2bc685dfbe43cd7503bc1c422a6ed6e05a5...fa17a052f90af8b3cc90ffa4589adf17f5c4a663.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3367",
+  "merged_at": "2024-10-28T14:40:22Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3367/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "httpx/_content.py",
+      "file": "cases/httpx-3367/head/httpx/_content.py",
+      "sha256": "2c61b3ac94d1dcebcde0c6f519554d2d7917247fbaa0a97002db4ef69e70ff28"
+    },
+    {
+      "path": "tests/client/test_auth.py",
+      "file": "cases/httpx-3367/head/tests/client/test_auth.py",
+      "sha256": "5c0ca4e84b712f4ad16ff0c47288ad9593671c56c98e6bacb01444eca93495bb"
+    },
+    {
+      "path": "tests/models/test_requests.py",
+      "file": "cases/httpx-3367/head/tests/models/test_requests.py",
+      "sha256": "f297816ee17cedc6f1edd347b13680ceb171231267963b859c7eed9f3e675cc4"
+    },
+    {
+      "path": "tests/models/test_responses.py",
+      "file": "cases/httpx-3367/head/tests/models/test_responses.py",
+      "sha256": "b0c0f9ad34d0baf92d34ef447e4b6a8d00f78f316fa132258acb099e6c66dff1"
+    },
+    {
+      "path": "tests/models/test_whatwg.py",
+      "file": "cases/httpx-3367/head/tests/models/test_whatwg.py",
+      "sha256": "f07bf75d0d1cc18244c99597c6f4d8475db84fc21a0175f0a591fa2db128d5d5"
+    },
+    {
+      "path": "tests/test_content.py",
+      "file": "cases/httpx-3367/head/tests/test_content.py",
+      "sha256": "ff13b51d8163d955ac7d40d0c4195b14d8053c062a94c32100a49c5e9e3372b8"
+    },
+    {
+      "path": "tests/test_main.py",
+      "file": "cases/httpx-3367/head/tests/test_main.py",
+      "sha256": "a71a3235ff85c68dbe2d2259d1884bebf8a9ae0b2976b13a36f1585b62b51f21"
+    }
+  ],
+  "input_snapshot_hash": "615267bd3144440f36a13d03eb4b092fd614599a87c298a8bc88923692014c31",
+  "label_status": "UNREVIEWED"
+}

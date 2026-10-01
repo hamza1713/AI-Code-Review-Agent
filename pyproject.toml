@@ -1,11 +1,10 @@
 [project]
 name = "code_review_agent"
-version = "2.0.0"
-description = "Production-grade multi-agent code review system powered by CrewAI Flows, Google Gemini, SAST, and GitHub Webhooks"
+version = "2.5.0"
+description = "Advisory code review service with static analysis, durable jobs, and measured rollout gates"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools]>=1.15.0,<2.0.0",
     "google-genai>=0.1.0",
     "google-generativeai>=0.8.0",
     "pydantic>=2.0.0",
@@ -17,8 +16,13 @@ dependencies = [
     "unidiff>=0.7.5",
     "ruff>=0.3.0",
     "bandit>=1.7.8",
-    "mcp>=1.0.0"
+    "mcp>=1.0.0",
+    "python-multipart>=0.0.20",
+    "pyyaml>=6.0.2"
 ]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "mypy>=1.15", "pip-audit>=2.9", "types-PyYAML", "types-requests"]
 
 [project.optional-dependencies]
 eval = [
@@ -36,14 +40,25 @@ kickoff = "code_review_agent.main:kickoff"
 plot = "code_review_agent.main:plot"
 review-server = "code_review_agent.webhook_server:start_server"
 eval-benchmarks = "code_review_agent.benchmarks:main"
+review-db = "code_review_agent.operations:main"
+review-pilot = "code_review_agent.pilot:main"
 code-review-mcp = "code_review_agent.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.crewai]
-type = "flow"
+# Repository-owned release gate; independent of developer-wide Ruff preferences.
+# Covers invalid/undefined code, imports, Python compatibility, common bugs,
+# comprehensions, and redundant code. Exception boundaries require code review.
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "C4", "PIE"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Query", "fastapi.Header", "fastapi.File", "fastapi.Form", "fastapi.Depends"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -1,0 +1,34 @@
+diff --git a/HISTORY.md b/HISTORY.md
+index fd84404714..4fb8a63a33 100644
+--- a/HISTORY.md
++++ b/HISTORY.md
+@@ -6,6 +6,14 @@ dev
+ 
+ - \[Short description of non-trivial change.\]
+ 
++
++2.34.2 (2026-05-14)
++-------------------
++- Moved `headers` input type back to `Mapping` to avoid invariance issues
++  with `MutableMapping` and inferred dict types. Users calling
++  `Request.headers.update()` may need to narrow typing in their code. (#7441)
++
++
+ 2.34.1 (2026-05-13)
+ -------------------
+ 
+diff --git a/src/requests/__version__.py b/src/requests/__version__.py
+index bf5a4e9bc2..fea814e582 100644
+--- a/src/requests/__version__.py
++++ b/src/requests/__version__.py
+@@ -5,8 +5,8 @@
+ __title__ = "requests"
+ __description__ = "Python HTTP for Humans."
+ __url__ = "https://requests.readthedocs.io"
+-__version__ = "2.34.1"
+-__build__ = 0x023401
++__version__ = "2.34.2"
++__build__ = 0x023402
+ __author__ = "Kenneth Reitz"
+ __author_email__ = "me@kennethreitz.org"
+ __license__ = "Apache-2.0"

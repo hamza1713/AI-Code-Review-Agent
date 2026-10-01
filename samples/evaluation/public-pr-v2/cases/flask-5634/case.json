@@ -1,0 +1,44 @@
+{
+  "id": "flask-5634",
+  "file": "cases/flask-5634/input.diff",
+  "sha256": "2699629b1724efc3e2590b7e7b219d73b33e67737a644bc46ab9edc88b10ada1",
+  "source_repository": "pallets/flask",
+  "base_sha": "07c7d5730a2685ef2281cc635e289685e5c3d478",
+  "head_sha": "4995a775df21a206b529403bc30d71795a994fd4",
+  "source_diff_url": "https://github.com/pallets/flask/compare/07c7d5730a2685ef2281cc635e289685e5c3d478...4995a775df21a206b529403bc30d71795a994fd4.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5634",
+  "merged_at": "2024-11-12T18:13:39Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5634/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5634/head/CHANGES.rst",
+      "sha256": "985bbf2fa14a50d873f8887e3e5adea6ac9423272651e0574354c8d14431646b"
+    },
+    {
+      "path": "docs/config.rst",
+      "file": "cases/flask-5634/head/docs/config.rst",
+      "sha256": "6ae143943630be6e87f2190d5923e85acb19b0ca2e013a904b7cf437e85663bd"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5634/head/src/flask/app.py",
+      "sha256": "d7ad7eda1791c080cfa8d8e292ecc4af1df233f7fcbb146bc95adc89ce934766"
+    },
+    {
+      "path": "tests/test_basic.py",
+      "file": "cases/flask-5634/head/tests/test_basic.py",
+      "sha256": "b3ba24c897272f9df537d8101aa6c1ca829751de62b1bcca492885a5a9db5698"
+    },
+    {
+      "path": "tests/test_blueprints.py",
+      "file": "cases/flask-5634/head/tests/test_blueprints.py",
+      "sha256": "63592f00e0151b8f4362fdae5fa231c42ca638cb4d2b94fabe216e39f3874142"
+    }
+  ],
+  "input_snapshot_hash": "fbc055ecb3bdaa057c2ccf4368254ee01a0ed561d28dfe379c1428cb3414052a",
+  "label_status": "UNREVIEWED"
+}

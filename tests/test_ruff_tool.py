@@ -4,6 +4,7 @@ Verifies Ruff detection of unused imports, undefined variables, and formatting f
 """
 
 import pytest
+
 from code_review_agent.tools.ruff_tool import RuffRunner, RuffTool
 
 

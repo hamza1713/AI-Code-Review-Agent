@@ -1,14 +1,16 @@
+import concurrent.futures
 import hashlib
-import os
 import json
+import os
 import re
-import time
-import uuid
 import sqlite3
 import threading
-import concurrent.futures
+import time
+import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Any
+
 from code_review_agent.config import logger
 
 
@@ -42,9 +44,11 @@ def is_transient_error(error: Any) -> bool:
         r"validationerror",
         r"inputvalidationerror",
         r"invalid\s*diff",
+        r"unsafe\s*diff\s*path",
+        r"superseded\s*review",
         r"guardrail",
         r"schema\s*error",
-        r"not\s*found"
+        r"not\s*found",
     ]
     for pat in permanent_patterns:
         if re.search(pat, err_str):
@@ -64,7 +68,7 @@ def is_transient_error(error: Any) -> bool:
         r"bad\s*gateway",
         r"econnreset",
         r"remote\s*disconnected",
-        r"network\s*timeout"
+        r"network\s*timeout",
     ]
     for pat in transient_patterns:
         if re.search(pat, err_str):
@@ -79,13 +83,52 @@ class WebhookJobQueue:
     Survives application restarts and power outages using SQLite WAL mode with ACID transactions.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(
+        self, db_path: str | None = None, *, _migration_lock_held: bool = False
+    ):
         target = db_path or os.getenv("QUEUE_DB_PATH") or "webhook_jobs.db"
         self.db_path = Path(target).resolve()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
-        self._on_enqueue_callbacks: List[Callable[[], None]] = []
-        self._init_db()
+        self._on_enqueue_callbacks: list[Callable[[], None]] = []
+        if self._queue_migration_needed() and not _migration_lock_held:
+            from code_review_agent.operations import backup, file_lock
+
+            with file_lock(str(self.db_path) + ".migration.lock"):
+                if self._queue_migration_needed():
+                    backup(
+                        self.db_path,
+                        self.db_path.parent
+                        / "backups"
+                        / f"pre-queue-migration-{time.time_ns()}.db",
+                    )
+                self._init_db()
+        else:
+            self._init_db()
+
+    def _queue_migration_needed(self) -> bool:
+        if not self.db_path.exists():
+            return False
+        from contextlib import closing
+
+        with closing(
+            sqlite3.connect(self.db_path.as_uri() + "?mode=ro", uri=True)
+        ) as conn:
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='webhook_jobs'"
+            ).fetchone():
+                return False
+            versions = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='schema_versions'"
+            ).fetchone()
+            version = (
+                conn.execute(
+                    "SELECT version FROM schema_versions WHERE component='queue'"
+                ).fetchone()
+                if versions
+                else None
+            )
+            return not version or version[0] < 2
 
     def add_enqueue_listener(self, callback: Callable[[], None]):
         """Register a callback to be triggered immediately when a new job is enqueued."""
@@ -98,13 +141,24 @@ class WebhookJobQueue:
             conn = sqlite3.connect(str(self.db_path), timeout=30.0)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA synchronous=FULL;")
+            conn.execute("PRAGMA busy_timeout = 30000;")
             self._local.conn = conn
         return conn
 
     def _init_db(self):
         """Initialize SQLite schema if it does not exist."""
         with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS schema_versions (component TEXT PRIMARY KEY, version INTEGER NOT NULL)"
+            )
+            version = conn.execute(
+                "SELECT version FROM schema_versions WHERE component='queue'"
+            ).fetchone()
+            if version and version[0] > 2:
+                raise RuntimeError("Queue schema is incompatible with this image")
+            conn.execute("INSERT OR IGNORE INTO schema_versions VALUES ('queue',1)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS webhook_jobs (
                     job_id TEXT PRIMARY KEY,
@@ -128,29 +182,49 @@ class WebhookJobQueue:
             cursor.execute("PRAGMA table_info(webhook_jobs);")
             columns = {row[1] for row in cursor.fetchall()}
             if "review_result_json" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN review_result_json TEXT;")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN review_result_json TEXT;"
+                )
             if "job_kind" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN job_kind TEXT NOT NULL DEFAULT 'webhook';")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN job_kind TEXT NOT NULL DEFAULT 'webhook';"
+                )
             if "idempotency_key" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN idempotency_key TEXT;")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN idempotency_key TEXT;"
+                )
             if "worker_id" not in columns:
                 conn.execute("ALTER TABLE webhook_jobs ADD COLUMN worker_id TEXT;")
             if "lease_expires_at" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN lease_expires_at REAL;")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN lease_expires_at REAL;"
+                )
             if "heartbeat_at" not in columns:
                 conn.execute("ALTER TABLE webhook_jobs ADD COLUMN heartbeat_at REAL;")
+            if "claim_token" not in columns:
+                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN claim_token TEXT")
             if "priority" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 50;")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 50;"
+                )
             if "scheduled_at" not in columns:
                 conn.execute("ALTER TABLE webhook_jobs ADD COLUMN scheduled_at REAL;")
             if "current_stage" not in columns:
                 conn.execute("ALTER TABLE webhook_jobs ADD COLUMN current_stage TEXT;")
             if "stage_progress" not in columns:
-                conn.execute("ALTER TABLE webhook_jobs ADD COLUMN stage_progress REAL NOT NULL DEFAULT 0.0;")
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN stage_progress REAL NOT NULL DEFAULT 0.0;"
+                )
 
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_idempotency ON webhook_jobs(idempotency_key);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_webhook_status ON webhook_jobs(status, created_at);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_webhook_claim ON webhook_jobs(status, scheduled_at, priority DESC, created_at ASC);")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_idempotency ON webhook_jobs(idempotency_key);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_status ON webhook_jobs(status, created_at);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_claim ON webhook_jobs(status, scheduled_at, priority DESC, created_at ASC);"
+            )
 
             # External side-effect idempotency log
             conn.execute("""
@@ -169,6 +243,10 @@ class WebhookJobQueue:
                 CREATE INDEX IF NOT EXISTS idx_ext_ops_target
                 ON external_operations_log(target_id, operation_type);
             """)
+            conn.execute("""CREATE TABLE IF NOT EXISTS external_operation_jobs (
+                operation_key TEXT NOT NULL, job_id TEXT NOT NULL,
+                PRIMARY KEY (operation_key, job_id))""")
+            conn.execute("UPDATE schema_versions SET version=2 WHERE component='queue'")
             conn.commit()
 
     def record_external_operation(
@@ -178,7 +256,7 @@ class WebhookJobQueue:
         target_id: str,
         payload: Any,
         status: str = "SUCCESS",
-        result: Any = None
+        result: Any = None,
     ) -> bool:
         """
         Record an external side-effect operation in SQLite WAL with unique constraint on operation_key.
@@ -191,23 +269,35 @@ class WebhookJobQueue:
 
         with self._get_connection() as conn:
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO external_operations_log (
                         operation_key, operation_type, target_id, payload_hash,
                         status, result_json, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                """, (operation_key, operation_type, str(target_id), payload_hash, status, result_json, now, now))
+                """,
+                    (
+                        operation_key,
+                        operation_type,
+                        str(target_id),
+                        payload_hash,
+                        status,
+                        result_json,
+                        now,
+                        now,
+                    ),
+                )
                 conn.commit()
                 return True
             except sqlite3.IntegrityError:
                 return False
 
-    def get_external_operation(self, operation_key: str) -> Optional[Dict[str, Any]]:
+    def get_external_operation(self, operation_key: str) -> dict[str, Any] | None:
         """Retrieve recorded external operation by stable operation key."""
         with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT * FROM external_operations_log WHERE operation_key = ?",
-                (operation_key,)
+                (operation_key,),
             ).fetchone()
             if not row:
                 return None
@@ -224,25 +314,27 @@ class WebhookJobQueue:
         with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT 1 FROM external_operations_log WHERE operation_key = ? AND status = 'SUCCESS'",
-                (operation_key,)
+                (operation_key,),
             ).fetchone()
             return row is not None
 
     def enqueue(
         self,
         pr_identifier: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         max_retries: int = 3,
         job_kind: str = "webhook",
-        idempotency_key: Optional[str] = None,
+        idempotency_key: str | None = None,
         priority: int = 50,
-        scheduled_at: Optional[float] = None,
+        scheduled_at: float | None = None,
     ) -> str:
         """
         Enqueue a new pull request review job into persistent storage.
         If idempotency_key is provided and an existing job matches, returns the existing job_id
         to prevent duplicate work and redundant token spend.
         """
+        if max_retries < 1:
+            raise ValueError("At least one attempt is required")
         now = time.time()
         sched_time = now if scheduled_at is None else scheduled_at
         payload_str = json.dumps(payload)
@@ -253,7 +345,7 @@ class WebhookJobQueue:
             if idempotency_key:
                 existing = conn.execute(
                     "SELECT job_id, status FROM webhook_jobs WHERE idempotency_key = ?",
-                    (idempotency_key,)
+                    (idempotency_key,),
                 ).fetchone()
                 if existing:
                     logger.info(
@@ -264,7 +356,7 @@ class WebhookJobQueue:
                     return existing["job_id"]
 
             pending = conn.execute(
-                "SELECT COUNT(*) FROM webhook_jobs WHERE status IN ('QUEUED','PROCESSING','RETRYING')"
+                "SELECT COUNT(*) FROM webhook_jobs WHERE status IN ('QUEUED','RETRYING')"
             ).fetchone()[0]
             if pending >= max_capacity:
                 raise ValueError("Review queue capacity reached")
@@ -279,7 +371,18 @@ class WebhookJobQueue:
                 )
                 VALUES (?, ?, ?, 'QUEUED', 0, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', 0.0)
                 """,
-                (job_id, pr_identifier, payload_str, max_retries, now, now, job_kind, idempotency_key, priority, sched_time)
+                (
+                    job_id,
+                    pr_identifier,
+                    payload_str,
+                    max_retries,
+                    now,
+                    now,
+                    job_kind,
+                    idempotency_key,
+                    priority,
+                    sched_time,
+                ),
             )
             conn.commit()
 
@@ -290,211 +393,171 @@ class WebhookJobQueue:
             except Exception:
                 pass
 
-        logger.info(f"📥 Enqueued durable webhook job {job_id} (priority={priority}) for {pr_identifier}")
+        logger.info(
+            f"📥 Enqueued durable webhook job {job_id} (priority={priority}) for {pr_identifier}"
+        )
         return job_id
 
     def claim_next_job(
         self,
-        lock_timeout_seconds: float = 300.0,
-        worker_id: Optional[str] = None,
-        lease_duration: float = 60.0,
-        lease_seconds: Optional[float] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Atomically claim the next eligible job for processing using BEGIN IMMEDIATE.
-        Locks against concurrent multi-process worker races and reclaims stale jobs.
-        """
-        if lease_seconds is not None:
-            lease_duration = lease_seconds
+        lock_timeout_seconds=300.0,
+        worker_id=None,
+        lease_duration=60.0,
+        lease_seconds=None,
+    ):
+        self.recover_orphan_jobs()
         now = time.time()
-        timeout_threshold = now - lock_timeout_seconds
-        stale_heartbeat_threshold = now - 90.0
-        w_id = worker_id or f"worker_{os.getpid()}"
-
+        token = uuid.uuid4().hex
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT job_id, pr_identifier, payload_json, status, attempts, max_retries, job_kind, priority, current_stage, stage_progress
-                FROM webhook_jobs
-                WHERE (status = 'QUEUED' AND (scheduled_at IS NULL OR scheduled_at <= ?))
-                   OR (status = 'RETRYING' AND (scheduled_at IS NULL OR scheduled_at <= ?))
-                   OR (status = 'PROCESSING' AND (
-                        (lease_expires_at IS NOT NULL AND lease_expires_at < ?)
-                        OR (lease_expires_at IS NULL AND (
-                            (heartbeat_at IS NOT NULL AND heartbeat_at < ?)
-                            OR (locked_at IS NOT NULL AND locked_at < ?)
-                        ))
-                   ))
-                ORDER BY priority DESC, created_at ASC
-                LIMIT 1
-                """,
-                (now, now, now, stale_heartbeat_threshold, timeout_threshold)
-            )
-            row = cursor.fetchone()
-            if not row:
-                conn.commit()
+            row = conn.execute(
+                """SELECT * FROM webhook_jobs
+                WHERE status IN ('QUEUED','RETRYING') AND attempts < max_retries
+                AND (scheduled_at IS NULL OR scheduled_at<=?)
+                ORDER BY priority DESC, created_at ASC LIMIT 1""",
+                (now,),
+            ).fetchone()
+            if row is None:
                 return None
-
-            job_id = row["job_id"]
-            new_attempts = row["attempts"] + 1
-            lease_expires = now + lease_duration
-
-            cursor.execute(
-                """
-                UPDATE webhook_jobs
-                SET status = 'PROCESSING',
-                    worker_id = ?,
-                    attempts = ?,
-                    locked_at = ?,
-                    lease_expires_at = ?,
-                    heartbeat_at = ?,
-                    current_stage = 'PROCESSING',
-                    stage_progress = 0.05,
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                (w_id, new_attempts, now, lease_expires, now, now, job_id)
+            conn.execute(
+                """UPDATE webhook_jobs SET status='PROCESSING', attempts=attempts+1,
+                worker_id=?, claim_token=?, locked_at=?, heartbeat_at=?, lease_expires_at=?,
+                updated_at=?, current_stage='PROCESSING', stage_progress=0.05 WHERE job_id=?""",
+                (
+                    worker_id,
+                    token,
+                    now,
+                    now,
+                    now + (lease_seconds or lease_duration),
+                    now,
+                    row["job_id"],
+                ),
             )
-            conn.commit()
+        job = dict(row)
+        job.update(
+            payload=json.loads(job.pop("payload_json")),
+            claim_token=token,
+            worker_id=worker_id,
+            attempts=row["attempts"] + 1,
+            status="PROCESSING",
+        )
+        return job
 
-            return {
-                "job_id": job_id,
-                "pr_identifier": row["pr_identifier"],
-                "payload": json.loads(row["payload_json"]),
-                "attempts": new_attempts,
-                "max_retries": row["max_retries"],
-                "job_kind": row["job_kind"],
-                "priority": row["priority"],
-                "worker_id": w_id,
-                "current_stage": "PROCESSING",
-                "stage_progress": 0.05,
-            }
+    def assert_claim(self, job_id, claim_token):
+        if not job_id or not claim_token:
+            raise PermissionError("Provider writes require an active queued job claim")
+        row = (
+            self._get_connection()
+            .execute(
+                """SELECT 1 FROM webhook_jobs WHERE job_id=?
+            AND claim_token=? AND status='PROCESSING' AND lease_expires_at>?""",
+                (job_id, claim_token, time.time()),
+            )
+            .fetchone()
+        )
+        if not row:
+            raise PermissionError("Job claim expired, cancelled, or replaced")
+
+    def bind_job_head(self, job_id, claim_token, head_sha):
+        """Persist the analyzed head before any write, retaining it across retries."""
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self.assert_claim(job_id, claim_token)
+            row = conn.execute(
+                "SELECT payload_json FROM webhook_jobs WHERE job_id=?", (job_id,)
+            ).fetchone()
+            payload = json.loads(row[0])
+            bound = payload.get("_analyzed_head")
+            if not bound:
+                payload["_analyzed_head"] = head_sha
+                conn.execute(
+                    "UPDATE webhook_jobs SET payload_json=? WHERE job_id=?",
+                    (json.dumps(payload), job_id),
+                )
+            return bound or head_sha
 
     def heartbeat_job(
         self,
-        job_id: str,
-        worker_id: Optional[str] = None,
-        current_stage: Optional[str] = None,
-        stage_progress: Optional[float] = None,
-        lease_duration: float = 60.0
-    ) -> bool:
-        """Pulse heartbeat to extend lease and report live stage progress."""
-        now = time.time()
-        new_lease = now + lease_duration
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            query = """
-                UPDATE webhook_jobs
-                SET heartbeat_at = ?,
-                    lease_expires_at = ?,
-                    updated_at = ?
-            """
-            params: List[Any] = [now, new_lease, now]
-            if current_stage is not None:
-                query += ", current_stage = ?"
-                params.append(current_stage)
-            if stage_progress is not None:
-                query += ", stage_progress = ?"
-                params.append(stage_progress)
-            query += " WHERE job_id = ? AND status = 'PROCESSING'"
-            params.append(job_id)
-            if worker_id:
-                query += " AND (worker_id = ? OR worker_id IS NULL)"
-                params.append(worker_id)
-            cursor.execute(query, tuple(params))
-            conn.commit()
-            return cursor.rowcount > 0
-
-    def complete_job(self, job_id: str, result_json: Optional[str] = None):
-        """Mark a job as successfully COMPLETED and persist review results."""
+        job_id,
+        worker_id=None,
+        current_stage=None,
+        stage_progress=None,
+        lease_duration=60.0,
+        *,
+        claim_token=None,
+    ):
+        if not claim_token:
+            return False
         now = time.time()
         with self._get_connection() as conn:
-            conn.execute(
-                """
-                UPDATE webhook_jobs
-                SET status = 'COMPLETED',
-                    locked_at = NULL,
-                    lease_expires_at = NULL,
-                    current_stage = 'COMPLETED',
-                    stage_progress = 1.0,
-                    updated_at = ?,
-                    review_result_json = ?
-                WHERE job_id = ?
-                """,
-                (now, result_json, job_id)
+            cursor = conn.execute(
+                """UPDATE webhook_jobs SET heartbeat_at=?,lease_expires_at=?,updated_at=?,
+                current_stage=COALESCE(?,current_stage),stage_progress=COALESCE(?,stage_progress)
+                WHERE job_id=? AND claim_token=? AND status='PROCESSING' AND lease_expires_at>?""",
+                (
+                    now,
+                    now + lease_duration,
+                    now,
+                    current_stage,
+                    stage_progress,
+                    job_id,
+                    claim_token,
+                    now,
+                ),
             )
-            conn.commit()
-        logger.info(f"✅ Webhook job {job_id} marked as COMPLETED.")
+            return cursor.rowcount == 1
+
+    def complete_job(self, job_id, result_json=None, *, claim_token=None):
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """UPDATE webhook_jobs SET status='COMPLETED',locked_at=NULL,
+                lease_expires_at=NULL,current_stage='COMPLETED',stage_progress=1,updated_at=?,
+                review_result_json=? WHERE job_id=? AND claim_token=? AND status='PROCESSING'
+                AND lease_expires_at>?""",
+                (time.time(), result_json, job_id, claim_token, time.time()),
+            )
+            return cursor.rowcount == 1
 
     def fail_job(
         self,
-        job_id: str,
-        error_message: str = "",
-        error: Optional[str] = None,
-        base_delay: Optional[float] = None,
-        max_delay: float = 180.0,
-        transient: Optional[bool] = None
+        job_id,
+        error_message="",
+        error=None,
+        base_delay=None,
+        max_delay=180.0,
+        transient=None,
+        *,
+        claim_token=None,
+        state=None,
     ):
-        """
-        Record job failure with Phase 5 error classification:
-        Retry only transient network/5xx/429 errors; fail-fast immediately on 401/403/validation errors.
-        """
-        if error is not None:
-            error_message = error
+        message = str(error if error is not None else error_message)
         now = time.time()
-        configured_base_delay = base_delay if base_delay is not None else float(os.getenv("QUEUE_RETRY_DELAY", "0.0"))
-
         with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT attempts, max_retries FROM webhook_jobs WHERE job_id = ?",
-                (job_id,)
-            )
-            row = cursor.fetchone()
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT * FROM webhook_jobs WHERE job_id=? AND claim_token=?
+                AND status='PROCESSING' AND lease_expires_at>?""",
+                (job_id, claim_token, now),
+            ).fetchone()
             if not row:
-                return
-
-            attempts = row["attempts"]
-            max_retries = row["max_retries"]
-
-            # Evaluate error classification
-            is_trans = transient if transient is not None else is_transient_error(error_message)
-
-            if not is_trans:
-                new_status = "FAILED"
-                delay = 0.0
-                logger.info(f"🚫 Fail-fast permanent error detected for job {job_id} ({error_message}); retry suppressed.")
-            else:
-                new_status = "RETRYING" if attempts < max_retries else "FAILED"
-                delay = 0.0
-                if new_status == "RETRYING" and configured_base_delay > 0:
-                    import random
-                    delay = min(configured_base_delay * (2 ** max(0, attempts - 1)), max_delay)
-                    delay += random.uniform(0.1, 1.0)
-
-            scheduled_at = now + delay
-
-            cursor.execute(
-                """
-                UPDATE webhook_jobs
-                SET status = ?,
-                    last_error = ?,
-                    locked_at = NULL,
-                    lease_expires_at = NULL,
-                    scheduled_at = ?,
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                (new_status, error_message, scheduled_at, now, job_id)
+                return False
+            retryable = is_transient_error(message) if transient is None else transient
+            status = state or (
+                "RETRYING"
+                if retryable and row["attempts"] < row["max_retries"]
+                else "FAILED"
             )
-            conn.commit()
-
-        if new_status == "RETRYING":
-            logger.warning(f"⚠️ Webhook job {job_id} failed with transient error (attempt {attempts}/{max_retries}); scheduled for RETRY in {delay:.1f}s.")
-        else:
-            logger.error(f"❌ Webhook job {job_id} marked as FAILED ({new_status}): {error_message}")
+            delay = min(
+                (base_delay if base_delay is not None else 5)
+                * 2 ** (row["attempts"] - 1),
+                max_delay,
+            )
+            conn.execute(
+                """UPDATE webhook_jobs SET status=?,last_error=?,locked_at=NULL,
+                lease_expires_at=NULL,scheduled_at=?,updated_at=? WHERE job_id=? AND claim_token=?""",
+                (status, message, now + delay, now, job_id, claim_token),
+            )
+            return True
 
     def cancel_job(self, job_id: str, reason: str = "Cancelled by operator") -> bool:
         """Cancel an eligible job in QUEUED, RETRYING, or PROCESSING state."""
@@ -511,7 +574,7 @@ class WebhookJobQueue:
                     updated_at = ?
                 WHERE job_id = ? AND status IN ('QUEUED', 'RETRYING', 'PROCESSING')
                 """,
-                (reason, now, job_id)
+                (reason, now, job_id),
             )
             count = cursor.rowcount
             conn.commit()
@@ -520,34 +583,20 @@ class WebhookJobQueue:
                 return True
             return False
 
-    def recover_orphan_jobs(self) -> int:
-        """
-        Recover jobs that were left in 'PROCESSING' state when the server crashed or restarted.
-        Resets them to 'QUEUED' so they are not silently lost.
-        """
+    def recover_orphan_jobs(self):
         now = time.time()
         with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE webhook_jobs
-                SET status = 'QUEUED',
-                    last_error = 'Recovered after ungraceful process restart mid-job',
-                    locked_at = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE status = 'PROCESSING'
-                """,
-                (now,)
+            cursor = conn.execute(
+                """UPDATE webhook_jobs SET
+                status=CASE WHEN attempts>=max_retries THEN 'FAILED' ELSE 'RETRYING' END,
+                last_error='Expired worker lease',locked_at=NULL,lease_expires_at=NULL,claim_token=NULL,
+                scheduled_at=?,updated_at=? WHERE status='PROCESSING'
+                AND COALESCE(lease_expires_at,locked_at+300,updated_at+300) <= ?""",
+                (now, now, now),
             )
-            count = cursor.rowcount
-            conn.commit()
+            return cursor.rowcount
 
-        if count > 0:
-            logger.warning(f"🔄 Recovered {count} orphan/interrupted webhook job(s) after process restart.")
-        return count
-
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
         """Retrieve details of a single job including parsed review result."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -559,7 +608,7 @@ class WebhookJobQueue:
                 FROM webhook_jobs
                 WHERE job_id = ?
                 """,
-                (job_id,)
+                (job_id,),
             )
             row = cursor.fetchone()
             if not row:
@@ -569,7 +618,9 @@ class WebhookJobQueue:
             res["result"] = json.loads(result_json) if result_json else None
             return res
 
-    def list_jobs(self, status: Optional[str] = None, limit: Optional[int] = None, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_jobs(
+        self, status: str | None = None, limit: int | None = None, offset: int = 0
+    ) -> list[dict[str, Any]]:
         """List jobs matching an optional status filter including parsed review result."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -579,7 +630,7 @@ class WebhookJobQueue:
                        priority, scheduled_at, current_stage, stage_progress
                 FROM webhook_jobs
             """
-            params: List[Any] = []
+            params: list[Any] = []
             if status:
                 query += " WHERE status = ?"
                 params.append(status)
@@ -598,21 +649,23 @@ class WebhookJobQueue:
                 rows.append(d)
             return rows
 
-    def get_queue_metrics(self) -> Dict[str, Any]:
+    def get_queue_metrics(self) -> dict[str, Any]:
         """Aggregate queue depth, active worker count, and processing telemetry."""
         now = time.time()
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT status, COUNT(*) as cnt FROM webhook_jobs GROUP BY status")
+            cursor.execute(
+                "SELECT status, COUNT(*) as cnt FROM webhook_jobs GROUP BY status"
+            )
             counts = {row["status"]: row["cnt"] for row in cursor.fetchall()}
 
             # Active workers: distinct worker_id with active heartbeat in last 60 seconds
             cursor.execute(
                 """
-                SELECT COUNT(DISTINCT worker_id) FROM webhook_jobs
+                SELECT COUNT(*) FROM webhook_jobs
                 WHERE status = 'PROCESSING' AND heartbeat_at IS NOT NULL AND heartbeat_at >= ?
                 """,
-                (now - 60.0,)
+                (now - 60.0,),
             )
             active_workers = cursor.fetchone()[0] or 0
 
@@ -634,7 +687,7 @@ class WebhookJobQueue:
                 "cancelled": counts.get("CANCELLED", 0),
                 "total": sum(counts.values()),
                 "active_workers": active_workers,
-                "avg_duration_seconds": round(float(avg_duration), 2)
+                "avg_duration_seconds": round(float(avg_duration), 2),
             }
 
 
@@ -647,25 +700,31 @@ class WebhookWorker:
     def __init__(
         self,
         queue: WebhookJobQueue,
-        handler: Optional[Callable[[Dict[str, Any]], None]] = None,
+        handler: Callable[[dict[str, Any]], None] | None = None,
         poll_interval: float = 1.0,
-        max_workers: Optional[int] = None,
-        worker_id: Optional[str] = None,
+        max_workers: int | None = None,
+        worker_id: str | None = None,
     ):
         self.queue = queue
         self.handler = handler
         self.poll_interval = poll_interval
-        concurrency = max_workers if max_workers is not None else int(os.getenv("MAX_CONCURRENT_REVIEWS", "4"))
+        concurrency = (
+            max_workers
+            if max_workers is not None
+            else int(os.getenv("MAX_CONCURRENT_REVIEWS", "2"))
+        )
         self.max_workers = concurrency
         self.worker_id = worker_id or f"worker_{uuid.uuid4().hex[:8]}"
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self.last_loop_at = time.monotonic()
+        self.database_errors = 0
+        self._thread: threading.Thread | None = None
         self._wake_event = threading.Event()
         self._cancel_active = threading.Event()
         self._semaphore = threading.Semaphore(self.max_workers)
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_workers,
-            thread_name_prefix=f"WebhookWorkerPool-{self.worker_id}"
+            thread_name_prefix=f"WebhookWorkerPool-{self.worker_id}",
         )
         self.queue.add_enqueue_listener(self._wake_event.set)
 
@@ -677,9 +736,15 @@ class WebhookWorker:
         self.queue.recover_orphan_jobs()
         self._cancel_active.clear()
         self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True, name=f"WebhookWorkerThread-{self.worker_id}")
+        self._thread = threading.Thread(
+            target=self._run_loop,
+            daemon=True,
+            name=f"WebhookWorkerThread-{self.worker_id}",
+        )
         self._thread.start()
-        logger.info(f"👷 Webhook background worker {self.worker_id} started (concurrency={self.max_workers}).")
+        logger.info(
+            f"👷 Webhook background worker {self.worker_id} started (concurrency={self.max_workers})."
+        )
 
     def stop(self, timeout: float = 5.0):
         """Signal worker to stop and wait for active jobs to complete."""
@@ -697,6 +762,7 @@ class WebhookWorker:
         max_sleep = 5.0
 
         while self._running:
+            self.last_loop_at = time.monotonic()
             try:
                 if not self._semaphore.acquire(timeout=0.2):
                     continue
@@ -711,237 +777,392 @@ class WebhookWorker:
                     self._semaphore.release()
                     raise
                 if not job:
-                    self._wake_event.wait(timeout=min(current_sleep, self.poll_interval))
+                    self._wake_event.wait(
+                        timeout=min(current_sleep, self.poll_interval)
+                    )
                     self._wake_event.clear()
                     current_sleep = min(current_sleep * 1.5, max_sleep)
             except Exception as e:
-                logger.error(f"Unexpected error in WebhookWorker loop: {e}", exc_info=True)
+                if isinstance(e, sqlite3.Error):
+                    self.database_errors += 1
+                logger.error(
+                    f"Unexpected error in WebhookWorker loop: {e}", exc_info=True
+                )
                 self._wake_event.wait(timeout=self.poll_interval)
                 self._wake_event.clear()
 
-    def _process_claimed_job(self, job: Dict[str, Any]):
-        """Execute review handler on a claimed job and record completion or failure."""
-        job_id = job["job_id"]
-        pr_id = job["pr_identifier"]
-        stop_heartbeat = threading.Event()
+    def _process_claimed_job(self, job):
+        job_id, token = job["job_id"], job["claim_token"]
+        stopped, cancelled = threading.Event(), threading.Event()
 
-        def _heartbeat_loop():
-            while not stop_heartbeat.wait(15.0):
+        def heartbeat():
+            while not stopped.wait(0.5):
                 try:
-                    self.queue.heartbeat_job(job_id, worker_id=self.worker_id)
+                    if self._cancel_active.is_set() or not self.queue.heartbeat_job(
+                        job_id, claim_token=token
+                    ):
+                        cancelled.set()
+                        return
                 except Exception:
-                    pass
+                    cancelled.set()
+                    return
 
-        hb_thread = threading.Thread(target=_heartbeat_loop, daemon=True, name=f"Heartbeat-{job_id}")
-        hb_thread.start()
-
+        thread = threading.Thread(target=heartbeat, daemon=True)
+        thread.start()
         try:
-            logger.info(f"⚙️ Worker {self.worker_id} executing review for job {job_id} ({pr_id})")
-            self.queue.heartbeat_job(job_id, worker_id=self.worker_id, current_stage="INGESTION", stage_progress=0.15)
-            result = None
             if self.handler:
                 result = self.handler(job["payload"])
             else:
-                from code_review_agent.review_executor import run_job, decode_inputs
-                self.queue.heartbeat_job(job_id, worker_id=self.worker_id, current_stage="REVIEW", stage_progress=0.45)
-                if job.get("job_kind") == "browser":
-                    result = run_job("review", decode_inputs(job["payload"]), cancel_event=self._cancel_active)
+                from code_review_agent.review_executor import decode_inputs, run_job
+
+                kind = job.get("job_kind")
+                if kind == "browser":
+                    operation, payload = "review", decode_inputs(job["payload"])
+                elif kind in ("command", "merge"):
+                    operation, payload = (
+                        ("bot" if kind == "command" else "merge"),
+                        job["payload"],
+                    )
+                    payload["_job_claim"] = {"job_id": job_id, "claim_token": token}
                 else:
-                    result = run_job("webhook", {"payload": job["payload"], "pr_identifier": pr_id}, cancel_event=self._cancel_active)
-
-            self.queue.heartbeat_job(job_id, worker_id=self.worker_id, current_stage="SYNTHESIS", stage_progress=0.90)
-
-            result_str = None
-            if result is not None:
-                if isinstance(result, (dict, list)):
-                    result_str = json.dumps(result, default=str)
-                elif hasattr(result, "model_dump_json"):
-                    result_str = result.model_dump_json()
-                elif hasattr(result, "dict"):
-                    result_str = json.dumps(result.dict(), default=str)
-                else:
-                    result_str = str(result)
-
-            self.queue.complete_job(job_id, result_json=result_str)
-        except Exception as e:
-            logger.error(f"❌ Error processing job {job_id}: {e}", exc_info=True)
-            self.queue.fail_job(job_id, str(e))
+                    operation, payload = (
+                        "webhook",
+                        {
+                            "payload": job["payload"],
+                            "pr_identifier": job["pr_identifier"],
+                            "job_id": job_id,
+                            "claim_token": token,
+                        },
+                    )
+                result = run_job(
+                    operation,
+                    payload,
+                    cancel_event=cancelled,
+                    timeout=float(os.getenv("REVIEW_JOB_TIMEOUT", "900")),
+                )
+            if hasattr(result, "model_dump"):
+                result = result.model_dump()
+            self.queue.complete_job(
+                job_id, json.dumps(result, default=str), claim_token=token
+            )
+        except Exception as error:
+            state = (
+                "RECONCILIATION_REQUIRED"
+                if "RECONCILIATION_REQUIRED" in str(error)
+                else None
+            )
+            self.queue.fail_job(
+                job_id,
+                str(error),
+                claim_token=token,
+                state=state,
+                transient=is_transient_error(error),
+            )
         finally:
-            stop_heartbeat.set()
-            hb_thread.join(timeout=1.0)
+            stopped.set()
+            thread.join(timeout=1)
             self._semaphore.release()
 
-    def _default_execute_review(self, payload, pr_identifier):
-        return execute_platform_review(payload, pr_identifier)
+    def _default_execute_review(self, payload, pr_identifier, *, job_id, claim_token):
+        return execute_platform_review(
+            payload, pr_identifier, job_id=job_id, claim_token=claim_token
+        )
 
 
-def execute_platform_review(payload: Dict[str, Any], pr_identifier: str) -> Dict[str, Any]:
-    """
-    Platform-agnostic review handler.
-
-    Resolves the platform (GitHub / GitLab / Bitbucket / local) from the enqueued
-    identifier, tracks commit statuses & check runs, checks persistent finding suppressions,
-    performs bidirectional comment synchronization, and posts final verdicts.
-    """
-    import urllib.parse
+def execute_platform_review(payload, pr_identifier, job_id=None, claim_token=None):
     from contextlib import ExitStack
-    from code_review_agent.review_service import ReviewService
-    from code_review_agent.platform.factory import get_platform_client
+
+    from code_review_agent.access_policy import validate_pr_target
     from code_review_agent.bot.checkout import temporary_pr_checkout
+    from code_review_agent.calibration import FindingOutcomeStore
+    from code_review_agent.data_policy import production, repository_scope
+    from code_review_agent.diff_parser import DiffParser
+    from code_review_agent.pilot import PilotStore
+    from code_review_agent.publication import publish
+    from code_review_agent.review_service import ReviewService
     from code_review_agent.suppression_store import SuppressionStore
-    from code_review_agent.comment_synchronizer import CommentSynchronizer
 
-    client, ident = get_platform_client(pr_identifier)
-    owner, repo, pull_number = ident.owner_or_project, ident.repo_or_slug, ident.pr_id
+    queue = WebhookJobQueue()
+    if os.getenv("REVIEW_ENABLE_POSTING", "false").lower() == "true":
+        queue.assert_claim(job_id, claim_token)
 
-    diff = client.fetch_pull_request_diff(owner, repo, pull_number)
-    if not diff or not diff.strip():
-        raise ValueError(f"No diff content available for {pr_identifier}")
-    meta = client.fetch_pull_request_metadata(owner, repo, pull_number)
+    client, ident, host = validate_pr_target(pr_identifier)
+    owner, repo, number = ident.owner_or_project, ident.repo_or_slug, ident.pr_id
+    meta = client.fetch_pull_request_metadata(owner, repo, number)
+    if not meta.head_sha:
+        raise ValueError("PR has no immutable head commit")
+    if job_id:
+        bound_head = queue.bind_job_head(job_id, claim_token, meta.head_sha)
+        if bound_head != meta.head_sha:
+            from code_review_agent.publication import ReconciliationRequired
 
-    # 1. Update initial status check / check-run to in_progress / pending
-    if meta.head_sha:
+            # Retain pending intents at their original head. They must never be
+            # silently abandoned while a retry publishes a different revision.
+            pending = (
+                queue._get_connection()
+                .execute(
+                    """SELECT 1 FROM external_operations_log o
+                JOIN external_operation_jobs j USING(operation_key)
+                WHERE j.job_id=? AND o.status<>'SUCCESS' """,
+                    (job_id,),
+                )
+                .fetchone()
+            )
+            if pending:
+                raise ReconciliationRequired(
+                    "RECONCILIATION_REQUIRED: PR head changed after a write intent"
+                )
+            raise ValueError(
+                "Superseded review: PR head changed since this job analyzed it"
+            )
+    diff = client.fetch_pull_request_diff(owner, repo, number)
+    DiffParser.parse_diff(diff)
+    if (
+        client.fetch_pull_request_metadata(owner, repo, number).head_sha
+        != meta.head_sha
+    ):
+        raise ValueError("PR head changed while retrieving diff")
+    repo_key = f"{owner}/{repo}"
+    publication_target = f"{ident.platform}:{host}:{repo_key}#{number}"
+    key = f"review:{ident.platform}:{host}:{repo_key}:{number}:{meta.head_sha}"
+    queue = WebhookJobQueue()
+    prior = queue.get_external_operation(key)
+    original_intent = (prior.get("result") or {}).get("intent", {}) if prior else {}
+    saved = original_intent.get("response")
+    if saved:
+        from code_review_agent.models import ReviewAPIResponse
+
         try:
-            client.create_or_update_check_run(
+            response = ReviewAPIResponse.model_validate(saved)
+        except ValueError as error:
+            from code_review_agent.publication import ReconciliationRequired
+
+            raise ReconciliationRequired(
+                "RECONCILIATION_REQUIRED: saved review intent is invalid"
+            ) from error
+    else:
+        with ExitStack() as stack:
+            stack.enter_context(repository_scope(f"{ident.platform}:{host}/{repo_key}"))
+            root = stack.enter_context(
+                temporary_pr_checkout(
+                    owner,
+                    repo,
+                    head_sha=meta.head_sha,
+                    head_ref=meta.head_ref,
+                    platform=ident.platform,
+                    host=host,
+                )
+            )
+            from code_review_agent.source_snapshot import (
+                build_snapshot,
+                verified_checkout,
+            )
+
+            source_repo = meta.head_repository or repo_key
+            source_owner, source_name = source_repo.split("/", 1)
+            fetch = (
+                (
+                    lambda path: client.fetch_source_file(
+                        source_owner, source_name, path, meta.head_sha
+                    )
+                )
+                if ident.platform == "github"
+                else None
+            )
+            snapshot = build_snapshot(
+                diff,
+                meta.head_sha,
+                f"{ident.platform}:{host}/{repo_key}",
+                root=root,
+                fetch=fetch,
+            )
+            response = ReviewService.execute_review(
+                raw_diff=diff,
+                repo_root=root if verified_checkout(root, meta.head_sha) else None,
+                bypass_limits=True,
+                input_snapshot=snapshot.model_dump(),
+            )
+    if saved and (
+        production() or os.getenv("REVIEW_ENABLE_POSTING", "false").lower() == "true"
+    ):
+        from code_review_agent.reviewer_profile import same_implementation
+
+        if not response.reviewer_profile or (
+            production() and not same_implementation(response.reviewer_profile)
+        ):
+            from code_review_agent.publication import ReconciliationRequired
+
+            raise ReconciliationRequired(
+                "RECONCILIATION_REQUIRED: saved review belongs to another reviewer"
+            )
+    response.analyzed_commit = meta.head_sha
+    repo_key = f"{owner}/{repo}"
+    suppressions = SuppressionStore()
+    suppressed = suppressions.get_suppressed_fingerprints(repo_key)
+    from code_review_agent.eval.runtime import validate_response
+    from code_review_agent.review_policy import advisory_summary, apply_finding_policy
+
+    validate_response(response)
+    apply_finding_policy(response)
+    event = "COMMENT"
+    pilot = PilotStore(str(queue.db_path))
+    pilot_repository = f"{ident.platform}:{host}/{repo_key}"
+    posting = os.getenv("REVIEW_ENABLE_POSTING", "false").lower() == "true"
+    pilot_run = pilot.record(
+        pilot_repository,
+        str(number),
+        response,
+        "ADVISORY" if posting else "SHADOW",
+        activate=not bool(saved),
+    )
+    if saved and original_intent.get("event") != "COMMENT":
+        from code_review_agent.publication import ReconciliationRequired
+
+        raise ReconciliationRequired(
+            "RECONCILIATION_REQUIRED: legacy non-advisory intent requires operator review"
+        )
+    if os.getenv("REVIEW_ENABLE_POSTING", "false").lower() != "true":
+        response.analyzer_status["publication"] = "DISABLED"
+        return response.model_dump()
+    if not response.analysis_complete:
+        response.analyzer_status["publication"] = "WITHHELD_INCOMPLETE"
+        return response.model_dump()
+    if ident.platform != "github":
+        response.analyzer_status["publication"] = "UNSUPPORTED_PROVIDER"
+        return response.model_dump()
+    queue = WebhookJobQueue()
+    queue.assert_claim(job_id, claim_token)
+    if production():
+        pilot.require_advisory(pilot_repository, response.reviewer_profile_id)
+    if (
+        client.fetch_pull_request_metadata(owner, repo, number).head_sha
+        != meta.head_sha
+    ):
+        raise ValueError("Superseded review: PR head changed before publication")
+    # Canonical fingerprints appear in both summary and inline comments.
+    for comment in response.inline_comments:
+        match = next(
+            (
+                f
+                for f in response.findings
+                if f.file_path == comment.path and f.line_number == comment.line
+            ),
+            None,
+        )
+        if match:
+            comment.fingerprint = match.fingerprint
+    earlier = client.list_pull_request_review_comments(owner, repo, number)
+    bot = os.getenv("BOT_GITHUB_LOGIN", "review-bot").lower()
+    prior_bodies = [
+        c.get("body") or ""
+        for c in earlier
+        if (c.get("user") or {}).get("login", "").lower() == bot
+    ]
+    comments = [
+        c
+        for c in response.inline_comments
+        if c.fingerprint not in suppressed
+        and not any(c.fingerprint and c.fingerprint in body for body in prior_bodies)
+    ]
+    eligible = {
+        f.fingerprint
+        for f in response.findings
+        if not f.publication_reasons
+        and f.fingerprint not in suppressed
+        and not any(f.fingerprint and f.fingerprint in body for body in prior_bodies)
+    }
+    summary = advisory_summary(response, eligible)
+    published_fingerprints = (
+        original_intent.get("published_fingerprints") if saved else None
+    )
+    if published_fingerprints is None:
+        published_fingerprints = sorted(eligible)
+    key = f"review:{ident.platform}:{host}:{repo_key}:{number}:{meta.head_sha}"
+    receipt = publish(
+        queue,
+        job_id=job_id,
+        claim_token=claim_token,
+        key=key,
+        target=publication_target,
+        payload={
+            "head_sha": meta.head_sha,
+            "event": event,
+            "body": summary,
+            "response": response.model_dump(),
+            "published_fingerprints": published_fingerprints,
+            "comments": [c.model_dump() for c in comments],
+        },
+        send=lambda marker: (
+            pilot.require_advisory(pilot_repository, response.reviewer_profile_id)
+            if production()
+            else None,
+            client.post_pull_request_review(
                 owner=owner,
                 repo=repo,
-                head_sha=meta.head_sha,
-                name="AI Code Review",
-                status="in_progress",
-                title="AI Code Review in Progress",
-                summary="Multi-agent security, quality, and architecture analysis underway..."
-            )
-        except Exception as e:
-            logger.warning(f"Could not post initial commit status/check-run for {pr_identifier}: {e}")
-
-    # 2. Run multi-agent review
-    with ExitStack() as stack:
-        if ident.platform == "local":
-            repo_root = str(getattr(client, "repo_dir", "."))
-        else:
-            host = urllib.parse.urlparse(ident.raw_identifier).netloc or None if "://" in ident.raw_identifier else None
-            repo_root = stack.enter_context(
-                temporary_pr_checkout(
-                    owner, repo,
-                    head_sha=meta.head_sha, head_ref=meta.head_ref,
-                    platform=ident.platform, host=host,
-                )
-            )
-        # bypass_limits: trusted internal path — no per-IP throttling or paste-size cap.
-        response = ReviewService.execute_review(raw_diff=diff, repo_root=repo_root, bypass_limits=True)
-
-    # 3. Load active suppressions for repository
-    suppression_store = SuppressionStore()
-    repo_key = f"{owner}/{repo}"
-    suppressed_fps = suppression_store.get_suppressed_fingerprints(repo_key)
-
-    # 4. Synchronize comments, deduplicate, and auto-resolve fixed findings
-    deduped_comments, resolved_fps, _ = CommentSynchronizer.synchronize(
-        client=client,
-        owner=owner,
-        repo=repo,
-        pull_number=pull_number,
-        current_comments=response.inline_comments or [],
-        current_findings=response.findings or [],
-        head_sha=meta.head_sha,
-        suppressed_fingerprints=suppressed_fps
+                pull_number=number,
+                event=event,
+                body=summary + "\n" + marker,
+                commit_id=meta.head_sha,
+                comments=comments,
+            ),
+        )[1],
+        search=lambda: client.list_pull_request_reviews(owner, repo, number),
     )
-
-    # 5. Determine verdict (account for suppressed blocking findings)
-    verdict = (getattr(response, "verdict", None) or "").upper()
-    if "APPROVE" in verdict:
-        event = "APPROVE"
-    elif "REQUEST" in verdict or "ESCALATE" in verdict:
-        raw_findings = getattr(response, "findings", None) or []
-        blocking_findings = [
-            f for f in raw_findings
-            if getattr(f, "severity", "") in ("CRITICAL", "HIGH")
-        ]
-        if blocking_findings and suppressed_fps and all(
-            (getattr(f, "fingerprint", "") or "").lower() in suppressed_fps
-            for f in blocking_findings
-        ):
-            # Phase 5 Severity Ceilings: CRITICAL findings require explicit override to auto-approve
-            critical_blockers = [f for f in blocking_findings if getattr(f, "severity", "") == "CRITICAL"]
-            all_critical_overridden = all(
-                suppression_store.has_critical_override(repo_key, getattr(f, "fingerprint", ""))
-                for f in critical_blockers
+    # Receipts must exist before findings become eligible for calibration metrics.
+    published_comments = client.list_pull_request_review_comments(owner, repo, number)
+    bot = os.getenv("BOT_GITHUB_LOGIN", "review-bot").lower()
+    store = FindingOutcomeStore()
+    with store.transaction():
+        queue.assert_claim(job_id, claim_token)
+        for finding in response.findings:
+            if (
+                finding.fingerprint not in published_fingerprints
+                or finding.publication_reasons
+            ):
+                continue
+            comment = next(
+                (
+                    c
+                    for c in published_comments
+                    if finding.fingerprint in (c.get("body") or "")
+                    and (c.get("user") or {}).get("login", "").lower() == bot
+                ),
+                {},
             )
-            if not critical_blockers or all_critical_overridden:
-                event = "APPROVE"
-                response.verdict = "APPROVE"
-            else:
-                event = "REQUEST_CHANGES"
-                logger.warning(
-                    f"⚠️ PR {pr_identifier} contains suppressed CRITICAL findings without explicit override; "
-                    f"severity ceiling prevents auto-approval."
-                )
-        else:
-            event = "REQUEST_CHANGES"
-    else:
-        event = "COMMENT"
-
-    # 6. Post review report with deduplicated comments (Idempotent across retries)
-    queue_instance = WebhookJobQueue()
-    review_op_key = f"review:{owner}/{repo}#{pull_number}:{meta.head_sha or 'none'}"
-    if not queue_instance.is_operation_executed(review_op_key):
-        try:
-            client.post_pull_request_review(
-                owner=owner, repo=repo, pull_number=pull_number,
-                event=event, body=response.full_report,
-                commit_id=meta.head_sha or None, comments=deduped_comments,
+            record = store.record_finding(
+                repo_key,
+                finding.fingerprint,
+                category=finding.category,
+                severity=finding.severity,
+                pr_id=str(number),
+                provider=ident.platform,
+                host=host,
+                head_sha=meta.head_sha,
+                provider_review_id=receipt["id"],
+                provider_comment_id=comment.get("id", ""),
+                evidence_grade=finding.evidence_grade,
+                evidence_provenance=finding.evidence_provenance,
+                claim_title=finding.name,
+                claim_description=finding.description,
+                file_path=finding.file_path,
+                line_number=finding.line_number,
             )
-            queue_instance.record_external_operation(
-                operation_key=review_op_key,
-                operation_type="post_pull_request_review",
-                target_id=f"{owner}/{repo}#{pull_number}",
-                payload={"head_sha": meta.head_sha, "event": event, "comments_count": len(deduped_comments)},
-                status="SUCCESS"
-            )
-        except Exception as post_err:
-            logger.error(f"Could not post review for {pr_identifier}: {post_err}")
-    else:
-        logger.info(f"⏭️ Review report already posted for {pr_identifier} at {meta.head_sha}; skipping duplicate side effect.")
-
-    # 7. Update final commit status / check-run (Idempotent across retries)
-    if meta.head_sha:
-        conclusion = "success" if event == "APPROVE" else "failure"
-        status_op_key = f"status:{owner}/{repo}#{pull_number}:{meta.head_sha}:{conclusion}"
-        if not queue_instance.is_operation_executed(status_op_key):
-            annotations = [
-                {
-                    "path": f.file_path,
-                    "start_line": f.line_number,
-                    "end_line": f.line_number,
-                    "annotation_level": "failure" if f.severity in ("CRITICAL", "HIGH") else "warning",
-                    "title": f.rule_id or f.name,
-                    "message": f.description
-                }
-                for f in (response.findings or [])
-                if (f.fingerprint or "").lower() not in suppressed_fps
-            ]
-            try:
-                client.create_or_update_check_run(
-                    owner=owner,
-                    repo=repo,
-                    head_sha=meta.head_sha,
-                    name="AI Code Review",
-                    status="completed",
-                    conclusion=conclusion,
-                    title=f"AI Code Review: {response.verdict}",
-                    summary=f"Analysis completed with verdict **{response.verdict}** ({len(response.findings)} findings, {len(deduped_comments)} new comments).",
-                    annotations=annotations
-                )
-                queue_instance.record_external_operation(
-                    operation_key=status_op_key,
-                    operation_type="check_run",
-                    target_id=f"{owner}/{repo}#{pull_number}",
-                    payload={"conclusion": conclusion, "verdict": response.verdict},
-                    status="SUCCESS"
-                )
-            except Exception as e:
-                logger.warning(f"Could not post final commit status/check-run for {pr_identifier}: {e}")
-        else:
-            logger.info(f"⏭️ Commit status/check-run already posted for {pr_identifier} at {meta.head_sha}; skipping duplicate.")
-
+            finding.finding_id = record["finding_id"]
+            finding.pr_id = str(number)
+            finding.publication_status = "PUBLISHED"
+        observed = {f.fingerprint for f in response.findings}
+        if response.analysis_complete:
+            for previous in store.list_findings(
+                repo_key, pr_id=str(number), provider=ident.platform, host=host
+            ):
+                if previous["fingerprint"] not in observed:
+                    store.update_outcome(
+                        finding_id=previous["finding_id"],
+                        provider=ident.platform,
+                        host=host,
+                        source="comment_sync_resolved",
+                        reason=f"Not observed at {meta.head_sha}",
+                    )
+    pilot.publication(pilot_run, published_fingerprints, receipt, meta.head_sha)
+    response.analyzer_status["publication"] = "PUBLISHED"
     return response.model_dump()

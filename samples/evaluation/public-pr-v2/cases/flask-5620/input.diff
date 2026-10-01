@@ -1,0 +1,203 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index cddf28cdd9..ff41f5369c 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -95,7 +95,7 @@ ignore_missing_imports = true
+ 
+ [tool.pyright]
+ pythonVersion = "3.8"
+-include = ["src/flask", "tests"]
++include = ["src/flask", "tests/typing"]
+ typeCheckingMode = "basic"
+ 
+ [tool.ruff]
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 53eb602c2a..f726da694b 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -59,6 +59,7 @@
+ 
+     from .testing import FlaskClient
+     from .testing import FlaskCliRunner
++    from .typing import HeadersValue
+ 
+ T_shell_context_processor = t.TypeVar(
+     "T_shell_context_processor", bound=ft.ShellContextProcessorCallable
+@@ -349,7 +350,7 @@ def open_resource(
+         path = os.path.join(self.root_path, resource)
+ 
+         if mode == "rb":
+-            return open(path, mode)
++            return open(path, mode)  # pyright: ignore
+ 
+         return open(path, mode, encoding=encoding)
+ 
+@@ -1163,7 +1164,8 @@ def make_response(self, rv: ft.ResponseReturnValue) -> Response:
+            response object.
+         """
+ 
+-        status = headers = None
++        status: int | None = None
++        headers: HeadersValue | None = None
+ 
+         # unpack tuple returns
+         if isinstance(rv, tuple):
+@@ -1175,7 +1177,7 @@ def make_response(self, rv: ft.ResponseReturnValue) -> Response:
+             # decide if a 2-tuple has status or headers
+             elif len_rv == 2:
+                 if isinstance(rv[1], (Headers, dict, tuple, list)):
+-                    rv, headers = rv
++                    rv, headers = rv  # pyright: ignore
+                 else:
+                     rv, status = rv  # type: ignore[assignment,misc]
+             # other sized tuples are not allowed
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index 86c5d59aa2..b6d4e43339 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -123,6 +123,6 @@ def open_resource(
+         path = os.path.join(self.root_path, resource)
+ 
+         if mode == "rb":
+-            return open(path, mode)
++            return open(path, mode)  # pyright: ignore
+ 
+         return open(path, mode, encoding=encoding)
+diff --git a/src/flask/cli.py b/src/flask/cli.py
+index ecb292a01e..8e72db5aca 100644
+--- a/src/flask/cli.py
++++ b/src/flask/cli.py
+@@ -323,9 +323,9 @@ def load_app(self) -> Flask:
+         """
+         if self._loaded_app is not None:
+             return self._loaded_app
+-
++        app: Flask | None = None
+         if self.create_app is not None:
+-            app: Flask | None = self.create_app()
++            app = self.create_app()
+         else:
+             if self.app_import_path:
+                 path, name = (
+@@ -549,7 +549,7 @@ def __init__(
+         set_debug_flag: bool = True,
+         **extra: t.Any,
+     ) -> None:
+-        params = list(extra.pop("params", None) or ())
++        params: list[click.Parameter] = list(extra.pop("params", None) or ())
+         # Processing is done with option callbacks instead of a group
+         # callback. This allows users to make a custom group callback
+         # without losing the behavior. --env-file must come first so
+@@ -587,7 +587,7 @@ def _load_plugin_commands(self) -> None:
+             # Use a backport on Python < 3.10. We technically have
+             # importlib.metadata on 3.8+, but the API changed in 3.10,
+             # so use the backport for consistency.
+-            import importlib_metadata as metadata
++            import importlib_metadata as metadata  # pyright: ignore
+ 
+         for ep in metadata.entry_points(group="flask.commands"):
+             self.add_command(ep.load(), ep.name)
+@@ -934,7 +934,7 @@ def run_command(
+     option.
+     """
+     try:
+-        app: WSGIApplication = info.load_app()
++        app: WSGIApplication = info.load_app()  # pyright: ignore
+     except Exception as e:
+         if is_running_from_reloader():
+             # When reloading, print out the error immediately, but raise
+diff --git a/src/flask/helpers.py b/src/flask/helpers.py
+index f891eed126..a52fbf7e25 100644
+--- a/src/flask/helpers.py
++++ b/src/flask/helpers.py
+@@ -599,7 +599,7 @@ def get_root_path(import_name: str) -> str:
+         return os.getcwd()
+ 
+     if hasattr(loader, "get_filename"):
+-        filepath = loader.get_filename(import_name)
++        filepath = loader.get_filename(import_name)  # pyright: ignore
+     else:
+         # Fall back to imports.
+         __import__(import_name)
+diff --git a/src/flask/sansio/app.py b/src/flask/sansio/app.py
+index c091b5cb9a..3620171410 100644
+--- a/src/flask/sansio/app.py
++++ b/src/flask/sansio/app.py
+@@ -628,7 +628,7 @@ def add_url_rule(
+         methods = {item.upper() for item in methods}
+ 
+         # Methods that should always be added
+-        required_methods = set(getattr(view_func, "required_methods", ()))
++        required_methods: set[str] = set(getattr(view_func, "required_methods", ()))
+ 
+         # starting with Flask 0.8 the view_func object can disable and
+         # force-enable the automatic options handling.
+diff --git a/src/flask/testing.py b/src/flask/testing.py
+index a27b7c8fe9..602b773b5b 100644
+--- a/src/flask/testing.py
++++ b/src/flask/testing.py
+@@ -79,8 +79,7 @@ def __init__(
+             path = url.path
+ 
+             if url.query:
+-                sep = b"?" if isinstance(url.query, bytes) else "?"
+-                path += sep + url.query
++                path = f"{path}?{url.query}"
+ 
+         self.app = app
+         super().__init__(path, base_url, *args, **kwargs)
+diff --git a/src/flask/views.py b/src/flask/views.py
+index 794fdc06cf..53fe976dc2 100644
+--- a/src/flask/views.py
++++ b/src/flask/views.py
+@@ -61,7 +61,7 @@ def dispatch_request(self, name):
+     #: decorator.
+     #:
+     #: .. versionadded:: 0.8
+-    decorators: t.ClassVar[list[t.Callable[[F], F]]] = []
++    decorators: t.ClassVar[list[t.Callable[..., t.Any]]] = []
+ 
+     #: Create a new instance of this view class for every request by
+     #: default. If a view subclass sets this to ``False``, the same
+@@ -110,7 +110,7 @@ def view(**kwargs: t.Any) -> ft.ResponseReturnValue:
+                 return current_app.ensure_sync(self.dispatch_request)(**kwargs)  # type: ignore[no-any-return]
+ 
+         else:
+-            self = cls(*class_args, **class_kwargs)
++            self = cls(*class_args, **class_kwargs)  # pyright: ignore
+ 
+             def view(**kwargs: t.Any) -> ft.ResponseReturnValue:
+                 return current_app.ensure_sync(self.dispatch_request)(**kwargs)  # type: ignore[no-any-return]
+diff --git a/src/flask/wrappers.py b/src/flask/wrappers.py
+index db3118e6ea..8be015c657 100644
+--- a/src/flask/wrappers.py
++++ b/src/flask/wrappers.py
+@@ -129,11 +129,11 @@ def _load_form_data(self) -> None:
+     def on_json_loading_failed(self, e: ValueError | None) -> t.Any:
+         try:
+             return super().on_json_loading_failed(e)
+-        except BadRequest as e:
++        except BadRequest as ebr:
+             if current_app and current_app.debug:
+                 raise
+ 
+-            raise BadRequest() from e
++            raise BadRequest() from ebr
+ 
+ 
+ class Response(ResponseBase):
+diff --git a/tox.ini b/tox.ini
+index 8ff89d235b..69e92fb4d7 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,9 @@ commands = pre-commit run --all-files
+ 
+ [testenv:typing]
+ deps = -r requirements/typing.txt
+-commands = mypy
++commands =
++    mypy
++    pyright
+ 
+ [testenv:docs]
+ deps = -r requirements/docs.txt

@@ -1,0 +1,33 @@
+diff --git a/src/requests/adapters.py b/src/requests/adapters.py
+index 130154f8dc..98f74465f2 100644
+--- a/src/requests/adapters.py
++++ b/src/requests/adapters.py
+@@ -49,7 +49,6 @@
+ from .structures import CaseInsensitiveDict
+ from .utils import (
+     DEFAULT_CA_BUNDLE_PATH,
+-    extract_zipped_paths,
+     get_auth_from_url,
+     get_encoding_from_headers,
+     prepend_scheme_if_needed,
+@@ -299,7 +298,7 @@ def cert_verify(self, conn, url, verify, cert):
+                 cert_loc = verify
+ 
+             if not cert_loc:
+-                cert_loc = extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH)
++                cert_loc = DEFAULT_CA_BUNDLE_PATH
+ 
+             if not cert_loc or not os.path.exists(cert_loc):
+                 raise OSError(
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index d113a6ff3e..d8803e6e91 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -59,6 +59,7 @@
+ 
+ NETRC_FILES = (".netrc", "_netrc")
+ 
++# Certificate is extracted by certifi when needed.
+ DEFAULT_CA_BUNDLE_PATH = certs.where()
+ 
+ DEFAULT_PORTS = {"http": 80, "https": 443}

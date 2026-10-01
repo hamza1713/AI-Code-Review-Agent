@@ -4,8 +4,6 @@ Verifies that same-named functions and classes in different files are keyed by
 fully-qualified paths and their caller/callee graphs remain strictly isolated.
 """
 
-import tempfile
-from pathlib import Path
 import pytest
 
 from code_review_agent.context_engine.code_graph import CodeGraphIndexer
@@ -36,7 +34,7 @@ class DataHandler:
     def handle(self):
         return process_data({})
 """,
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
         # Module B
@@ -55,7 +53,7 @@ class DataHandler:
     def handle(self):
         return process_data({})
 """,
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
         return tmp_path
@@ -126,3 +124,40 @@ class DataHandler:
         assert "module_a.py" in context
         assert "module_a.py:caller_in_module_a" in context
         assert "module_b.py:caller_in_module_b" not in context
+
+    def test_disk_cache_persistence_across_instances(self, fixture_repo):
+        """Verify on-disk cache allows fresh instances in new memory spaces to reuse the index."""
+        indexer1 = CodeGraphIndexer(repo_root=str(fixture_repo))
+        summary1 = indexer1.index_repository(force_reindex=True)
+        assert summary1.symbols_count > 0
+
+        # Clear in-memory cache completely
+        CodeGraphIndexer.clear_cache()
+
+        # Create completely fresh instance (simulating a worker subprocess)
+        indexer2 = CodeGraphIndexer(repo_root=str(fixture_repo))
+        summary2 = indexer2.index_repository(force_reindex=False)
+        assert summary2.symbols_count == summary1.symbols_count
+        assert "module_a.py:process_data" in indexer2.symbols
+
+    def test_non_python_brace_depth_tracking(self, tmp_path):
+        """Verify JS/TS/Go/Java symbols compute accurate line_end via brace tracking."""
+        ts_file = tmp_path / "service.ts"
+        ts_content = """export const handleRequest = (req: Request, res: Response) => {
+    const data = req.body;
+    if (!data) {
+        return res.status(400);
+    }
+    return res.json({ ok: true });
+};
+"""
+        ts_file.write_text(ts_content, encoding="utf-8")
+
+        indexer = CodeGraphIndexer(repo_root=str(tmp_path))
+        indexer.index_repository(force_reindex=True)
+
+        sym = indexer.symbols.get("service.ts:handleRequest")
+        assert sym is not None
+        assert sym.line_start == 1
+        # The closing brace is at line 7, NOT line 11 (1 + 10)
+        assert sym.line_end == 7

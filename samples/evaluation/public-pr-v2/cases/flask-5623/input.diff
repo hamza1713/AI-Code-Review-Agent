@@ -1,0 +1,280 @@
+diff --git a/.github/workflows/tests.yaml b/.github/workflows/tests.yaml
+index 0a4295b4ea..fcfb0a80f1 100644
+--- a/.github/workflows/tests.yaml
++++ b/.github/workflows/tests.yaml
+@@ -20,7 +20,6 @@ jobs:
+           - {python: '3.11'}
+           - {python: '3.10'}
+           - {python: '3.9'}
+-          - {python: '3.8'}
+           - {name: PyPy, python: 'pypy-3.10', tox: pypy310}
+           - {name: Minimum Versions, python: '3.12', tox: py-min}
+           - {name: Development Versions, python: '3.9', tox: py-dev}
+diff --git a/CHANGES.rst b/CHANGES.rst
+index f2740c1bb7..01f84e7057 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -3,6 +3,7 @@ Version 3.1.0
+ 
+ Unreleased
+ 
++-   Drop support for Python 3.8. :pr:`5623`
+ -   Provide a configuration option to control automatic option
+     responses. :pr:`5496`
+ -   ``Flask.open_resource``/``open_instance_resource`` and
+diff --git a/docs/async-await.rst b/docs/async-await.rst
+index 06a29fccc1..16b61945e2 100644
+--- a/docs/async-await.rst
++++ b/docs/async-await.rst
+@@ -23,12 +23,6 @@ method in views that inherit from the :class:`flask.views.View` class, as
+ well as all the HTTP method handlers in views that inherit from the
+ :class:`flask.views.MethodView` class.
+ 
+-.. admonition:: Using ``async`` on Windows on Python 3.8
+-
+-    Python 3.8 has a bug related to asyncio on Windows. If you encounter
+-    something like ``ValueError: set_wakeup_fd only works in main thread``,
+-    please upgrade to Python 3.9.
+-
+ .. admonition:: Using ``async`` with greenlet
+ 
+     When using gevent or eventlet to serve an application or patch the
+diff --git a/docs/extensiondev.rst b/docs/extensiondev.rst
+index c9dee5ff63..0c74ad9260 100644
+--- a/docs/extensiondev.rst
++++ b/docs/extensiondev.rst
+@@ -294,7 +294,8 @@ ecosystem remain consistent and compatible.
+     indicate minimum compatibility support. For example,
+     ``sqlalchemy>=1.4``.
+ 9.  Indicate the versions of Python supported using ``python_requires=">=version"``.
+-    Flask itself supports Python >=3.8 as of April 2023, but this will update over time.
++    Flask itself supports Python >=3.9 as of October 2024, and this will update
++    over time.
+ 
+ .. _PyPI: https://pypi.org/search/?c=Framework+%3A%3A+Flask
+ .. _Discord Chat: https://discord.gg/pallets
+diff --git a/docs/installation.rst b/docs/installation.rst
+index aeb00ce198..90a314bf14 100644
+--- a/docs/installation.rst
++++ b/docs/installation.rst
+@@ -5,7 +5,7 @@ Installation
+ Python Version
+ --------------
+ 
+-We recommend using the latest version of Python. Flask supports Python 3.8 and newer.
++We recommend using the latest version of Python. Flask supports Python 3.9 and newer.
+ 
+ 
+ Dependencies
+diff --git a/pyproject.toml b/pyproject.toml
+index ff41f5369c..fc4ef831e3 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -19,7 +19,7 @@ classifiers = [
+     "Topic :: Software Development :: Libraries :: Application Frameworks",
+     "Typing :: Typed",
+ ]
+-requires-python = ">=3.8"
++requires-python = ">=3.9"
+ dependencies = [
+     "Werkzeug>=3.0.0",
+     "Jinja2>=3.1.2",
+@@ -78,7 +78,7 @@ source = ["flask", "tests"]
+ source = ["src", "*/site-packages"]
+ 
+ [tool.mypy]
+-python_version = "3.8"
++python_version = "3.9"
+ files = ["src/flask", "tests/typing"]
+ show_error_codes = true
+ pretty = true
+@@ -94,7 +94,7 @@ module = [
+ ignore_missing_imports = true
+ 
+ [tool.pyright]
+-pythonVersion = "3.8"
++pythonVersion = "3.9"
+ include = ["src/flask", "tests/typing"]
+ typeCheckingMode = "basic"
+ 
+diff --git a/src/flask/app.py b/src/flask/app.py
+index f726da694b..7e332ed5ad 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -1245,7 +1245,7 @@ def make_response(self, rv: ft.ResponseReturnValue) -> Response:
+ 
+         # extend existing headers with provided headers
+         if headers:
+-            rv.headers.update(headers)  # type: ignore[arg-type]
++            rv.headers.update(headers)
+ 
+         return rv
+ 
+diff --git a/src/flask/config.py b/src/flask/config.py
+index 7e3ba1790b..34ef1a5721 100644
+--- a/src/flask/config.py
++++ b/src/flask/config.py
+@@ -150,13 +150,13 @@ def from_prefixed_env(
+         .. versionadded:: 2.1
+         """
+         prefix = f"{prefix}_"
+-        len_prefix = len(prefix)
+ 
+         for key in sorted(os.environ):
+             if not key.startswith(prefix):
+                 continue
+ 
+             value = os.environ[key]
++            key = key.removeprefix(prefix)
+ 
+             try:
+                 value = loads(value)
+@@ -164,9 +164,6 @@ def from_prefixed_env(
+                 # Keep the value as a string if loading failed.
+                 pass
+ 
+-            # Change to key.removeprefix(prefix) on Python >= 3.9.
+-            key = key[len_prefix:]
+-
+             if "__" not in key:
+                 # A non-nested key, set directly.
+                 self[key] = value
+diff --git a/src/flask/helpers.py b/src/flask/helpers.py
+index a52fbf7e25..1fe743e4cc 100644
+--- a/src/flask/helpers.py
++++ b/src/flask/helpers.py
+@@ -5,7 +5,7 @@
+ import sys
+ import typing as t
+ from datetime import datetime
+-from functools import lru_cache
++from functools import cache
+ from functools import update_wrapper
+ 
+ import werkzeug.utils
+@@ -623,7 +623,7 @@ def get_root_path(import_name: str) -> str:
+     return os.path.dirname(os.path.abspath(filepath))  # type: ignore[no-any-return]
+ 
+ 
+-@lru_cache(maxsize=None)
++@cache
+ def _split_blueprint_path(name: str) -> list[str]:
+     out: list[str] = [name]
+ 
+diff --git a/src/flask/sansio/scaffold.py b/src/flask/sansio/scaffold.py
+index 69e33a095b..3a839f5a34 100644
+--- a/src/flask/sansio/scaffold.py
++++ b/src/flask/sansio/scaffold.py
+@@ -706,15 +706,6 @@ def _endpoint_from_view_func(view_func: ft.RouteCallable) -> str:
+     return view_func.__name__
+ 
+ 
+-def _path_is_relative_to(path: pathlib.PurePath, base: str) -> bool:
+-    # Path.is_relative_to doesn't exist until Python 3.9
+-    try:
+-        path.relative_to(base)
+-        return True
+-    except ValueError:
+-        return False
+-
+-
+ def _find_package_path(import_name: str) -> str:
+     """Find the path that contains the package or module."""
+     root_mod_name, _, _ = import_name.partition(".")
+@@ -745,7 +736,7 @@ def _find_package_path(import_name: str) -> str:
+                 search_location = next(
+                     location
+                     for location in root_spec.submodule_search_locations
+-                    if _path_is_relative_to(package_path, location)
++                    if package_path.is_relative_to(location)
+                 )
+             else:
+                 # Pick the first path.
+@@ -777,7 +768,7 @@ def find_package(import_name: str) -> tuple[str | None, str]:
+     py_prefix = os.path.abspath(sys.prefix)
+ 
+     # installed to the system
+-    if _path_is_relative_to(pathlib.PurePath(package_path), py_prefix):
++    if pathlib.PurePath(package_path).is_relative_to(py_prefix):
+         return py_prefix, package_path
+ 
+     site_parent, site_folder = os.path.split(package_path)
+diff --git a/src/flask/typing.py b/src/flask/typing.py
+index cf6d4ae6dd..e7234e9670 100644
+--- a/src/flask/typing.py
++++ b/src/flask/typing.py
+@@ -12,7 +12,7 @@
+     "Response",
+     str,
+     bytes,
+-    t.List[t.Any],
++    list[t.Any],
+     # Only dict is actually accepted, but Mapping allows for TypedDict.
+     t.Mapping[str, t.Any],
+     t.Iterator[str],
+@@ -21,21 +21,21 @@
+ 
+ # the possible types for an individual HTTP header
+ # This should be a Union, but mypy doesn't pass unless it's a TypeVar.
+-HeaderValue = t.Union[str, t.List[str], t.Tuple[str, ...]]
++HeaderValue = t.Union[str, list[str], tuple[str, ...]]
+ 
+ # the possible types for HTTP headers
+ HeadersValue = t.Union[
+     "Headers",
+     t.Mapping[str, HeaderValue],
+-    t.Sequence[t.Tuple[str, HeaderValue]],
++    t.Sequence[tuple[str, HeaderValue]],
+ ]
+ 
+ # The possible types returned by a route function.
+ ResponseReturnValue = t.Union[
+     ResponseValue,
+-    t.Tuple[ResponseValue, HeadersValue],
+-    t.Tuple[ResponseValue, int],
+-    t.Tuple[ResponseValue, int, HeadersValue],
++    tuple[ResponseValue, HeadersValue],
++    tuple[ResponseValue, int],
++    tuple[ResponseValue, int, HeadersValue],
+     "WSGIApplication",
+ ]
+ 
+@@ -56,21 +56,21 @@
+     t.Callable[[], t.Optional[ResponseReturnValue]],
+     t.Callable[[], t.Awaitable[t.Optional[ResponseReturnValue]]],
+ ]
+-ShellContextProcessorCallable = t.Callable[[], t.Dict[str, t.Any]]
++ShellContextProcessorCallable = t.Callable[[], dict[str, t.Any]]
+ TeardownCallable = t.Union[
+     t.Callable[[t.Optional[BaseException]], None],
+     t.Callable[[t.Optional[BaseException]], t.Awaitable[None]],
+ ]
+ TemplateContextProcessorCallable = t.Union[
+-    t.Callable[[], t.Dict[str, t.Any]],
+-    t.Callable[[], t.Awaitable[t.Dict[str, t.Any]]],
++    t.Callable[[], dict[str, t.Any]],
++    t.Callable[[], t.Awaitable[dict[str, t.Any]]],
+ ]
+ TemplateFilterCallable = t.Callable[..., t.Any]
+ TemplateGlobalCallable = t.Callable[..., t.Any]
+ TemplateTestCallable = t.Callable[..., bool]
+-URLDefaultCallable = t.Callable[[str, t.Dict[str, t.Any]], None]
++URLDefaultCallable = t.Callable[[str, dict[str, t.Any]], None]
+ URLValuePreprocessorCallable = t.Callable[
+-    [t.Optional[str], t.Optional[t.Dict[str, t.Any]]], None
++    [t.Optional[str], t.Optional[dict[str, t.Any]]], None
+ ]
+ 
+ # This should take Exception, but that either breaks typing the argument
+diff --git a/tox.ini b/tox.ini
+index 69e92fb4d7..321262c6e4 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -1,6 +1,6 @@
+ [tox]
+ envlist =
+-    py3{13,12,11,10,9,8}
++    py3{13,12,11,10,9}
+     pypy310
+     py312-min
+     py39-dev

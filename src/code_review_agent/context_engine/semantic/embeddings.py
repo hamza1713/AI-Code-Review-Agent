@@ -13,22 +13,21 @@ RAG_EMBEDDING_MODEL to a code-aware model; the factory imports it lazily and fal
 back to hashing (with a warning) if the dependency or model is unavailable.
 """
 
+import hashlib
+import math
 import os
 import re
-import math
-import hashlib
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any
 
 from code_review_agent.config import get_gemini_api_key, logger
-
 
 # camelCase / PascalCase boundary → split "parseDiffContent" into parts
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NON_WORD = re.compile(r"[^A-Za-z0-9]+")
 
 
-def tokenize_code(text: str) -> List[str]:
+def tokenize_code(text: str) -> list[str]:
     """
     Break source text into lowercased sub-word tokens.
 
@@ -36,7 +35,7 @@ def tokenize_code(text: str) -> List[str]:
     so `getUserById`, `get_user_by_id`, and `GetUserByID` all yield the same
     token stream and therefore embed near each other.
     """
-    tokens: List[str] = []
+    tokens: list[str] = []
     for raw in _NON_WORD.split(text):
         if not raw:
             continue
@@ -54,15 +53,15 @@ class Embedder(ABC):
     name: str = "abstract"
 
     @abstractmethod
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Embed a single string into an L2-normalized vector."""
         raise NotImplementedError
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed many strings. Providers with a native batch API should override."""
         return [self.embed(t) for t in texts]
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """
         Embed a retrieval *query* (the PR change), as opposed to an indexed document.
         Providers with asymmetric query/document encoders should override; the default
@@ -98,7 +97,7 @@ class HashingEmbedder(Embedder):
         sign = 1.0 if (h // self.dimension) % 2 == 0 else -1.0
         return index, sign
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         vec = [0.0] * self.dimension
         if not text:
             return vec
@@ -114,7 +113,7 @@ class HashingEmbedder(Embedder):
         joined = " ".join(tokens)
         n = self.char_ngrams
         for i in range(len(joined) - n + 1):
-            gram = joined[i:i + n]
+            gram = joined[i : i + n]
             if gram.strip():
                 idx, sign = self._bucket(f"ng:{gram}")
                 vec[idx] += sign
@@ -138,16 +137,18 @@ class SentenceTransformerEmbedder(Embedder):
     name = "sentence-transformers"
 
     def __init__(self, model_name: str):
-        from sentence_transformers import SentenceTransformer  # noqa: PLC0415 (lazy by design)
+        from sentence_transformers import (  # type: ignore[import-not-found]
+            SentenceTransformer,  # noqa: PLC0415 (lazy by design)
+        )
 
         self._model = SentenceTransformer(model_name)
         self.dimension = int(self._model.get_sentence_embedding_dimension())
         self._model_name = model_name
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         return self.embed_batch([text])[0]
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
         vecs = self._model.encode(
             texts,
             normalize_embeddings=True,
@@ -166,57 +167,67 @@ class GeminiEmbedder(Embedder):
     name = "gemini"
     dimension = 3072
 
-    def __init__(self, model_name: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, model_name: str | None = None, api_key: str | None = None):
+        from code_review_agent.data_policy import production
+
+        if production():
+            raise PermissionError(
+                "Remote embeddings require a separate production data approval and release gate"
+            )
         key = api_key or get_gemini_api_key()
         if not key:
             raise ValueError("GEMINI_API_KEY is required for GeminiEmbedder.")
         try:
             import google.generativeai as genai  # noqa: PLC0415
         except ImportError:
-            raise ValueError("google-generativeai package is required for GeminiEmbedder.")
+            raise ValueError(
+                "google-generativeai package is required for GeminiEmbedder."
+            ) from None
         genai.configure(api_key=key)
         self._genai = genai
-        self.model_name = model_name or os.getenv("RAG_EMBEDDING_MODEL", "models/gemini-embedding-001")
+        self.model_name = model_name or os.getenv(
+            "RAG_EMBEDDING_MODEL", "models/gemini-embedding-001"
+        )
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         return self._embed_batch([text], task_type="retrieval_document")[0]
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed indexed documents (repository chunks)."""
         return self._embed_batch(texts, task_type="retrieval_document")
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Embed a retrieval query (the PR change) — Gemini scores these better with
         the dedicated 'retrieval_query' task type than as a document."""
         return self._embed_batch([text], task_type="retrieval_query")[0]
 
-    def _embed_batch(self, texts: List[str], task_type: str) -> List[List[float]]:
+    def _embed_batch(self, texts: list[str], task_type: str) -> list[list[float]]:
         if not texts:
             return []
 
-        results: List[List[float]] = []
+        results: list[list[float]] = []
         chunk_size = 50
         for i in range(0, len(texts), chunk_size):
-            batch = texts[i:i + chunk_size]
+            batch = texts[i : i + chunk_size]
             response = self._genai.embed_content(
-                model=self.model_name,
+                model=self.model_name or "models/gemini-embedding-001",
                 content=batch,
                 task_type=task_type,
             )
-            raw_embeddings = response.get("embedding", [])
+            raw_embeddings: list[Any] = response.get("embedding", [])
             if raw_embeddings and isinstance(raw_embeddings[0], (float, int)):
                 raw_embeddings = [raw_embeddings]
 
             for emb in raw_embeddings:
-                norm = math.sqrt(sum(x * x for x in emb))
-                if norm > 0:
-                    emb = [x / norm for x in emb]
-                results.append(emb)
+                if isinstance(emb, list):
+                    norm = math.sqrt(sum(float(x) * float(x) for x in emb))
+                    norm_emb = [float(x) / norm for x in emb] if norm > 0 else [float(x) for x in emb]
+                    results.append(norm_emb)
 
         return results
 
 
-def get_embedder(name: Optional[str] = None, dimension: Optional[int] = None) -> Embedder:
+def get_embedder(name: str | None = None, dimension: int | None = None) -> Embedder:
     """
     Resolve an embedding provider.
 
@@ -224,14 +235,16 @@ def get_embedder(name: Optional[str] = None, dimension: Optional[int] = None) ->
     Any failure to construct an optional provider falls back to HashingEmbedder so
     a review is never blocked by a missing model.
     """
-    choice = (name or os.getenv("RAG_EMBEDDER", "hashing")).strip().lower()
+    choice = (name or os.getenv("RAG_EMBEDDER") or "hashing").strip().lower()
     dim = dimension or int(os.getenv("RAG_EMBEDDING_DIM", "512"))
 
     if choice in ("gemini", "google", "gemini-embedding"):
         model_name = os.getenv("RAG_EMBEDDING_MODEL", "models/gemini-embedding-001")
         try:
             embedder = GeminiEmbedder(model_name=model_name)
-            logger.info(f"🧠 RAG embedder: Google Gemini ({model_name}, dim={embedder.dimension}).")
+            logger.info(
+                f"🧠 RAG embedder: Google Gemini ({model_name}, dim={embedder.dimension})."
+            )
             return embedder
         except Exception as e:
             logger.warning(
@@ -240,11 +253,15 @@ def get_embedder(name: Optional[str] = None, dimension: Optional[int] = None) ->
             return HashingEmbedder(dimension=dim)
 
     if choice in ("sentence-transformers", "sentence_transformers", "st", "local"):
-        model_name = os.getenv("RAG_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        model_name = os.getenv(
+            "RAG_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+        )
         try:
-            embedder = SentenceTransformerEmbedder(model_name)
-            logger.info(f"🧠 RAG embedder: sentence-transformers ({model_name}, dim={embedder.dimension}).")
-            return embedder
+            st_embedder = SentenceTransformerEmbedder(model_name)
+            logger.info(
+                f"🧠 RAG embedder: sentence-transformers ({model_name}, dim={st_embedder.dimension})."
+            )
+            return st_embedder
         except Exception as e:
             logger.warning(
                 f"Could not load sentence-transformers model '{model_name}' ({e}); "
@@ -257,4 +274,3 @@ def get_embedder(name: Optional[str] = None, dimension: Optional[int] = None) ->
 
     logger.warning(f"Unknown RAG_EMBEDDER '{choice}'; using HashingEmbedder.")
     return HashingEmbedder(dimension=dim)
-

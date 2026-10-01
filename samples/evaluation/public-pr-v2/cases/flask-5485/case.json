@@ -1,0 +1,24 @@
+{
+  "id": "flask-5485",
+  "file": "cases/flask-5485/input.diff",
+  "sha256": "6a3adb0027b60840b01863522543c3ac7151c8d173ce788d3547e09085d56365",
+  "source_repository": "pallets/flask",
+  "base_sha": "bb16048ad74dfd07364226d02ab656f5a5cf6730",
+  "head_sha": "c7da8c2aa3a923fc620ad480a8831a8a0f21ab37",
+  "source_diff_url": "https://github.com/pallets/flask/compare/bb16048ad74dfd07364226d02ab656f5a5cf6730...c7da8c2aa3a923fc620ad480a8831a8a0f21ab37.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5485",
+  "merged_at": "2024-05-25T18:32:16Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5485/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "src/flask/sansio/app.py",
+      "file": "cases/flask-5485/head/src/flask/sansio/app.py",
+      "sha256": "278f2a390037ae51d614b0756097d7401c87eda9dfef0dde813f5ab16803706a"
+    }
+  ],
+  "input_snapshot_hash": "aca7c4e1c2e21e73e4167d76fefc22a9cdf2c42e596e678fec4b6d32456c756e",
+  "label_status": "UNREVIEWED"
+}

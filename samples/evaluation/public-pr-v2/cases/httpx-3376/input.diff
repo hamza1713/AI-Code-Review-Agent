@@ -1,0 +1,56 @@
+diff --git a/httpx/_urls.py b/httpx/_urls.py
+index bfc0e9e698..7976cb1837 100644
+--- a/httpx/_urls.py
++++ b/httpx/_urls.py
+@@ -12,20 +12,6 @@
+ __all__ = ["URL", "QueryParams"]
+ 
+ 
+-# To urlencode query parameters, we use the whatwg query percent-encode set
+-# and additionally escape U+0025 (%), U+0026 (&), U+002B (+) and U+003D (=).
+-
+-# https://url.spec.whatwg.org/#percent-encoded-bytes
+-
+-URLENCODE_SAFE = "".join(
+-    [
+-        chr(i)
+-        for i in range(0x20, 0x7F)
+-        if i not in (0x20, 0x22, 0x23, 0x25, 0x26, 0x2B, 0x3C, 0x3D, 0x3E)
+-    ]
+-)
+-
+-
+ class URL:
+     """
+     url = httpx.URL("HTTPS://jo%40email.com:a%20secret@müller.de:1234/pa%20th?search=ab#anchorlink")
+@@ -619,7 +605,7 @@ def __eq__(self, other: typing.Any) -> bool:
+         return sorted(self.multi_items()) == sorted(other.multi_items())
+ 
+     def __str__(self) -> str:
+-        return urlencode(self.multi_items(), safe=URLENCODE_SAFE)
++        return urlencode(self.multi_items())
+ 
+     def __repr__(self) -> str:
+         class_name = self.__class__.__name__
+diff --git a/tests/models/test_url.py b/tests/models/test_url.py
+index d32ed52169..03072e8f5c 100644
+--- a/tests/models/test_url.py
++++ b/tests/models/test_url.py
+@@ -148,7 +148,7 @@ def test_url_query_encoding():
+     assert url.raw_path == b"/?a=b+c&d=e/f"
+ 
+     url = httpx.URL("https://www.example.com/", params={"a": "b c", "d": "e/f"})
+-    assert url.raw_path == b"/?a=b+c&d=e/f"
++    assert url.raw_path == b"/?a=b+c&d=e%2Ff"
+ 
+ 
+ def test_url_params():
+@@ -309,7 +309,7 @@ def test_param_with_existing_escape_requires_encoding():
+     # even if they include a valid escape sequence.
+     # We want to match browser form behaviour here.
+     url = httpx.URL("http://webservice", params={"u": "http://example.com?q=foo%2Fa"})
+-    assert str(url) == "http://webservice?u=http://example.com?q%3Dfoo%252Fa"
++    assert str(url) == "http://webservice?u=http%3A%2F%2Fexample.com%3Fq%3Dfoo%252Fa"
+ 
+ 
+ # Tests for query parameter percent encoding.

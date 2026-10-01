@@ -1,0 +1,155 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 0908a02d24..9a5f7498da 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -6,6 +6,8 @@ Unreleased
+ -   The default ``hashlib.sha1`` may not be available in FIPS builds. Don't
+     access it at import time so the developer has time to change the default.
+     :issue:`5448`
++-   Don't initialize the ``cli`` attribute in the sansio scaffold, but rather in
++    the ``Flask`` concrete class. :pr:`5270`
+ 
+ 
+ Version 3.0.2
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 12ac50d49b..7622b5e838 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -241,6 +241,16 @@ def __init__(
+             root_path=root_path,
+         )
+ 
++        #: The Click command group for registering CLI commands for this
++        #: object. The commands are available from the ``flask`` command
++        #: once the application has been discovered and blueprints have
++        #: been registered.
++        self.cli = cli.AppGroup()
++
++        # Set the name of the Click group in case someone wants to add
++        # the app's commands to another CLI tool.
++        self.cli.name = self.name
++
+         # Add a static route using the provided static_url_path, static_host,
+         # and static_folder if there is a configured static_folder.
+         # Note we do this without checking if static_folder exists.
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index 52859b855a..aa9eacf21b 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -4,16 +4,54 @@
+ import typing as t
+ from datetime import timedelta
+ 
++from .cli import AppGroup
+ from .globals import current_app
+ from .helpers import send_from_directory
+ from .sansio.blueprints import Blueprint as SansioBlueprint
+ from .sansio.blueprints import BlueprintSetupState as BlueprintSetupState  # noqa
++from .sansio.scaffold import _sentinel
+ 
+ if t.TYPE_CHECKING:  # pragma: no cover
+     from .wrappers import Response
+ 
+ 
+ class Blueprint(SansioBlueprint):
++    def __init__(
++        self,
++        name: str,
++        import_name: str,
++        static_folder: str | os.PathLike[str] | None = None,
++        static_url_path: str | None = None,
++        template_folder: str | os.PathLike[str] | None = None,
++        url_prefix: str | None = None,
++        subdomain: str | None = None,
++        url_defaults: dict[str, t.Any] | None = None,
++        root_path: str | None = None,
++        cli_group: str | None = _sentinel,  # type: ignore
++    ) -> None:
++        super().__init__(
++            name,
++            import_name,
++            static_folder,
++            static_url_path,
++            template_folder,
++            url_prefix,
++            subdomain,
++            url_defaults,
++            root_path,
++            cli_group,
++        )
++
++        #: The Click command group for registering CLI commands for this
++        #: object. The commands are available from the ``flask`` command
++        #: once the application has been discovered and blueprints have
++        #: been registered.
++        self.cli = AppGroup()
++
++        # Set the name of the Click group in case someone wants to add
++        # the app's commands to another CLI tool.
++        self.cli.name = self.name
++
+     def get_send_file_max_age(self, filename: str | None) -> int | None:
+         """Used by :func:`send_file` to determine the ``max_age`` cache
+         value for a given file path if it wasn't passed.
+diff --git a/src/flask/sansio/app.py b/src/flask/sansio/app.py
+index 21a79ba460..01fd5dbfae 100644
+--- a/src/flask/sansio/app.py
++++ b/src/flask/sansio/app.py
+@@ -410,10 +410,6 @@ def __init__(
+         # request.
+         self._got_first_request = False
+ 
+-        # Set the name of the Click group in case someone wants to add
+-        # the app's commands to another CLI tool.
+-        self.cli.name = self.name
+-
+     def _check_setup_finished(self, f_name: str) -> None:
+         if self._got_first_request:
+             raise AssertionError(
+diff --git a/src/flask/sansio/scaffold.py b/src/flask/sansio/scaffold.py
+index 5355700899..69e33a095b 100644
+--- a/src/flask/sansio/scaffold.py
++++ b/src/flask/sansio/scaffold.py
+@@ -8,7 +8,6 @@
+ from collections import defaultdict
+ from functools import update_wrapper
+ 
+-import click
+ from jinja2 import BaseLoader
+ from jinja2 import FileSystemLoader
+ from werkzeug.exceptions import default_exceptions
+@@ -16,10 +15,12 @@
+ from werkzeug.utils import cached_property
+ 
+ from .. import typing as ft
+-from ..cli import AppGroup
+ from ..helpers import get_root_path
+ from ..templating import _default_template_ctx_processor
+ 
++if t.TYPE_CHECKING:  # pragma: no cover
++    from click import Group
++
+ # a singleton sentinel value for parameter defaults
+ _sentinel = object()
+ 
+@@ -66,6 +67,7 @@ class Scaffold:
+     .. versionadded:: 2.0
+     """
+ 
++    cli: Group
+     name: str
+     _static_folder: str | None = None
+     _static_url_path: str | None = None
+@@ -97,12 +99,6 @@ def __init__(
+         #: up resources contained in the package.
+         self.root_path = root_path
+ 
+-        #: The Click command group for registering CLI commands for this
+-        #: object. The commands are available from the ``flask`` command
+-        #: once the application has been discovered and blueprints have
+-        #: been registered.
+-        self.cli: click.Group = AppGroup()
+-
+         #: A dictionary mapping endpoint names to view functions.
+         #:
+         #: To register a view function, use the :meth:`route` decorator.

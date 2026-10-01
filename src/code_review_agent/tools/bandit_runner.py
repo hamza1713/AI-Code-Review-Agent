@@ -8,16 +8,15 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional
 
-from code_review_agent.models import SastFinding
-from code_review_agent.diff_parser import DiffParser
 from code_review_agent.config import logger
+from code_review_agent.diff_parser import DiffParser
+from code_review_agent.models import SastFinding
+from code_review_agent.path_validation import safe_diff_path
 
-
-import sys
 
 def is_safe_subprocess_call(text: str) -> bool:
     """
@@ -47,10 +46,11 @@ def is_safe_subprocess_call(text: str) -> bool:
         return True
     return False
 
+
 class BanditRunner:
     """Wrapper around Bandit for Python AST security scanning."""
 
-    _availability_cache: Optional[bool] = None
+    _availability_cache: bool | None = None
 
     @classmethod
     def is_available(cls) -> bool:
@@ -67,14 +67,20 @@ class BanditRunner:
             cls._availability_cache = True
             return True
         try:
-            res = subprocess.run([sys.executable, "-m", "bandit", "--version"], capture_output=True, text=True, timeout=5, check=False)
+            res = subprocess.run(
+                [sys.executable, "-m", "bandit", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
             cls._availability_cache = res.returncode == 0
         except Exception:
             cls._availability_cache = False
         return cls._availability_cache
 
     @classmethod
-    def scan_diff(cls, raw_diff: str) -> List[SastFinding]:
+    def scan_diff(cls, raw_diff: str, *, strict: bool = False) -> list[SastFinding]:
         """
         Scan Python added code in a diff using Bandit.
         """
@@ -86,11 +92,15 @@ class BanditRunner:
             return []
 
         parsed_pr = DiffParser.parse_diff(raw_diff)
-        py_files = [f for f in parsed_pr.files if f.target_file.endswith(".py") and not f.is_deleted_file]
+        py_files = [
+            f
+            for f in parsed_pr.files
+            if f.target_file.endswith(".py") and not f.is_deleted_file
+        ]
         if not py_files:
             return []
 
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
 
         with tempfile.TemporaryDirectory(prefix="bandit_scan_") as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -98,7 +108,7 @@ class BanditRunner:
 
             for file_diff in py_files:
                 target_rel = file_diff.target_file
-                dest = tmp_path / target_rel
+                dest = safe_diff_path(tmp_path, target_rel)
                 dest.parent.mkdir(parents=True, exist_ok=True)
 
                 # Reconstruct syntactically valid Python code preserving context
@@ -108,46 +118,62 @@ class BanditRunner:
                         clean_lines.append(line[1:])
                     elif line.startswith(" "):
                         clean_lines.append(line[1:])
-                    elif line.startswith("-") or line.startswith("@@") or line.startswith("diff ") or line.startswith("index "):
+                    elif line.startswith(("-", "@@", "diff ", "index ")):
                         continue
-                    elif line.startswith("---") or line.startswith("+++"):
+                    elif line.startswith(("---", "+++")):
                         continue
-                    elif line.startswith("new file mode") or line.startswith("deleted file mode"):
+                    elif line.startswith(("new file mode", "deleted file mode")):
                         continue
                     else:
                         clean_lines.append(line)
 
-                dest.write_text("\n".join(clean_lines), encoding="utf-8", errors="ignore")
+                dest.write_text(
+                    "\n".join(clean_lines), encoding="utf-8", errors="ignore"
+                )
                 file_map[str(dest.resolve())] = target_rel
                 file_map[str(dest)] = target_rel
-                file_map[dest.name] = target_rel
 
             try:
                 cmd = [
-                    sys.executable, "-m", "bandit",
-                    "-r", str(tmp_path),
-                    "-f", "json",
+                    sys.executable,
+                    "-m",
+                    "bandit",
+                    "-r",
+                    str(tmp_path),
+                    "-f",
+                    "json",
                     "-q",
-                    "-s", "B401,B402,B403,B404,B405,B406,B407,B408,B409,B410,B411,B412,B413"
+                    "-s",
+                    "B401,B402,B403,B404,B405,B406,B407,B408,B409,B410,B411,B412,B413",
                 ]
                 res = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                    check=False
+                    cmd, capture_output=True, text=True, timeout=20, check=False
                 )
+                if strict:
+                    if res.returncode not in (0, 1):
+                        raise RuntimeError("TOOL_EXECUTION_FAILED")
+                    data = json.loads(res.stdout)
+                    if (
+                        not isinstance(data, dict)
+                        or "results" not in data
+                        or data.get("errors")
+                    ):
+                        raise ValueError("INVALID_OR_PARTIAL_TOOL_OUTPUT")
                 if res.stdout:
                     findings.extend(cls._parse_bandit_json(res.stdout, file_map))
             except Exception as e:
+                if strict:
+                    raise
                 logger.debug(f"Error running Bandit CLI: {e}")
 
         return findings
 
     @classmethod
-    def _parse_bandit_json(cls, json_output: str, file_map: Optional[dict] = None) -> List[SastFinding]:
+    def _parse_bandit_json(
+        cls, json_output: str, file_map: dict | None = None
+    ) -> list[SastFinding]:
         """Parse Bandit JSON results into SastFinding list."""
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
         try:
             data = json.loads(json_output)
             results = data.get("results", [])
@@ -183,15 +209,9 @@ class BanditRunner:
                     elif raw_filename in file_map:
                         rel_file = file_map[raw_filename]
                     else:
-                        norm_raw = raw_filename.replace("\\", "/")
-                        for k, v in file_map.items():
-                            norm_v = v.replace("\\", "/")
-                            if norm_raw.endswith(norm_v) or Path(raw_filename).name == Path(v).name:
-                                rel_file = v
-                                break
-
+                        raise ValueError("UNKNOWN_SCANNER_PATH")
                 if not rel_file:
-                    rel_file = Path(raw_filename).name if raw_filename else "app/file.py"
+                    rel_file = raw_filename or "app/file.py"
 
                 severity = "MEDIUM"
                 if issue_severity == "HIGH":
@@ -209,7 +229,7 @@ class BanditRunner:
                         line_number=line_number,
                         snippet=code.strip() if code else "",
                         fix_recommendation=f"Remediate according to Bandit {test_id} guidelines ({item.get('more_info', '')})",
-                        analyzer_source="bandit"
+                        analyzer_source="bandit",
                     )
                 )
         except Exception as e:

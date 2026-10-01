@@ -6,11 +6,11 @@ using SQLite WAL mode with ACID transactions.
 
 import os
 import re
-import time
 import sqlite3
 import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Set
+from typing import Any
 
 from code_review_agent.config import logger
 
@@ -21,7 +21,7 @@ class SuppressionStore:
     Shares the durable database file specified by QUEUE_DB_PATH.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         target = db_path or os.getenv("QUEUE_DB_PATH") or "webhook_jobs.db"
         self.db_path = Path(target).resolve()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,11 +69,17 @@ class SuppressionStore:
             cursor.execute("PRAGMA table_info(finding_suppressions);")
             columns = {row[1] for row in cursor.fetchall()}
             if "expires_at" not in columns:
-                conn.execute("ALTER TABLE finding_suppressions ADD COLUMN expires_at REAL;")
+                conn.execute(
+                    "ALTER TABLE finding_suppressions ADD COLUMN expires_at REAL;"
+                )
             if "severity" not in columns:
-                conn.execute("ALTER TABLE finding_suppressions ADD COLUMN severity TEXT DEFAULT '';")
+                conn.execute(
+                    "ALTER TABLE finding_suppressions ADD COLUMN severity TEXT DEFAULT '';"
+                )
             if "critical_override" not in columns:
-                conn.execute("ALTER TABLE finding_suppressions ADD COLUMN critical_override INTEGER DEFAULT 0;")
+                conn.execute(
+                    "ALTER TABLE finding_suppressions ADD COLUMN critical_override INTEGER DEFAULT 0;"
+                )
 
             # Full audit log table for suppression lifecycle governance
             conn.execute("""
@@ -120,11 +126,11 @@ class SuppressionStore:
         reason: str = "",
         author: str = "",
         pr_id: str = "",
-        ttl_days: Optional[int] = 30,
-        ttl_seconds: Optional[float] = None,
-        expires_at: Optional[float] = None,
-        severity: Optional[str] = None,
-        critical_override: bool = False
+        ttl_days: int | None = 30,
+        ttl_seconds: float | None = None,
+        expires_at: float | None = None,
+        severity: str | None = None,
+        critical_override: bool = False,
     ) -> bool:
         """
         Record a finding suppression with TTL expiration, severity ceilings, and audit trail.
@@ -147,14 +153,14 @@ class SuppressionStore:
 
         # Determine if explicit critical override was granted
         has_override = critical_override
-        if not has_override and clean_reason:
-            if re.search(r"\b(override|accepted risk|approved|exception|waive|waiver)\b", clean_reason, re.IGNORECASE):
-                has_override = True
+        if not clean_reason:
+            raise ValueError("A suppression requires a reason.")
 
         critical_flag = 1 if has_override else 0
 
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO finding_suppressions (
                     repo_id, fingerprint, reason, author, suppressed_at, pr_id,
                     expires_at, severity, critical_override
@@ -168,15 +174,39 @@ class SuppressionStore:
                     expires_at = excluded.expires_at,
                     severity = excluded.severity,
                     critical_override = excluded.critical_override;
-            """, (norm_repo, norm_fp, clean_reason, author.strip(), now, str(pr_id), exp_time, sev_clean, critical_flag))
+            """,
+                (
+                    norm_repo,
+                    norm_fp,
+                    clean_reason,
+                    author.strip(),
+                    now,
+                    str(pr_id),
+                    exp_time,
+                    sev_clean,
+                    critical_flag,
+                ),
+            )
 
             # Audit log entry
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO suppression_audit_log (
                     repo_id, fingerprint, action, author, reason, severity,
                     critical_override, pr_id, timestamp
                 ) VALUES (?, ?, 'SUPPRESS', ?, ?, ?, ?, ?, ?);
-            """, (norm_repo, norm_fp, author.strip(), clean_reason, sev_clean, critical_flag, str(pr_id), now))
+            """,
+                (
+                    norm_repo,
+                    norm_fp,
+                    author.strip(),
+                    clean_reason,
+                    sev_clean,
+                    critical_flag,
+                    str(pr_id),
+                    now,
+                ),
+            )
             conn.commit()
 
         logger.info(
@@ -190,7 +220,7 @@ class SuppressionStore:
         repo_id: str,
         fingerprint: str,
         author: str = "operator",
-        reason: str = "Manual unsuppression"
+        reason: str = "Manual unsuppression",
     ) -> bool:
         """
         Remove a finding suppression and record unsuppress audit log.
@@ -199,18 +229,24 @@ class SuppressionStore:
         norm_fp = fingerprint.strip().lower()
         now = time.time()
         with self._get_connection() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 DELETE FROM finding_suppressions
                 WHERE repo_id = ? AND fingerprint = ?;
-            """, (norm_repo, norm_fp))
+            """,
+                (norm_repo, norm_fp),
+            )
             deleted = cursor.rowcount > 0
 
             if deleted:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO suppression_audit_log (
                         repo_id, fingerprint, action, author, reason, timestamp
                     ) VALUES (?, ?, 'UNSUPPRESS', ?, ?, ?);
-                """, (norm_repo, norm_fp, author.strip(), reason.strip(), now))
+                """,
+                    (norm_repo, norm_fp, author.strip(), reason.strip(), now),
+                )
                 conn.commit()
                 logger.info(f"🔓 Unsuppressed finding {norm_fp} for repo {norm_repo}")
             return deleted
@@ -224,11 +260,14 @@ class SuppressionStore:
         norm_fp = fingerprint.strip().lower()
         now = time.time()
         with self._get_connection() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT 1 FROM finding_suppressions
                 WHERE repo_id = ? AND fingerprint = ?
                   AND (expires_at IS NULL OR expires_at > ?);
-            """, (norm_repo, norm_fp, now)).fetchone()
+            """,
+                (norm_repo, norm_fp, now),
+            ).fetchone()
             return row is not None
 
     def has_critical_override(self, repo_id: str, fingerprint: str) -> bool:
@@ -240,32 +279,36 @@ class SuppressionStore:
         norm_fp = fingerprint.strip().lower()
         now = time.time()
         with self._get_connection() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT critical_override FROM finding_suppressions
                 WHERE repo_id = ? AND fingerprint = ?
                   AND (expires_at IS NULL OR expires_at > ?);
-            """, (norm_repo, norm_fp, now)).fetchone()
+            """,
+                (norm_repo, norm_fp, now),
+            ).fetchone()
             if not row:
                 return False
             return bool(row["critical_override"])
 
-    def get_suppressed_fingerprints(self, repo_id: str) -> Set[str]:
+    def get_suppressed_fingerprints(self, repo_id: str) -> set[str]:
         """Retrieve all active, non-expired suppressed fingerprints for a repository."""
         norm_repo = self.normalize_repo_id(repo_id)
         now = time.time()
         with self._get_connection() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT fingerprint FROM finding_suppressions
                 WHERE repo_id = ?
                   AND (expires_at IS NULL OR expires_at > ?);
-            """, (norm_repo, now)).fetchall()
+            """,
+                (norm_repo, now),
+            ).fetchall()
             return {row["fingerprint"] for row in rows}
 
     def list_suppressions(
-        self,
-        repo_id: Optional[str] = None,
-        include_expired: bool = False
-    ) -> List[Dict[str, Any]]:
+        self, repo_id: str | None = None, include_expired: bool = False
+    ) -> list[dict[str, Any]]:
         """List suppressions, optionally filtered by repository and active expiration status."""
         now = time.time()
         with self._get_connection() as conn:
@@ -274,7 +317,7 @@ class SuppressionStore:
                        expires_at, severity, critical_override
                 FROM finding_suppressions
             """
-            params: List[Any] = []
+            params: list[Any] = []
             conditions = []
             if repo_id:
                 conditions.append("repo_id = ?")
@@ -301,17 +344,17 @@ class SuppressionStore:
                     "expires_at": r["expires_at"],
                     "is_expired": bool(r["expires_at"] and r["expires_at"] <= now),
                     "severity": r["severity"],
-                    "critical_override": bool(r["critical_override"])
+                    "critical_override": bool(r["critical_override"]),
                 }
                 for r in rows
             ]
 
     def get_audit_log(
         self,
-        repo_id: Optional[str] = None,
-        fingerprint: Optional[str] = None,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
+        repo_id: str | None = None,
+        fingerprint: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         """Retrieve historical suppression audit log entries."""
         with self._get_connection() as conn:
             query = """
@@ -319,7 +362,7 @@ class SuppressionStore:
                        critical_override, pr_id, timestamp, details_json
                 FROM suppression_audit_log
             """
-            params: List[Any] = []
+            params: list[Any] = []
             conditions = []
             if repo_id:
                 conditions.append("repo_id = ?")

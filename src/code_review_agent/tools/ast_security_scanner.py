@@ -8,14 +8,13 @@ import ast
 import re
 import stat
 import textwrap
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-from code_review_agent.models import SastFinding
 from code_review_agent.diff_parser import DiffParser
-
+from code_review_agent.models import SastFinding
 
 # Known standard library constant values for constant folding
-_KNOWN_CONSTANTS: Dict[str, Any] = {
+_KNOWN_CONSTANTS: dict[str, Any] = {
     "stat.S_IRWXU": stat.S_IRWXU,  # 0o700 (448)
     "stat.S_IRUSR": stat.S_IRUSR,  # 0o400
     "stat.S_IWUSR": stat.S_IWUSR,  # 0o200
@@ -38,7 +37,12 @@ _KNOWN_CONSTANTS: Dict[str, Any] = {
 
 # os.path helpers that resolve/normalize a path but do NOT confine it to a base
 # directory, so they leave traversal (../) reachable when wrapping os.path.join.
-_PATH_RESOLVERS = {"os.path.abspath", "os.path.realpath", "os.path.normpath", "os.path.join"}
+_PATH_RESOLVERS = {
+    "os.path.abspath",
+    "os.path.realpath",
+    "os.path.normpath",
+    "os.path.join",
+}
 
 # Assignment target names that indicate a credential/secret when they hold a
 # non-trivial constant value (used for obfuscated-secret detection).
@@ -49,7 +53,7 @@ _SECRET_NAME_RE = re.compile(
 )
 
 
-def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
+def evaluate_ast_constant(node: ast.AST, env: dict[str, Any]) -> Any | None:
     """
     Evaluate an AST expression node into a constant Python value using constant folding.
     Handles literals, unary negation, bitwise OR, addition, and variable references.
@@ -94,16 +98,32 @@ def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
 
         if left_val is not None and right_val is not None:
             # Bitwise OR for permission masks
-            if isinstance(node.op, ast.BitOr) and isinstance(left_val, int) and isinstance(right_val, int):
+            if (
+                isinstance(node.op, ast.BitOr)
+                and isinstance(left_val, int)
+                and isinstance(right_val, int)
+            ):
                 return left_val | right_val
             # Bitwise AND
-            if isinstance(node.op, ast.BitAnd) and isinstance(left_val, int) and isinstance(right_val, int):
+            if (
+                isinstance(node.op, ast.BitAnd)
+                and isinstance(left_val, int)
+                and isinstance(right_val, int)
+            ):
                 return left_val & right_val
             # String concatenation
-            if isinstance(node.op, ast.Add) and isinstance(left_val, str) and isinstance(right_val, str):
+            if (
+                isinstance(node.op, ast.Add)
+                and isinstance(left_val, str)
+                and isinstance(right_val, str)
+            ):
                 return left_val + right_val
             # Numeric addition
-            if isinstance(node.op, ast.Add) and isinstance(left_val, (int, float)) and isinstance(right_val, (int, float)):
+            if (
+                isinstance(node.op, ast.Add)
+                and isinstance(left_val, (int, float))
+                and isinstance(right_val, (int, float))
+            ):
                 return left_val + right_val
 
     # Subscript / slicing on a folded sequence, e.g. "abc"[::-1] (string reversal)
@@ -114,9 +134,21 @@ def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
             sl = node.slice
             try:
                 if isinstance(sl, ast.Slice):
-                    lower = evaluate_ast_constant(sl.lower, env) if sl.lower is not None else None
-                    upper = evaluate_ast_constant(sl.upper, env) if sl.upper is not None else None
-                    step = evaluate_ast_constant(sl.step, env) if sl.step is not None else None
+                    lower = (
+                        evaluate_ast_constant(sl.lower, env)
+                        if sl.lower is not None
+                        else None
+                    )
+                    upper = (
+                        evaluate_ast_constant(sl.upper, env)
+                        if sl.upper is not None
+                        else None
+                    )
+                    step = (
+                        evaluate_ast_constant(sl.step, env)
+                        if sl.step is not None
+                        else None
+                    )
                     return seq[lower:upper:step]
                 idx = evaluate_ast_constant(sl, env)
                 if isinstance(idx, int):
@@ -131,7 +163,11 @@ def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
         method = node.func.attr
         try:
             # bytes.fromhex("...") -> bytes
-            if method == "fromhex" and isinstance(node.func.value, ast.Name) and node.func.value.id == "bytes":
+            if (
+                method == "fromhex"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "bytes"
+            ):
                 if node.args:
                     hex_val = evaluate_ast_constant(node.args[0], env)
                     if isinstance(hex_val, str):
@@ -142,6 +178,7 @@ def evaluate_ast_constant(node: ast.AST, env: Dict[str, Any]) -> Optional[Any]:
                     enc_val = evaluate_ast_constant(node.args[0], env)
                     if isinstance(enc_val, (str, bytes)):
                         import base64 as _b64
+
                         return getattr(_b64, method)(enc_val)
             # <bytes>.decode() -> str
             elif method == "decode":
@@ -166,17 +203,21 @@ class ASTSecurityScanner:
     """
 
     @classmethod
-    def scan_diff(cls, raw_diff: str) -> List[SastFinding]:
+    def scan_diff(cls, raw_diff: str) -> list[SastFinding]:
         """Scan Python files in diff using AST constant folding and variable tracking."""
         if not raw_diff or not raw_diff.strip():
             return []
 
         parsed_pr = DiffParser.parse_diff(raw_diff)
-        py_files = [f for f in parsed_pr.files if f.target_file.endswith(".py") and not f.is_deleted_file]
+        py_files = [
+            f
+            for f in parsed_pr.files
+            if f.target_file.endswith(".py") and not f.is_deleted_file
+        ]
         if not py_files:
             return []
 
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
 
         for file_diff in py_files:
             file_path = file_diff.target_file
@@ -187,7 +228,9 @@ class ASTSecurityScanner:
                 added_defs = []
                 curr_target_line = hunk.new_start
                 for line in hunk.lines:
-                    if line.startswith("-") and re.match(r"^-\s*def\s+([A-Za-z_]\w*)", line):
+                    if line.startswith("-") and re.match(
+                        r"^-\s*def\s+([A-Za-z_]\w*)", line
+                    ):
                         deleted_defs.append(line[1:].strip())
                     elif line.startswith("+"):
                         if re.match(r"^\+\s*def\s+([A-Za-z_]\w*)", line):
@@ -202,7 +245,9 @@ class ASTSecurityScanner:
                         continue
                     del_name = del_match.group(1)
                     for add_line_no, add_code in added_defs:
-                        add_match = re.match(r"^def\s+([A-Za-z_]\w*)\s*\((.*)\)", add_code)
+                        add_match = re.match(
+                            r"^def\s+([A-Za-z_]\w*)\s*\((.*)\)", add_code
+                        )
                         if not add_match or add_match.group(1) != del_name:
                             continue
 
@@ -211,7 +256,9 @@ class ASTSecurityScanner:
                             new_ast = ast.parse(add_code + "\n    pass")
                             old_fn = old_ast.body[0]
                             new_fn = new_ast.body[0]
-                            if isinstance(old_fn, ast.FunctionDef) and isinstance(new_fn, ast.FunctionDef):
+                            if isinstance(old_fn, ast.FunctionDef) and isinstance(
+                                new_fn, ast.FunctionDef
+                            ):
                                 old_args = [a.arg for a in old_fn.args.args]
                                 old_defaults_count = len(old_fn.args.defaults)
                                 old_req = len(old_args) - old_defaults_count
@@ -220,7 +267,9 @@ class ASTSecurityScanner:
                                 new_req = len(new_args) - new_defaults_count
 
                                 # Breaking if new required parameters added without defaults, or parameters removed
-                                if new_req > old_req or any(arg not in old_args for arg in new_args[:new_req]):
+                                if new_req > old_req or any(
+                                    arg not in old_args for arg in new_args[:new_req]
+                                ):
                                     findings.append(
                                         SastFinding(
                                             rule_id="ARCH-SIG-001",
@@ -242,7 +291,9 @@ class ASTSecurityScanner:
                         except SyntaxError:
                             pass
 
-            added_lines_map = dict(DiffParser.extract_added_lines_with_numbers(file_diff))
+            added_lines_map = dict(
+                DiffParser.extract_added_lines_with_numbers(file_diff)
+            )
             if not added_lines_map:
                 continue
 
@@ -257,7 +308,7 @@ class ASTSecurityScanner:
                     if m:
                         curr_target_line = int(m.group(1))
                     continue
-                if raw_line.startswith("---") or raw_line.startswith("+++") or raw_line.startswith("diff "):
+                if raw_line.startswith(("---", "+++", "diff ")):
                     continue
 
                 if raw_line.startswith("+"):
@@ -304,7 +355,9 @@ class ASTSecurityScanner:
             adjusted_mapping = {k + line_offset: v for k, v in line_no_mapping.items()}
             adjusted_clean_lines = ([""] * line_offset) + clean_lines
 
-            file_findings = cls._analyze_tree(tree, file_path, adjusted_clean_lines, adjusted_mapping, added_lines_map)
+            file_findings = cls._analyze_tree(
+                tree, file_path, adjusted_clean_lines, adjusted_mapping, added_lines_map
+            )
             findings.extend(file_findings)
 
         return findings
@@ -314,11 +367,11 @@ class ASTSecurityScanner:
         cls,
         tree: ast.AST,
         file_path: str,
-        clean_lines: List[str],
-        line_no_mapping: Dict[int, int],
-        added_lines_map: Dict[int, str],
-    ) -> List[SastFinding]:
-        findings: List[SastFinding] = []
+        clean_lines: list[str],
+        line_no_mapping: dict[int, int],
+        added_lines_map: dict[int, str],
+    ) -> list[SastFinding]:
+        findings: list[SastFinding] = []
 
         # Map every node to the id() of its nearest enclosing function ("module"
         # at top level). Local dataflow facts (path joins, SQL/command concat
@@ -327,13 +380,15 @@ class ASTSecurityScanner:
         # name. Constants (env) and function aliases stay module-global, since a
         # module-level constant or `deser = pickle.loads` is legitimately visible
         # inside every function.
-        node_scope: Dict[int, Any] = {id(tree): "module"}
+        node_scope: dict[int, Any] = {id(tree): "module"}
 
         def _assign_scope(parent: ast.AST, scope: Any) -> None:
             for child in ast.iter_child_nodes(parent):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    node_scope[id(child)] = scope          # the def keyword itself lives in the outer scope
-                    _assign_scope(child, id(child))         # its body opens a new scope
+                    node_scope[id(child)] = (
+                        scope  # the def keyword itself lives in the outer scope
+                    )
+                    _assign_scope(child, id(child))  # its body opens a new scope
                 else:
                     node_scope[id(child)] = scope
                     _assign_scope(child, scope)
@@ -344,14 +399,14 @@ class ASTSecurityScanner:
             return node_scope.get(id(node), "module")
 
         # State tables
-        env: Dict[str, Any] = dict(_KNOWN_CONSTANTS)
-        aliases: Dict[str, str] = {}  # alias_name -> canonical_name
+        env: dict[str, Any] = dict(_KNOWN_CONSTANTS)
+        aliases: dict[str, str] = {}  # alias_name -> canonical_name
         # Local dataflow facts keyed by (scope_id, var_name) -> ast_lineno
-        path_joins: Dict[tuple, int] = {}
-        sql_concat_vars: Dict[tuple, int] = {}
-        cmd_concat_vars: Dict[tuple, int] = {}
+        path_joins: dict[tuple, int] = {}
+        sql_concat_vars: dict[tuple, int] = {}
+        cmd_concat_vars: dict[tuple, int] = {}
 
-        def _names_in_scope(table: Dict[tuple, int], scope: Any) -> set:
+        def _names_in_scope(table: dict[tuple, int], scope: Any) -> set:
             return {name for (s, name) in table if s == scope}
 
         # Pass 1: Build variable table, aliases, and constant values
@@ -380,7 +435,10 @@ class ASTSecurityScanner:
                         call_path = f"{node.value.value.id}.{node.value.attr}"
                         for name in target_names:
                             aliases[name] = call_path
-                elif isinstance(node.value, ast.Call) and cls._get_func_name(node.value.func) == "getattr":
+                elif (
+                    isinstance(node.value, ast.Call)
+                    and cls._get_func_name(node.value.func) == "getattr"
+                ):
                     # getattr(<module_or_alias>, "attr") -> module.attr indirection
                     resolved = cls._resolve_getattr(node.value, aliases)
                     if resolved:
@@ -409,13 +467,17 @@ class ASTSecurityScanner:
                     and isinstance(node.value.func, ast.Attribute)
                     and node.value.func.attr == "format"
                 ):
-                    if cls._is_sql_expression(node.value, env, _names_in_scope(sql_concat_vars, scope)):
+                    if cls._is_sql_expression(
+                        node.value, env, _names_in_scope(sql_concat_vars, scope)
+                    ):
                         for name in target_names:
                             sql_concat_vars[(scope, name)] = node.lineno
 
                 # 5. Command concatenation tracking: cmd = 'ping ' + host
                 if isinstance(node.value, (ast.BinOp, ast.JoinedStr)):
-                    if cls._is_cmd_expression(node.value, env, _names_in_scope(cmd_concat_vars, scope)):
+                    if cls._is_cmd_expression(
+                        node.value, env, _names_in_scope(cmd_concat_vars, scope)
+                    ):
                         for name in target_names:
                             cmd_concat_vars[(scope, name)] = node.lineno
 
@@ -438,7 +500,11 @@ class ASTSecurityScanner:
                             actual_line = line_no_mapping.get(node.lineno, node.lineno)
                             if actual_line not in added_lines_map:
                                 continue
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            snippet = (
+                                clean_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(clean_lines)
+                                else ""
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="SEC-SECRET-002",
@@ -462,9 +528,13 @@ class ASTSecurityScanner:
                 if isinstance(node.target, ast.Name) and isinstance(node.op, ast.Add):
                     scope = _scope_of(node)
                     name = node.target.id
-                    if (scope, name) in sql_concat_vars or cls._is_sql_expression(node.value, env, _names_in_scope(sql_concat_vars, scope)):
+                    if (scope, name) in sql_concat_vars or cls._is_sql_expression(
+                        node.value, env, _names_in_scope(sql_concat_vars, scope)
+                    ):
                         sql_concat_vars[(scope, name)] = node.lineno
-                    if (scope, name) in cmd_concat_vars or cls._is_cmd_expression(node.value, env, _names_in_scope(cmd_concat_vars, scope)):
+                    if (scope, name) in cmd_concat_vars or cls._is_cmd_expression(
+                        node.value, env, _names_in_scope(cmd_concat_vars, scope)
+                    ):
                         cmd_concat_vars[(scope, name)] = node.lineno
 
         # Pass 2: Inspect security-sensitive sinks
@@ -476,7 +546,12 @@ class ASTSecurityScanner:
             #    uses index 2. A 'mode=' keyword is honoured for any of them. ──
             if isinstance(node, ast.Call):
                 func_name = cls._get_func_name(node.func)
-                _mode_arg_index = {"os.chmod": 1, "os.mkdir": 1, "os.makedirs": 1, "os.open": 2}
+                _mode_arg_index = {
+                    "os.chmod": 1,
+                    "os.mkdir": 1,
+                    "os.makedirs": 1,
+                    "os.open": 2,
+                }
                 if func_name in _mode_arg_index:
                     idx = _mode_arg_index[func_name]
                     mode_arg = None
@@ -487,13 +562,23 @@ class ASTSecurityScanner:
                             if kw.arg == "mode":
                                 mode_arg = kw.value
                                 break
-                    folded_mode = evaluate_ast_constant(mode_arg, env) if mode_arg is not None else None
+                    folded_mode = (
+                        evaluate_ast_constant(mode_arg, env)
+                        if mode_arg is not None
+                        else None
+                    )
                     if isinstance(folded_mode, int):
                         # World read+write (o+rw) or the classic 0o777/0o666 masks.
-                        if folded_mode in (0o777, 0o666, 511, 438) or (folded_mode & 0o002 != 0 and folded_mode & 0o004 != 0):
+                        if folded_mode in (0o777, 0o666, 511, 438) or (
+                            folded_mode & 0o002 != 0 and folded_mode & 0o004 != 0
+                        ):
                             actual_line = line_no_mapping.get(node.lineno, node.lineno)
                             if actual_line in added_lines_map:
-                                snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                                snippet = (
+                                    clean_lines[node.lineno - 1]
+                                    if 0 < node.lineno <= len(clean_lines)
+                                    else ""
+                                )
                                 oct_str = oct(folded_mode)
                                 findings.append(
                                     SastFinding(
@@ -510,7 +595,7 @@ class ASTSecurityScanner:
                                         line_number=actual_line,
                                         snippet=snippet.strip(),
                                         fix_recommendation="Restrict permissions to the owner (e.g. 0o600 for files, 0o700 for directories).",
-                                        analyzer_source="ast"
+                                        analyzer_source="ast",
                                     )
                                 )
 
@@ -524,7 +609,11 @@ class ASTSecurityScanner:
                         if attr == "check_hostname" and val is False:
                             actual_line = line_no_mapping.get(node.lineno, node.lineno)
                             if actual_line in added_lines_map:
-                                snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                                snippet = (
+                                    clean_lines[node.lineno - 1]
+                                    if 0 < node.lineno <= len(clean_lines)
+                                    else ""
+                                )
                                 findings.append(
                                     SastFinding(
                                         rule_id="SEC-TLS-001",
@@ -536,14 +625,18 @@ class ASTSecurityScanner:
                                         line_number=actual_line,
                                         snippet=snippet.strip(),
                                         fix_recommendation="Keep verification enabled: ctx.check_hostname = True and ctx.verify_mode = ssl.CERT_REQUIRED.",
-                                        analyzer_source="ast"
+                                        analyzer_source="ast",
                                     )
                                 )
 
                         elif attr == "verify_mode" and val in (0, "ssl.CERT_NONE"):
                             actual_line = line_no_mapping.get(node.lineno, node.lineno)
                             if actual_line in added_lines_map:
-                                snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                                snippet = (
+                                    clean_lines[node.lineno - 1]
+                                    if 0 < node.lineno <= len(clean_lines)
+                                    else ""
+                                )
                                 findings.append(
                                     SastFinding(
                                         rule_id="SEC-TLS-001",
@@ -555,7 +648,7 @@ class ASTSecurityScanner:
                                         line_number=actual_line,
                                         snippet=snippet.strip(),
                                         fix_recommendation="Use ssl.CERT_REQUIRED to verify server certificates.",
-                                        analyzer_source="ast"
+                                        analyzer_source="ast",
                                     )
                                 )
 
@@ -565,11 +658,18 @@ class ASTSecurityScanner:
                 if func_name == "open" and node.args:
                     first_arg = node.args[0]
                     scope = _scope_of(node)
-                    if isinstance(first_arg, ast.Name) and (scope, first_arg.id) in path_joins:
+                    if (
+                        isinstance(first_arg, ast.Name)
+                        and (scope, first_arg.id) in path_joins
+                    ):
                         pj_line = path_joins[(scope, first_arg.id)]
                         actual_line = line_no_mapping.get(node.lineno, node.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            snippet = (
+                                clean_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(clean_lines)
+                                else ""
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="SEC-PATH-001",
@@ -584,19 +684,16 @@ class ASTSecurityScanner:
                                     line_number=actual_line,
                                     snippet=snippet.strip(),
                                     fix_recommendation="Validate path against an allowed base directory using os.path.realpath.",
-                                    analyzer_source="ast"
+                                    analyzer_source="ast",
                                 )
                             )
 
             # ── Sink 4: SQL Injection with indirect variables cur.execute(query) ──
             if isinstance(node, ast.Call):
                 func_name = cls._get_func_name(node.func)
-                is_sql_exec = (
-                    func_name.endswith(".execute")
-                    or func_name.endswith(".executemany")
-                    or func_name.endswith(".query")
-                    or func_name in ("execute", "query")
-                )
+                is_sql_exec = func_name.endswith(
+                    (".execute", ".executemany", ".query")
+                ) or func_name in ("execute", "query")
                 if is_sql_exec and node.args:
                     first_arg = node.args[0]
                     scope = _scope_of(node)
@@ -604,16 +701,24 @@ class ASTSecurityScanner:
                     is_insecure = False
                     if isinstance(first_arg, ast.Name) and first_arg.id in sql_names:
                         is_insecure = True
-                    elif isinstance(first_arg, (ast.BinOp, ast.JoinedStr)) and cls._is_sql_expression(
-                        first_arg, env, sql_names
-                    ):
+                    elif isinstance(
+                        first_arg, (ast.BinOp, ast.JoinedStr)
+                    ) and cls._is_sql_expression(first_arg, env, sql_names):
                         is_insecure = True
 
                     if is_insecure:
                         actual_line = line_no_mapping.get(node.lineno, node.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
-                            arg_desc = first_arg.id if isinstance(first_arg, ast.Name) else "concatenated expression"
+                            snippet = (
+                                clean_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(clean_lines)
+                                else ""
+                            )
+                            arg_desc = (
+                                first_arg.id
+                                if isinstance(first_arg, ast.Name)
+                                else "concatenated expression"
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="SEC-SQLI-002",
@@ -632,10 +737,17 @@ class ASTSecurityScanner:
             # ── Sink 5: Command Injection with indirect variables subprocess.run(cmd, shell=True) ──
             if isinstance(node, ast.Call):
                 func_name = cls._get_func_name(node.func)
-                is_cmd_exec = func_name in ("subprocess.run", "subprocess.call", "subprocess.Popen", "os.system", "os.popen")
+                is_cmd_exec = func_name in (
+                    "subprocess.run",
+                    "subprocess.call",
+                    "subprocess.Popen",
+                    "os.system",
+                    "os.popen",
+                )
                 if is_cmd_exec and node.args:
                     has_shell_true = any(
-                        kw.arg == "shell" and evaluate_ast_constant(kw.value, env) is True
+                        kw.arg == "shell"
+                        and evaluate_ast_constant(kw.value, env) is True
                         for kw in node.keywords
                     ) or func_name in ("os.system", "os.popen")
 
@@ -644,18 +756,29 @@ class ASTSecurityScanner:
                     cmd_names = _names_in_scope(cmd_concat_vars, scope)
                     is_insecure = False
                     if has_shell_true:
-                        if isinstance(first_arg, ast.Name) and first_arg.id in cmd_names:
-                            is_insecure = True
-                        elif isinstance(first_arg, (ast.BinOp, ast.JoinedStr)) and cls._is_cmd_expression(
-                            first_arg, env, cmd_names
+                        if (
+                            isinstance(first_arg, ast.Name)
+                            and first_arg.id in cmd_names
                         ):
+                            is_insecure = True
+                        elif isinstance(
+                            first_arg, (ast.BinOp, ast.JoinedStr)
+                        ) and cls._is_cmd_expression(first_arg, env, cmd_names):
                             is_insecure = True
 
                     if is_insecure:
                         actual_line = line_no_mapping.get(node.lineno, node.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
-                            arg_desc = first_arg.id if isinstance(first_arg, ast.Name) else "concatenated command"
+                            snippet = (
+                                clean_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(clean_lines)
+                                else ""
+                            )
+                            arg_desc = (
+                                first_arg.id
+                                if isinstance(first_arg, ast.Name)
+                                else "concatenated command"
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="SEC-CMD-001",
@@ -678,7 +801,11 @@ class ASTSecurityScanner:
                 if resolved in ("pickle.loads", "pickle.load"):
                     actual_line = line_no_mapping.get(node.lineno, node.lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        snippet = (
+                            clean_lines[node.lineno - 1]
+                            if 0 < node.lineno <= len(clean_lines)
+                            else ""
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id="SEC-DESER-001",
@@ -690,13 +817,17 @@ class ASTSecurityScanner:
                                 line_number=actual_line,
                                 snippet=snippet.strip(),
                                 fix_recommendation="Use safe serialization formats like JSON, Protocol Buffers, or MessagePack.",
-                                analyzer_source="ast"
+                                analyzer_source="ast",
                             )
                         )
                 elif resolved in ("eval", "exec"):
                     actual_line = line_no_mapping.get(node.lineno, node.lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        snippet = (
+                            clean_lines[node.lineno - 1]
+                            if 0 < node.lineno <= len(clean_lines)
+                            else ""
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id="SEC-EVAL-001",
@@ -708,7 +839,7 @@ class ASTSecurityScanner:
                                 line_number=actual_line,
                                 snippet=snippet.strip(),
                                 fix_recommendation="Use ast.literal_eval() or avoid dynamic evaluation.",
-                                analyzer_source="ast"
+                                analyzer_source="ast",
                             )
                         )
 
@@ -724,21 +855,38 @@ class ASTSecurityScanner:
                     algo_name = "MD5" if "md5" in resolved else "SHA-1"
                 elif resolved == "hashlib.new" and node.args:
                     algo_val = evaluate_ast_constant(node.args[0], env)
-                    if isinstance(algo_val, str) and algo_val.lower().replace("-", "") in ("md5", "sha1", "md4", "md2"):
+                    if isinstance(algo_val, str) and algo_val.lower().replace(
+                        "-", ""
+                    ) in ("md5", "sha1", "md4", "md2"):
                         is_weak_hash = True
                         algo_name = algo_val.upper()
 
                 if is_weak_hash:
                     actual_line = line_no_mapping.get(node.lineno, node.lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                        snippet = (
+                            clean_lines[node.lineno - 1]
+                            if 0 < node.lineno <= len(clean_lines)
+                            else ""
+                        )
                         enclosing_fn = cls._enclosing_function_node(node, tree)
-                        fn_name = enclosing_fn.name if enclosing_fn else ""
+                        fn_name = (
+                            enclosing_fn.name
+                            if isinstance(enclosing_fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            else ""
+                        )
 
                         # Check for password/auth context in function name, args, or snippet
-                        first_arg_str = cls._node_to_str(node.args[0]) if node.args else ""
+                        first_arg_str = (
+                            cls._node_to_str(node.args[0]) if node.args else ""
+                        )
                         context_blob = f"{fn_name} {first_arg_str} {snippet}".lower()
-                        is_pw_ctx = bool(re.search(r"password|passwd|pwd|credential|secret|auth|token|pin", context_blob))
+                        is_pw_ctx = bool(
+                            re.search(
+                                r"password|passwd|pwd|credential|secret|auth|token|pin",
+                                context_blob,
+                            )
+                        )
 
                         if is_pw_ctx:
                             findings.append(
@@ -764,12 +912,18 @@ class ASTSecurityScanner:
                             has_salt = False
                             if enclosing_fn:
                                 for subnode in ast.walk(enclosing_fn):
-                                    if isinstance(subnode, ast.Name) and re.search(r"salt|pepper|nonce", subnode.id, re.I):
+                                    if isinstance(subnode, ast.Name) and re.search(
+                                        r"salt|pepper|nonce", subnode.id, re.I
+                                    ):
                                         has_salt = True
                                         break
                                     if isinstance(subnode, ast.Call):
                                         cname = cls._get_func_name(subnode.func)
-                                        if cname in ("os.urandom", "secrets.token_bytes", "secrets.token_hex"):
+                                        if cname in (
+                                            "os.urandom",
+                                            "secrets.token_bytes",
+                                            "secrets.token_hex",
+                                        ):
                                             has_salt = True
                                             break
                             if not has_salt:
@@ -822,15 +976,27 @@ class ASTSecurityScanner:
                 # would hurt precision. The generator calls below are the ones
                 # that actually produce predictable security values.
                 _insecure_random = {
-                    "random.choice", "random.random", "random.randint", "random.randrange",
-                    "random.choices", "random.sample", "random.getrandbits", "random.randbytes",
+                    "random.choice",
+                    "random.random",
+                    "random.randint",
+                    "random.randrange",
+                    "random.choices",
+                    "random.sample",
+                    "random.getrandbits",
+                    "random.randbytes",
                     "random.uniform",
                 }
                 if resolved in _insecure_random:
                     actual_line = line_no_mapping.get(node.lineno, node.lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
-                        via = f" via alias '{func_name}'" if resolved != func_name else ""
+                        snippet = (
+                            clean_lines[node.lineno - 1]
+                            if 0 < node.lineno <= len(clean_lines)
+                            else ""
+                        )
+                        via = (
+                            f" via alias '{func_name}'" if resolved != func_name else ""
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id="SEC-RAND-001",
@@ -855,7 +1021,8 @@ class ASTSecurityScanner:
             #    (including KeyboardInterrupt/SystemExit for BaseException).
             if isinstance(node, ast.ExceptHandler):
                 is_broad = node.type is None or (
-                    isinstance(node.type, ast.Name) and node.type.id in ("Exception", "BaseException")
+                    isinstance(node.type, ast.Name)
+                    and node.type.id in ("Exception", "BaseException")
                 )
                 body_is_silent = len(node.body) == 1 and (
                     isinstance(node.body[0], ast.Pass)
@@ -868,8 +1035,16 @@ class ASTSecurityScanner:
                 if is_broad and body_is_silent:
                     actual_line = line_no_mapping.get(node.lineno, node.lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
-                        handler_name = "bare except" if node.type is None else f"except {node.type.id}"
+                        snippet = (
+                            clean_lines[node.lineno - 1]
+                            if 0 < node.lineno <= len(clean_lines)
+                            else ""
+                        )
+                        handler_name = (
+                            "bare except"
+                            if node.type is None
+                            else f"except {node.type.id if isinstance(node.type, ast.Name) else cls._node_to_str(node.type)}"
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id="SEC-EXCEPT-001",
@@ -895,16 +1070,20 @@ class ASTSecurityScanner:
                     if subnode is not node and isinstance(subnode, ast.Call):
                         subfunc = cls._get_func_name(subnode.func)
                         is_query_call = (
-                            subfunc.endswith(".query")
-                            or subfunc.endswith(".execute")
-                            or subfunc.endswith(".filter")
+                            subfunc.endswith((".query", ".execute", ".filter"))
                             or subfunc in ("query", "execute")
                             or "query" in subfunc.lower()
                         )
                         if is_query_call:
-                            actual_line = line_no_mapping.get(subnode.lineno, subnode.lineno)
+                            actual_line = line_no_mapping.get(
+                                subnode.lineno, subnode.lineno
+                            )
                             if actual_line in added_lines_map:
-                                snippet = clean_lines[subnode.lineno - 1] if 0 < subnode.lineno <= len(clean_lines) else ""
+                                snippet = (
+                                    clean_lines[subnode.lineno - 1]
+                                    if 0 < subnode.lineno <= len(clean_lines)
+                                    else ""
+                                )
                                 findings.append(
                                     SastFinding(
                                         rule_id="QUAL-NPLUS1-001",
@@ -925,14 +1104,30 @@ class ASTSecurityScanner:
                                 )
 
         # Class-level concurrency checks (Fix 2 & 2b)
-        findings.extend(cls._check_unused_locks(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
-        findings.extend(cls._check_singleton_races(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+        findings.extend(
+            cls._check_unused_locks(
+                tree, file_path, clean_lines, line_no_mapping, added_lines_map
+            )
+        )
+        findings.extend(
+            cls._check_singleton_races(
+                tree, file_path, clean_lines, line_no_mapping, added_lines_map
+            )
+        )
 
         # Algorithmic and performance checks (Fix 3)
-        findings.extend(cls._check_performance_patterns(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+        findings.extend(
+            cls._check_performance_patterns(
+                tree, file_path, clean_lines, line_no_mapping, added_lines_map
+            )
+        )
 
         # Return type completeness check (Fix 5)
-        findings.extend(cls._check_implicit_none_returns(tree, file_path, clean_lines, line_no_mapping, added_lines_map))
+        findings.extend(
+            cls._check_implicit_none_returns(
+                tree, file_path, clean_lines, line_no_mapping, added_lines_map
+            )
+        )
 
         return findings
 
@@ -941,16 +1136,16 @@ class ASTSecurityScanner:
         cls,
         tree: ast.AST,
         file_path: str,
-        clean_lines: List[str],
-        line_no_mapping: Dict[int, int],
-        added_lines_map: Dict[int, str],
-    ) -> List[SastFinding]:
-        findings: List[SastFinding] = []
+        clean_lines: list[str],
+        line_no_mapping: dict[int, int],
+        added_lines_map: dict[int, str],
+    ) -> list[SastFinding]:
+        findings: list[SastFinding] = []
         for class_node in ast.walk(tree):
             if not isinstance(class_node, ast.ClassDef):
                 continue
 
-            lock_fields: Dict[str, int] = {}
+            lock_fields: dict[str, int] = {}
             used_fields: set = set()
 
             for item in class_node.body:
@@ -969,9 +1164,12 @@ class ASTSecurityScanner:
                             ):
                                 fn = cls._get_func_name(stmt.value.func)
                                 if fn in (
-                                    "threading.Lock", "threading.RLock",
-                                    "asyncio.Lock", "threading.Semaphore",
-                                    "Lock", "RLock"
+                                    "threading.Lock",
+                                    "threading.RLock",
+                                    "asyncio.Lock",
+                                    "threading.Semaphore",
+                                    "Lock",
+                                    "RLock",
                                 ):
                                     lock_fields[tgt.attr] = stmt.lineno
 
@@ -1002,7 +1200,11 @@ class ASTSecurityScanner:
                 if field_name not in used_fields:
                     actual_line = line_no_mapping.get(lineno, lineno)
                     if actual_line in added_lines_map:
-                        snippet = clean_lines[lineno - 1] if 0 < lineno <= len(clean_lines) else ""
+                        snippet = (
+                            clean_lines[lineno - 1]
+                            if 0 < lineno <= len(clean_lines)
+                            else ""
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id="SEC-LOCK-001",
@@ -1030,11 +1232,11 @@ class ASTSecurityScanner:
         cls,
         tree: ast.AST,
         file_path: str,
-        clean_lines: List[str],
-        line_no_mapping: Dict[int, int],
-        added_lines_map: Dict[int, str],
-    ) -> List[SastFinding]:
-        findings: List[SastFinding] = []
+        clean_lines: list[str],
+        line_no_mapping: dict[int, int],
+        added_lines_map: dict[int, str],
+    ) -> list[SastFinding]:
+        findings: list[SastFinding] = []
         for class_node in ast.walk(tree):
             if not isinstance(class_node, ast.ClassDef):
                 continue
@@ -1047,7 +1249,10 @@ class ASTSecurityScanner:
 
                 has_lock = any(
                     isinstance(stmt, (ast.With, ast.AsyncWith))
-                    or (isinstance(stmt, ast.Call) and "acquire" in cls._get_func_name(stmt.func))
+                    or (
+                        isinstance(stmt, ast.Call)
+                        and "acquire" in cls._get_func_name(stmt.func)
+                    )
                     for stmt in ast.walk(item)
                 )
 
@@ -1059,7 +1264,9 @@ class ASTSecurityScanner:
                                 if isinstance(op, ast.NotIn):
                                     is_membership_check = True
                                     break
-                        elif isinstance(stmt.test, ast.UnaryOp) and isinstance(stmt.test.op, ast.Not):
+                        elif isinstance(stmt.test, ast.UnaryOp) and isinstance(
+                            stmt.test.op, ast.Not
+                        ):
                             is_membership_check = True
 
                         if is_membership_check:
@@ -1067,13 +1274,21 @@ class ASTSecurityScanner:
                             for s in ast.walk(stmt):
                                 if isinstance(s, ast.Assign):
                                     for t in s.targets:
-                                        if isinstance(t, (ast.Subscript, ast.Attribute)):
+                                        if isinstance(
+                                            t, (ast.Subscript, ast.Attribute)
+                                        ):
                                             sets_instance = True
                                             break
                             if sets_instance and not has_lock:
-                                actual_line = line_no_mapping.get(stmt.lineno, stmt.lineno)
+                                actual_line = line_no_mapping.get(
+                                    stmt.lineno, stmt.lineno
+                                )
                                 if actual_line in added_lines_map:
-                                    snippet = clean_lines[stmt.lineno - 1] if 0 < stmt.lineno <= len(clean_lines) else ""
+                                    snippet = (
+                                        clean_lines[stmt.lineno - 1]
+                                        if 0 < stmt.lineno <= len(clean_lines)
+                                        else ""
+                                    )
                                     findings.append(
                                         SastFinding(
                                             rule_id="SEC-RACE-001",
@@ -1100,11 +1315,11 @@ class ASTSecurityScanner:
         cls,
         tree: ast.AST,
         file_path: str,
-        clean_lines: List[str],
-        line_no_mapping: Dict[int, int],
-        added_lines_map: Dict[int, str],
-    ) -> List[SastFinding]:
-        findings: List[SastFinding] = []
+        clean_lines: list[str],
+        line_no_mapping: dict[int, int],
+        added_lines_map: dict[int, str],
+    ) -> list[SastFinding]:
+        findings: list[SastFinding] = []
 
         # 1. list.pop(0) -> O(n) front-pop
         for node in ast.walk(tree):
@@ -1116,12 +1331,18 @@ class ASTSecurityScanner:
                 ):
                     first_arg = node.args[0]
                     if (
-                        (isinstance(first_arg, ast.Constant) and first_arg.value == 0)
-                        or (not isinstance(first_arg, ast.UnaryOp) and getattr(first_arg, "n", None) == 0)
+                        isinstance(first_arg, ast.Constant) and first_arg.value == 0
+                    ) or (
+                        not isinstance(first_arg, ast.UnaryOp)
+                        and getattr(first_arg, "n", None) == 0
                     ):
                         actual_line = line_no_mapping.get(node.lineno, node.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[node.lineno - 1] if 0 < node.lineno <= len(clean_lines) else ""
+                            snippet = (
+                                clean_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(clean_lines)
+                                else ""
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="PERF-LIST-001",
@@ -1170,7 +1391,11 @@ class ASTSecurityScanner:
                     if rec_str and rec_str in appended_receivers:
                         actual_line = line_no_mapping.get(n.lineno, n.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[n.lineno - 1] if 0 < n.lineno <= len(clean_lines) else ""
+                            snippet = (
+                                clean_lines[n.lineno - 1]
+                                if 0 < n.lineno <= len(clean_lines)
+                                else ""
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="PERF-SORT-001",
@@ -1205,7 +1430,11 @@ class ASTSecurityScanner:
                         if inner_len_target and inner_len_target == outer_len_target:
                             actual_line = line_no_mapping.get(sub.lineno, sub.lineno)
                             if actual_line in added_lines_map:
-                                snippet = clean_lines[sub.lineno - 1] if 0 < sub.lineno <= len(clean_lines) else ""
+                                snippet = (
+                                    clean_lines[sub.lineno - 1]
+                                    if 0 < sub.lineno <= len(clean_lines)
+                                    else ""
+                                )
                                 findings.append(
                                     SastFinding(
                                         rule_id="PERF-NESTED-001",
@@ -1232,11 +1461,11 @@ class ASTSecurityScanner:
         cls,
         tree: ast.AST,
         file_path: str,
-        clean_lines: List[str],
-        line_no_mapping: Dict[int, int],
-        added_lines_map: Dict[int, str],
-    ) -> List[SastFinding]:
-        findings: List[SastFinding] = []
+        clean_lines: list[str],
+        line_no_mapping: dict[int, int],
+        added_lines_map: dict[int, str],
+    ) -> list[SastFinding]:
+        findings: list[SastFinding] = []
         for func_node in ast.walk(tree):
             if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -1247,11 +1476,17 @@ class ASTSecurityScanner:
             is_optional = (
                 ret_str in ("None", "")
                 or "Optional" in ret_str
-                or (isinstance(func_node.returns, ast.Constant) and func_node.returns.value is None)
+                or (
+                    isinstance(func_node.returns, ast.Constant)
+                    and func_node.returns.value is None
+                )
                 or (
                     isinstance(func_node.returns, ast.BinOp)
                     and isinstance(func_node.returns.op, ast.BitOr)
-                    and (cls._node_to_str(func_node.returns.left) == "None" or cls._node_to_str(func_node.returns.right) == "None")
+                    and (
+                        cls._node_to_str(func_node.returns.left) == "None"
+                        or cls._node_to_str(func_node.returns.right) == "None"
+                    )
                 )
             )
             if is_optional:
@@ -1270,7 +1505,11 @@ class ASTSecurityScanner:
                     if body_is_silent:
                         actual_line = line_no_mapping.get(child.lineno, child.lineno)
                         if actual_line in added_lines_map:
-                            snippet = clean_lines[child.lineno - 1] if 0 < child.lineno <= len(clean_lines) else ""
+                            snippet = (
+                                clean_lines[child.lineno - 1]
+                                if 0 < child.lineno <= len(clean_lines)
+                                else ""
+                            )
                             findings.append(
                                 SastFinding(
                                     rule_id="QUAL-RETURN-001",
@@ -1294,7 +1533,9 @@ class ASTSecurityScanner:
         return findings
 
     @classmethod
-    def _enclosing_function_node(cls, target_node: ast.AST, tree: ast.AST) -> Optional[ast.AST]:
+    def _enclosing_function_node(
+        cls, target_node: ast.AST, tree: ast.AST
+    ) -> ast.AST | None:
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 for child in ast.walk(node):
@@ -1350,7 +1591,7 @@ class ASTSecurityScanner:
         return False
 
     @staticmethod
-    def _resolve_getattr(call: ast.Call, aliases: Dict[str, str]) -> Optional[str]:
+    def _resolve_getattr(call: ast.Call, aliases: dict[str, str]) -> str | None:
         """
         Resolve getattr(<module>, "attr") to a dotted 'module.attr' name so that
         indirect calls such as loads = getattr(pickle, 'loads') are tracked like
@@ -1381,7 +1622,7 @@ class ASTSecurityScanner:
         return ""
 
     @staticmethod
-    def _extract_str_content(node: ast.AST, env: Dict[str, Any]) -> Optional[str]:
+    def _extract_str_content(node: ast.AST, env: dict[str, Any]) -> str | None:
         """Extract string content from literal or variable reference."""
         val = evaluate_ast_constant(node, env)
         if isinstance(val, str):
@@ -1389,23 +1630,31 @@ class ASTSecurityScanner:
         return None
 
     @classmethod
-    def _is_sql_expression(cls, node: ast.AST, env: Dict[str, Any], sql_vars: set) -> bool:
+    def _is_sql_expression(
+        cls, node: ast.AST, env: dict[str, Any], sql_vars: set
+    ) -> bool:
         """Check if an expression tree involves SQL keywords (SELECT, INSERT, etc.)."""
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return bool(re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", node.value, re.I))
+            return bool(
+                re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", node.value, re.I)
+            )
         if isinstance(node, ast.Name):
             if node.id in sql_vars:
                 return True
             if node.id in env and isinstance(env[node.id], str):
-                return bool(re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", env[node.id], re.I))
+                return bool(
+                    re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", env[node.id], re.I)
+                )
             return False
         if isinstance(node, ast.BinOp):
             if isinstance(node.op, (ast.Add, ast.Mod)):
-                return cls._is_sql_expression(node.left, env, sql_vars) or cls._is_sql_expression(
-                    node.right, env, sql_vars
-                )
+                return cls._is_sql_expression(
+                    node.left, env, sql_vars
+                ) or cls._is_sql_expression(node.right, env, sql_vars)
         if isinstance(node, ast.JoinedStr):
-            return any(cls._is_sql_expression(val, env, sql_vars) for val in node.values)
+            return any(
+                cls._is_sql_expression(val, env, sql_vars) for val in node.values
+            )
         if isinstance(node, ast.FormattedValue):
             return cls._is_sql_expression(node.value, env, sql_vars)
         if isinstance(node, ast.Call):
@@ -1414,22 +1663,36 @@ class ASTSecurityScanner:
         return False
 
     @classmethod
-    def _is_cmd_expression(cls, node: ast.AST, env: Dict[str, Any], cmd_vars: set) -> bool:
+    def _is_cmd_expression(
+        cls, node: ast.AST, env: dict[str, Any], cmd_vars: set
+    ) -> bool:
         """Check if an expression tree involves command execution string concatenation."""
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return bool(re.search(r"\b(ping|sh|bash|rm|curl|wget|cat|chmod|chown)\b", node.value, re.I))
+            return bool(
+                re.search(
+                    r"\b(ping|sh|bash|rm|curl|wget|cat|chmod|chown)\b", node.value, re.I
+                )
+            )
         if isinstance(node, ast.Name):
             if node.id in cmd_vars:
                 return True
             if node.id in env and isinstance(env[node.id], str):
-                return bool(re.search(r"\b(ping|sh|bash|rm|curl|wget|cat|chmod|chown)\b", env[node.id], re.I))
+                return bool(
+                    re.search(
+                        r"\b(ping|sh|bash|rm|curl|wget|cat|chmod|chown)\b",
+                        env[node.id],
+                        re.I,
+                    )
+                )
             return False
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-            return cls._is_cmd_expression(node.left, env, cmd_vars) or cls._is_cmd_expression(
-                node.right, env, cmd_vars
-            )
+            return cls._is_cmd_expression(
+                node.left, env, cmd_vars
+            ) or cls._is_cmd_expression(node.right, env, cmd_vars)
         if isinstance(node, ast.JoinedStr):
-            return any(cls._is_cmd_expression(val, env, cmd_vars) for val in node.values)
+            return any(
+                cls._is_cmd_expression(val, env, cmd_vars) for val in node.values
+            )
         return False
 
 

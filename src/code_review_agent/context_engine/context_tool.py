@@ -3,37 +3,39 @@ Codebase Context Tool for CrewAI Agents.
 Provides agents with symbol lookups, call graph queries, and cross-file impact analysis.
 """
 
-from typing import Type, Optional
-from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
+
 from code_review_agent.context_engine.code_graph import CodeGraphIndexer
+from code_review_agent.native_tools import BaseTool
 
 
 class CodebaseContextInput(BaseModel):
     """Input parameters for CodebaseContextTool."""
+
     query_type: str = Field(
         ...,
-        description="Type of query: 'find_callers' (find who calls a function), 'lookup_symbol' (find where a function/class is defined), or 'analyze_diff_impact' (find all callers of functions in a diff)"
+        description="Type of query: 'find_callers' (find who calls a function), 'lookup_symbol' (find where a function/class is defined), or 'analyze_diff_impact' (find all callers of functions in a diff)",
     )
     target: str = Field(
         ...,
-        description="Function/class name (for find_callers/lookup_symbol) or raw diff snippet (for analyze_diff_impact)"
+        description="Function/class name (for find_callers/lookup_symbol) or raw diff snippet (for analyze_diff_impact)",
     )
 
 
 class CodebaseContextTool(BaseTool):
     """CrewAI Tool for querying repository AST symbols and call graph dependencies."""
+
     name: str = "Codebase Symbol & Call Graph Context Engine"
     description: str = (
         "Query the repository-wide AST call graph to find callers of a function, "
         "look up symbol definitions across files, or analyze cross-file impact of modified code."
     )
-    args_schema: Type[BaseModel] = CodebaseContextInput
+    args_schema: type[BaseModel] = CodebaseContextInput
 
-    _indexer: Optional[CodeGraphIndexer] = None
-    _repo_root: Optional[str] = None
+    _indexer: CodeGraphIndexer | None = None
+    _repo_root: str | None = None
 
-    def __init__(self, repo_root: Optional[str] = None, **kwargs):
+    def __init__(self, repo_root: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self._repo_root = repo_root
         self._indexer = None

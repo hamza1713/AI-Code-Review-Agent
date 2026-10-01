@@ -4,10 +4,12 @@ Verifies PyYAML parsing of multiline descriptions, inline comments, nested confi
 diff evaluation, and loud error raising on malformed YAML or invalid schemas.
 """
 
-from pathlib import Path
 import pytest
 
-from code_review_agent.governance.rules_engine import RulesEngine, GovernanceParsingError, CustomRule
+from code_review_agent.governance.rules_engine import (
+    GovernanceParsingError,
+    RulesEngine,
+)
 
 
 class TestGovernanceRulesEngine:
@@ -113,3 +115,55 @@ rules:
         engine = RulesEngine(rules_file_path=str(non_existent))
         assert len(engine.rules) > 0
         assert any(r.id == "default-no-print" for r in engine.rules)
+
+    def test_untrusted_diff_cannot_poison_governance_rules(self, tmp_path):
+        """Verify that a diff touching .code-review.yaml does not mutate active engine rules."""
+        yaml_content = """
+rules:
+  - id: "legit-rule"
+    name: "Legit Rule"
+    severity: "BLOCKING"
+    pattern: "eval\\\\("
+    description: "eval is dangerous"
+    suggested_fix: "Use ast.literal_eval"
+"""
+        rule_file = tmp_path / ".code-review.yaml"
+        rule_file.write_text(yaml_content, encoding="utf-8")
+        engine = RulesEngine(rules_file_path=str(rule_file))
+
+        initial_rule_ids = [r.id for r in engine.rules]
+        assert "legit-rule" in initial_rule_ids
+
+        # Malicious diff attempting to wipe out rules or change governance
+        malicious_diff = """diff --git a/.code-review.yaml b/.code-review.yaml
+--- a/.code-review.yaml
++++ b/.code-review.yaml
+@@ -1,5 +1,2 @@
+-rules:
+-  - id: "legit-rule"
++rules: []
+diff --git a/app/service.py b/app/service.py
+--- a/app/service.py
++++ b/app/service.py
+@@ -1,2 +1,3 @@
+ def run_code(user_input):
++    eval(user_input)
+"""
+        violations = engine.evaluate_diff(malicious_diff)
+
+        # 1. Engine rules must remain intact and NOT poisoned
+        assert [r.id for r in engine.rules] == initial_rule_ids
+
+        # 2. The legitimate rule should STILL catch the violation in app/service.py
+        eval_violation = next(
+            (v for v in violations if v.rule_id == "legit-rule"), None
+        )
+        assert eval_violation is not None
+        assert eval_violation.file_path == "app/service.py"
+
+        # 3. An audit violation should flag that .code-review.yaml was modified
+        policy_violation = next(
+            (v for v in violations if v.rule_id == "gov-policy-change"), None
+        )
+        assert policy_violation is not None
+        assert policy_violation.severity == "WARNING"

@@ -1,0 +1,49 @@
+{
+  "id": "flask-5818",
+  "file": "cases/flask-5818/input.diff",
+  "sha256": "e53f28ee3ec17399c425391492e8a387325f1a5a20aa0ca4b06c0530a7a2c80a",
+  "source_repository": "pallets/flask",
+  "base_sha": "adf363679da2d9a5ddc564bb2da563c7ca083916",
+  "head_sha": "6a64969009bf1898bd302e6a9633f71942523f7f",
+  "source_diff_url": "https://github.com/pallets/flask/compare/adf363679da2d9a5ddc564bb2da563c7ca083916...6a64969009bf1898bd302e6a9633f71942523f7f.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5818",
+  "merged_at": "2025-11-17T16:49:53Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5818/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5818/head/CHANGES.rst",
+      "sha256": "5226a9d50afed0726dd7ca90b39620f1ce210effd7bfd81712b7da3b53c6525e"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5818/head/src/flask/app.py",
+      "sha256": "91860d00247bde7bb1cf116ce009eee87e0731e46ff68c7ab7cf75d5f236ab1e"
+    },
+    {
+      "path": "src/flask/ctx.py",
+      "file": "cases/flask-5818/head/src/flask/ctx.py",
+      "sha256": "cc66952d5f9b722fb1c7a002952fd8ebd997c4e5931fac8f7b5dbee55afd14a8"
+    },
+    {
+      "path": "src/flask/templating.py",
+      "file": "cases/flask-5818/head/src/flask/templating.py",
+      "sha256": "504723e02606d9cbf0ed8342177c46aff125b0eb992ad2f6271942a90eb91193"
+    },
+    {
+      "path": "tests/test_reqctx.py",
+      "file": "cases/flask-5818/head/tests/test_reqctx.py",
+      "sha256": "fdbe446c067d49a5a75184aff3f0fe210fa3afb801810355fade71b5bc866a50"
+    },
+    {
+      "path": "tests/test_subclassing.py",
+      "file": "cases/flask-5818/head/tests/test_subclassing.py",
+      "sha256": "8d2b60b6f231bb0af1dc89cbe02e61c1f0907bbb1d23a1d1a5916699118694c5"
+    }
+  ],
+  "input_snapshot_hash": "25140ded0362eac7fb75d7121b21d4280342eb76fabea5c8774acc274d9a6ffd",
+  "label_status": "UNREVIEWED"
+}

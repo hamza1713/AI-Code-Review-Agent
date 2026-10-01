@@ -5,7 +5,8 @@ GitHub, GitLab, Bitbucket, and Local Git repositories.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from code_review_agent.models import InlineComment
@@ -13,21 +14,28 @@ from code_review_agent.models import InlineComment
 
 class PlatformPRIdentifier(BaseModel):
     """Normalized Pull / Merge Request identifier across Git platforms."""
-    platform: str = Field(..., description="'github', 'gitlab', 'bitbucket', or 'local'")
+
+    platform: str = Field(
+        ..., description="'github', 'gitlab', 'bitbucket', or 'local'"
+    )
     owner_or_project: str = Field(..., description="Organization, group, or username")
     repo_or_slug: str = Field(..., description="Repository name or slug")
-    pr_id: int = Field(default=0, description="Pull Request or Merge Request number/IID")
+    pr_id: int = Field(
+        default=0, description="Pull Request or Merge Request number/IID"
+    )
     raw_identifier: str = Field(default="", description="Original string or URL")
 
 
 class PlatformPRMetadata(BaseModel):
     """Normalized PR/MR metadata across all platforms."""
+
     title: str = Field(default="", description="PR or MR title")
     body: str = Field(default="", description="Description or user story")
     author: str = Field(default="", description="Author username")
     head_sha: str = Field(default="", description="Commit SHA of head branch")
     base_sha: str = Field(default="", description="Commit SHA of target base branch")
     head_ref: str = Field(default="", description="Source branch name")
+    head_repository: str = ""
     base_ref: str = Field(default="", description="Target branch name")
     state: str = Field(default="open", description="'open', 'closed', or 'merged'")
     html_url: str = Field(default="", description="Web URL to view PR/MR")
@@ -39,17 +47,16 @@ class GitPlatformClient(ABC):
     @abstractmethod
     def parse_pr_identifier(self, pr_identifier: str) -> PlatformPRIdentifier:
         """Parse raw PR URL or shorthand into a normalized PlatformPRIdentifier."""
-        pass
 
     @abstractmethod
-    def fetch_pull_request_metadata(self, owner: str, repo: str, pull_number: int) -> PlatformPRMetadata:
+    def fetch_pull_request_metadata(
+        self, owner: str, repo: str, pull_number: int
+    ) -> PlatformPRMetadata:
         """Fetch title, author, branch refs, and commit SHAs for a PR/MR."""
-        pass
 
     @abstractmethod
     def fetch_pull_request_diff(self, owner: str, repo: str, pull_number: int) -> str:
         """Fetch raw unified diff string for a PR/MR."""
-        pass
 
     @abstractmethod
     def post_pull_request_review(
@@ -59,22 +66,16 @@ class GitPlatformClient(ABC):
         pull_number: int,
         event: str,  # 'APPROVE', 'REQUEST_CHANGES', or 'COMMENT'
         body: str,
-        commit_id: Optional[str] = None,
-        comments: Optional[List[InlineComment]] = None
-    ) -> Dict[str, Any]:
+        commit_id: str | None = None,
+        comments: list[InlineComment] | None = None,
+    ) -> dict[str, Any]:
         """Submit a full PR/MR review with top-level summary and line-level comments."""
-        pass
 
     @abstractmethod
     def post_issue_comment(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        body: str
-    ) -> Dict[str, Any]:
+        self, owner: str, repo: str, issue_number: int, body: str
+    ) -> dict[str, Any]:
         """Post a markdown comment to an issue or PR discussion thread."""
-        pass
 
     @abstractmethod
     def update_pull_request_description(
@@ -83,27 +84,17 @@ class GitPlatformClient(ABC):
         repo: str,
         pull_number: int,
         body: str,
-        title: Optional[str] = None
-    ) -> Dict[str, Any]:
+        title: str | None = None,
+    ) -> dict[str, Any]:
         """Update the PR/MR description body and optionally title."""
-        pass
 
     @abstractmethod
-    def fetch_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int
-    ) -> Dict[str, Any]:
+    def fetch_issue(self, owner: str, repo: str, issue_number: int) -> dict[str, Any]:
         """Fetch issue title, body, state, and labels."""
-        pass
 
     def list_pull_request_review_comments(
-        self,
-        owner: str,
-        repo: str,
-        pull_number: int
-    ) -> List[Dict[str, Any]]:
+        self, owner: str, repo: str, pull_number: int
+    ) -> list[dict[str, Any]]:
         """
         List inline review comments (which may carry ```suggestion blocks) for a PR/MR.
 
@@ -121,8 +112,8 @@ class GitPlatformClient(ABC):
         state: str,  # 'pending', 'success', 'failure', 'error'
         description: str,
         context: str = "ai-code-review",
-        target_url: Optional[str] = None
-    ) -> Dict[str, Any]:
+        target_url: str | None = None,
+    ) -> dict[str, Any]:
         """
         Update CI/CD commit status check on a commit SHA.
         Default implementation is a no-op returning a simulated response.
@@ -132,7 +123,7 @@ class GitPlatformClient(ABC):
             "description": description,
             "context": context,
             "target_url": target_url or "",
-            "sha": sha
+            "sha": sha,
         }
 
     def create_or_update_check_run(
@@ -142,18 +133,23 @@ class GitPlatformClient(ABC):
         head_sha: str,
         name: str = "AI Code Review",
         status: str = "queued",  # 'queued', 'in_progress', 'completed'
-        conclusion: Optional[str] = None,  # 'success', 'failure', 'neutral', 'action_required'
-        title: Optional[str] = None,
-        summary: Optional[str] = None,
-        annotations: Optional[List[Dict[str, Any]]] = None,
-        details_url: Optional[str] = None,
-        check_run_id: Optional[int] = None
-    ) -> Dict[str, Any]:
+        conclusion: str
+        | None = None,  # 'success', 'failure', 'neutral', 'action_required'
+        title: str | None = None,
+        summary: str | None = None,
+        annotations: list[dict[str, Any]] | None = None,
+        details_url: str | None = None,
+        check_run_id: int | None = None,
+    ) -> dict[str, Any]:
         """
         Create or update a Check Run (GitHub App API).
         For platforms or credentials lacking check run support, falls back to set_commit_status.
         """
-        state = "pending" if status != "completed" else ("success" if conclusion in ("success", "neutral") else "failure")
+        state = (
+            "pending"
+            if status != "completed"
+            else ("success" if conclusion in ("success", "neutral") else "failure")
+        )
         desc = (summary or title or name)[:140]
         return self.set_commit_status(
             owner=owner,
@@ -162,15 +158,11 @@ class GitPlatformClient(ABC):
             state=state,
             description=desc,
             context=name.lower().replace(" ", "-"),
-            target_url=details_url
+            target_url=details_url,
         )
 
     def fetch_file_content(
-        self,
-        owner: str,
-        repo: str,
-        path: str,
-        ref: Optional[str] = None
+        self, owner: str, repo: str, path: str, ref: str | None = None
     ) -> str:
         """Fetch raw content of a file at a specific branch/ref."""
         return ""
@@ -182,7 +174,9 @@ class GitPlatformClient(ABC):
         branch: str,
         path: str,
         content: str,
-        commit_message: str
-    ) -> Dict[str, Any]:
+        commit_message: str,
+    ) -> dict[str, Any]:
         """Commit an updated file directly to a branch on the platform repository."""
-        raise NotImplementedError("commit_file_change not implemented for this platform")
+        raise NotImplementedError(
+            "commit_file_change not implemented for this platform"
+        )

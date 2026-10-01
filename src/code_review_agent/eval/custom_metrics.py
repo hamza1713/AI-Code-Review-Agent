@@ -4,21 +4,33 @@ Defines formal LLM-as-a-Judge criteria for Provenance Grounding,
 Security Deduplication, Quality Refactoring, and Verdict Alignment.
 """
 
-from typing import Dict, Any
-from pydantic import BaseModel, Field
+from typing import Any, Literal
 
-from code_review_agent.llm_factory import LLMFactory
+from pydantic import BaseModel, Field, model_validator
+
 from code_review_agent.config import logger
+from code_review_agent.llm_factory import LLMFactory
 
 
 class MetricScore(BaseModel):
     """Normalized score returned by custom evaluation metrics."""
+
     metric_name: str
-    score: float = Field(..., description="Score between 0.0 and 1.0")
+    score: float | None = Field(default=None, ge=0, le=1)
     threshold: float = Field(default=0.80, description="Minimum passing threshold")
     passed: bool
+    status: Literal["PASS", "FAIL", "UNAVAILABLE"] = "FAIL"
     reasoning: str
-    details: Dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def derive_status(self):
+        if self.score is None:
+            self.status, self.passed = "UNAVAILABLE", False
+        else:
+            self.passed = self.score >= self.threshold
+            self.status = "PASS" if self.passed else "FAIL"
+        return self
 
 
 # ── G-Eval Rubric Definitions ───────────────────────────────────────────────
@@ -58,7 +70,9 @@ class ProvenanceGroundingEvaluator:
     """Evaluates Tech Lead synthesis output for strict context provenance and anti-hallucination."""
 
     @classmethod
-    def evaluate(cls, context: str, actual_output: str, threshold: float = 0.85) -> MetricScore:
+    def evaluate(
+        cls, context: str, actual_output: str, threshold: float = 0.85
+    ) -> MetricScore:
         """Run evaluation via LLM-as-a-Judge."""
         prompt = f"""
 You are an expert AI Evaluation Judge. Evaluate the following output according to this rubric:
@@ -78,38 +92,33 @@ Return your evaluation as a JSON object with:
         return cls._run_judge_llm("ProvenanceGrounding", prompt, threshold)
 
     @classmethod
-    def _run_judge_llm(cls, metric_name: str, prompt: str, threshold: float) -> MetricScore:
+    def _run_judge_llm(
+        cls, metric_name: str, prompt: str, threshold: float
+    ) -> MetricScore:
         """Execute evaluation prompt with LLMFactory."""
         import json
         import re
 
         try:
             llm = LLMFactory.create_llm()
-            # If crewai LLM wrapper, invoke directly
-            response_text = ""
-            if hasattr(llm, "call"):
-                response_text = llm.call(messages=[{"role": "user", "content": prompt}])
-            else:
-                # Fallback: import litellm or google_genai
-                import litellm
-                from code_review_agent.config import get_gemini_api_key, get_model_name
-                resp = litellm.completion(
-                    model=get_model_name(),
-                    messages=[{"role": "user", "content": prompt}],
-                    api_key=get_gemini_api_key(),
-                    temperature=0.0
-                )
-                response_text = resp.choices[0].message.content
+            response_text = llm.call(messages=[{"role": "user", "content": prompt}])
 
             # Parse JSON from response
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group(0))
-                score = float(data.get("score", 0.0))
-                reasoning = data.get("reasoning", "No reasoning provided.")
+                score = data["score"]
+                reasoning = data["reasoning"]
+                if (
+                    isinstance(score, bool)
+                    or not isinstance(score, (int, float))
+                    or not 0 <= score <= 1
+                ):
+                    raise ValueError("Invalid judge score")
+                if not isinstance(reasoning, str) or not reasoning.strip():
+                    raise ValueError("Missing judge reasoning")
             else:
-                score = 0.80
-                reasoning = response_text[:200]
+                raise ValueError("Judge did not return JSON")
 
             score = min(1.0, max(0.0, score))
             return MetricScore(
@@ -117,17 +126,18 @@ Return your evaluation as a JSON object with:
                 score=round(score, 4),
                 threshold=threshold,
                 passed=(score >= threshold),
-                reasoning=reasoning
+                reasoning=reasoning,
             )
         except Exception as e:
             logger.warning(f"Error running LLM judge for {metric_name}: {e}")
-            # Graceful fallback: return baseline evaluation
+            # An unavailable evaluator has no score and cannot pass a gate.
             return MetricScore(
                 metric_name=metric_name,
-                score=0.85,
+                score=None,
                 threshold=threshold,
-                passed=True,
-                reasoning=f"Automated heuristic fallback (LLM judge unavailable: {e})"
+                passed=False,
+                status="UNAVAILABLE",
+                reasoning=f"Judge unavailable ({type(e).__name__}); no score assigned.",
             )
 
 
@@ -135,7 +145,9 @@ class SecurityDeduplicationEvaluator:
     """Evaluates Security Engineer output for correct multi-tool SAST deduplication."""
 
     @classmethod
-    def evaluate(cls, raw_sast_context: str, security_output: str, threshold: float = 0.85) -> MetricScore:
+    def evaluate(
+        cls, raw_sast_context: str, security_output: str, threshold: float = 0.85
+    ) -> MetricScore:
         prompt = f"""
 You are an expert AppSec Evaluation Judge. Evaluate the following output:
 
@@ -149,4 +161,6 @@ ACTUAL_OUTPUT (Security Engineer Report):
 
 Return JSON with "score" (0.0 - 1.0) and "reasoning".
 """
-        return ProvenanceGroundingEvaluator._run_judge_llm("SecurityDeduplication", prompt, threshold)
+        return ProvenanceGroundingEvaluator._run_judge_llm(
+            "SecurityDeduplication", prompt, threshold
+        )

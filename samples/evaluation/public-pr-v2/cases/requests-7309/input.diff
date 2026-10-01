@@ -1,0 +1,84 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 54959bb8ab..42238375c8 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -502,26 +502,23 @@ def get_encodings_from_content(content):
+ 
+ 
+ def _parse_content_type_header(header):
+-    """Returns content type and parameters from given header
++    """Returns content type and parameters from given header.
+ 
+     :param header: string
+     :return: tuple containing content type and dictionary of
+-         parameters
++         parameters.
+     """
+ 
+     tokens = header.split(";")
+     content_type, params = tokens[0].strip(), tokens[1:]
+     params_dict = {}
+-    items_to_strip = "\"' "
++    strip_chars = "\"' "
+ 
+     for param in params:
+         param = param.strip()
+-        if param:
+-            key, value = param, True
+-            index_of_equals = param.find("=")
+-            if index_of_equals != -1:
+-                key = param[:index_of_equals].strip(items_to_strip)
+-                value = param[index_of_equals + 1 :].strip(items_to_strip)
++        if param and (idx := param.find("=")) != -1:
++            key = param[:idx].strip(strip_chars)
++            value = param[idx + 1 :].strip(strip_chars)
+             params_dict[key.lower()] = value
+     return content_type, params_dict
+ 
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index c477c4089a..71a7a26e4d 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -593,7 +593,6 @@ def test_parse_dict_header(value, expected):
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+-                    "no_equals": True,
+                 },
+             ),
+         ),
+@@ -604,7 +603,6 @@ def test_parse_dict_header(value, expected):
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+-                    "no_equals": True,
+                 },
+             ),
+         ),
+@@ -615,7 +613,6 @@ def test_parse_dict_header(value, expected):
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+-                    "no_equals": True,
+                 },
+             ),
+         ),
+@@ -626,7 +623,6 @@ def test_parse_dict_header(value, expected):
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+-                    "no_equals": True,
+                 },
+             ),
+         ),
+@@ -646,6 +642,10 @@ def test__parse_content_type_header(value, expected):
+             "utf-8",
+         ),
+         (CaseInsensitiveDict({"content-type": "text/plain"}), "ISO-8859-1"),
++        (
++            CaseInsensitiveDict({"content-type": "text/html; charset"}),
++            "ISO-8859-1",
++        ),
+     ),
+ )
+ def test_get_encoding_from_headers(value, expected):

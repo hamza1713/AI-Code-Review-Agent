@@ -1,0 +1,125 @@
+diff --git a/httpx/_compat.py b/httpx/_compat.py
+deleted file mode 100644
+index 00b6e29ad8..0000000000
+--- a/httpx/_compat.py
++++ /dev/null
+@@ -1,38 +0,0 @@
+-"""
+-The _compat module is used for code which requires branching between different
+-Python environments. It is excluded from the code coverage checks.
+-"""
+-
+-import re
+-from types import ModuleType
+-from typing import Optional
+-
+-# Brotli support is optional
+-# The C bindings in `brotli` are recommended for CPython.
+-# The CFFI bindings in `brotlicffi` are recommended for PyPy and everything else.
+-try:
+-    import brotlicffi as brotli
+-except ImportError:  # pragma: no cover
+-    try:
+-        import brotli
+-    except ImportError:
+-        brotli = None
+-
+-# Zstandard support is optional
+-zstd: Optional[ModuleType] = None
+-try:
+-    import zstandard as zstd
+-except (AttributeError, ImportError, ValueError):  # Defensive:
+-    zstd = None
+-else:
+-    # The package 'zstandard' added the 'eof' property starting
+-    # in v0.18.0 which we require to ensure a complete and
+-    # valid zstd stream was fed into the ZstdDecoder.
+-    # See: https://github.com/urllib3/urllib3/pull/2624
+-    _zstd_version = tuple(
+-        map(int, re.search(r"^([0-9]+)\.([0-9]+)", zstd.__version__).groups())  # type: ignore[union-attr]
+-    )
+-    if _zstd_version < (0, 18):  # Defensive:
+-        zstd = None
+-
+-__all__ = ["brotli", "zstd"]
+diff --git a/httpx/_decoders.py b/httpx/_decoders.py
+index 62f2c0b911..180898c53f 100644
+--- a/httpx/_decoders.py
++++ b/httpx/_decoders.py
+@@ -11,9 +11,27 @@
+ import typing
+ import zlib
+ 
+-from ._compat import brotli, zstd
+ from ._exceptions import DecodingError
+ 
++# Brotli support is optional
++try:
++    # The C bindings in `brotli` are recommended for CPython.
++    import brotli
++except ImportError:  # pragma: no cover
++    try:
++        # The CFFI bindings in `brotlicffi` are recommended for PyPy
++        # and other environments.
++        import brotlicffi as brotli
++    except ImportError:
++        brotli = None
++
++
++# Zstandard support is optional
++try:
++    import zstandard
++except ImportError:  # pragma: no cover
++    zstandard = None  # type: ignore
++
+ 
+ class ContentDecoder:
+     def decode(self, data: bytes) -> bytes:
+@@ -150,24 +168,24 @@ class ZStandardDecoder(ContentDecoder):
+ 
+     # inspired by the ZstdDecoder implementation in urllib3
+     def __init__(self) -> None:
+-        if zstd is None:  # pragma: no cover
++        if zstandard is None:  # pragma: no cover
+             raise ImportError(
+                 "Using 'ZStandardDecoder', ..."
+                 "Make sure to install httpx using `pip install httpx[zstd]`."
+             ) from None
+ 
+-        self.decompressor = zstd.ZstdDecompressor().decompressobj()
++        self.decompressor = zstandard.ZstdDecompressor().decompressobj()
+ 
+     def decode(self, data: bytes) -> bytes:
+-        assert zstd is not None
++        assert zstandard is not None
+         output = io.BytesIO()
+         try:
+             output.write(self.decompressor.decompress(data))
+             while self.decompressor.eof and self.decompressor.unused_data:
+                 unused_data = self.decompressor.unused_data
+-                self.decompressor = zstd.ZstdDecompressor().decompressobj()
++                self.decompressor = zstandard.ZstdDecompressor().decompressobj()
+                 output.write(self.decompressor.decompress(unused_data))
+-        except zstd.ZstdError as exc:
++        except zstandard.ZstdError as exc:
+             raise DecodingError(str(exc)) from exc
+         return output.getvalue()
+ 
+@@ -367,5 +385,5 @@ def flush(self) -> list[str]:
+ 
+ if brotli is None:
+     SUPPORTED_DECODERS.pop("br")  # pragma: no cover
+-if zstd is None:
++if zstandard is None:
+     SUPPORTED_DECODERS.pop("zstd")  # pragma: no cover
+diff --git a/pyproject.toml b/pyproject.toml
+index 2b83de5f12..9e67191135 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -128,5 +128,5 @@ markers = [
+ ]
+ 
+ [tool.coverage.run]
+-omit = ["venv/*", "httpx/_compat.py"]
++omit = ["venv/*"]
+ include = ["httpx/*", "tests/*"]

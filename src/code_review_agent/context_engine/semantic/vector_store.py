@@ -11,9 +11,9 @@ behind the same `add` / `search` surface; the engine does not depend on the back
 """
 
 import json
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 from code_review_agent.config import logger
 
@@ -21,48 +21,49 @@ from code_review_agent.config import logger
 @dataclass
 class ChunkRecord:
     """A single embedded code chunk plus its provenance metadata."""
+
     id: str
     repo: str
     file_path: str
     qualified_name: str
-    kind: str            # function | method | class
+    kind: str  # function | method | class
     language: str
     line_start: int
     line_end: int
-    text: str            # the chunk source used for retrieval / display
-    docstring: Optional[str] = None
-    vector: List[float] = field(default_factory=list)
+    text: str  # the chunk source used for retrieval / display
+    docstring: str | None = None
+    vector: list[float] = field(default_factory=list)
 
-    def payload(self) -> Dict:
+    def payload(self) -> dict:
         """Metadata without the (large) vector — for serialization and display."""
         d = asdict(self)
         d.pop("vector", None)
         return d
 
 
-def cosine(a: List[float], b: List[float]) -> float:
+def cosine(a: list[float], b: list[float]) -> float:
     """Dot product of two vectors. With normalized inputs this is cosine similarity."""
     if not a or not b or len(a) != len(b):
         return 0.0
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 class VectorStore:
     """In-memory cosine store with repo namespacing and JSON persistence."""
 
     def __init__(self):
-        self._records: List[ChunkRecord] = []
+        self._records: list[ChunkRecord] = []
         self._ids: set = set()
 
     def __len__(self) -> int:
         return len(self._records)
 
     @property
-    def repos(self) -> List[str]:
+    def repos(self) -> list[str]:
         """Distinct repositories currently represented in the index."""
         return sorted({r.repo for r in self._records})
 
-    def add(self, records: List[ChunkRecord]) -> int:
+    def add(self, records: list[ChunkRecord]) -> int:
         """Add records, skipping any whose id is already present. Returns count added."""
         added = 0
         for rec in records:
@@ -82,17 +83,17 @@ class VectorStore:
 
     def search(
         self,
-        query_vector: List[float],
+        query_vector: list[float],
         top_k: int = 10,
-        filter_fn: Optional[Callable[[ChunkRecord], bool]] = None,
-    ) -> List[tuple]:
+        filter_fn: Callable[[ChunkRecord], bool] | None = None,
+    ) -> list[tuple]:
         """
         Return the top_k (record, score) pairs by cosine similarity.
 
         `filter_fn` pre-filters candidates (e.g. to a language or repo, or to
         exclude chunks that are part of the PR itself).
         """
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for rec in self._records:
             if filter_fn and not filter_fn(rec):
                 continue
@@ -101,7 +102,7 @@ class VectorStore:
         return scored[:top_k]
 
     # ── Persistence ──────────────────────────────────────────────────────────
-    def save(self, path: str, embedder_id: Optional[str] = None) -> str:
+    def save(self, path: str, embedder_id: str | None = None) -> str:
         """
         Persist the full index (vectors included) to a JSON file.
 
@@ -118,10 +119,12 @@ class VectorStore:
         }
         with open(target, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        logger.info(f"💾 RAG vector store saved: {len(self._records)} chunks → {target}")
+        logger.info(
+            f"💾 RAG vector store saved: {len(self._records)} chunks → {target}"
+        )
         return str(target)
 
-    def load(self, path: str, embedder_id: Optional[str] = None) -> bool:
+    def load(self, path: str, embedder_id: str | None = None) -> bool:
         """
         Load an index from disk. Returns False if the file is absent, unreadable, or
         was built by a different embedder than `embedder_id` (so the caller re-indexes
@@ -131,11 +134,15 @@ class VectorStore:
         if not target.exists():
             return False
         try:
-            with open(target, "r", encoding="utf-8") as f:
+            with open(target, encoding="utf-8") as f:
                 data = json.load(f)
 
             saved_id = data.get("embedder_id")
-            if embedder_id is not None and saved_id is not None and saved_id != embedder_id:
+            if (
+                embedder_id is not None
+                and saved_id is not None
+                and saved_id != embedder_id
+            ):
                 logger.info(
                     f"↻ RAG index at {target} was built with embedder '{saved_id}', "
                     f"but current embedder is '{embedder_id}'. Ignoring stale index; will re-index."
@@ -144,7 +151,9 @@ class VectorStore:
 
             self._records = [ChunkRecord(**r) for r in data.get("records", [])]
             self._ids = {r.id for r in self._records}
-            logger.info(f"📂 RAG vector store loaded: {len(self._records)} chunks from {target}")
+            logger.info(
+                f"📂 RAG vector store loaded: {len(self._records)} chunks from {target}"
+            )
             return True
         except Exception as e:
             logger.warning(f"Could not load RAG vector store '{target}': {e}")

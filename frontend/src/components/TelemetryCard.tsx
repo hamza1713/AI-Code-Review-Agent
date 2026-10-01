@@ -7,14 +7,15 @@ interface TelemetryCardProps {
 }
 
 export const TelemetryCard: React.FC<TelemetryCardProps> = ({ telemetry }) => {
-  const duration = telemetry?.duration_seconds ? `${telemetry.duration_seconds.toFixed(2)}s` : '0.00s';
-  const totalTokens = telemetry?.total_tokens ? telemetry.total_tokens.toLocaleString() : '0';
-  const promptTokens = telemetry?.prompt_tokens ? telemetry.prompt_tokens.toLocaleString() : '0';
-  const completionTokens = telemetry?.completion_tokens ? telemetry.completion_tokens.toLocaleString() : '0';
-  const cost = telemetry?.estimated_cost_usd !== undefined
+  const duration = telemetry?.duration_seconds != null ? `${telemetry.duration_seconds.toFixed(2)}s` : 'Unavailable';
+  const usageAvailable = telemetry != null && ['PROVIDER_REPORTED', 'ESTIMATED', 'MIXED'].includes(telemetry.token_usage_source ?? 'UNAVAILABLE');
+  const totalTokens = usageAvailable ? telemetry.total_tokens.toLocaleString() : 'Unavailable';
+  const promptTokens = usageAvailable ? telemetry.prompt_tokens.toLocaleString() : 'Unavailable';
+  const completionTokens = usageAvailable ? telemetry.completion_tokens.toLocaleString() : 'Unavailable';
+  const cost = telemetry?.estimated_cost_usd != null
     ? `$${telemetry.estimated_cost_usd.toFixed(6)} USD`
-    : '$0.000000 USD';
-  const model = telemetry?.model_used || 'gemini-3.1-flash-lite-preview';
+    : 'Unavailable';
+  const model = telemetry?.model_used || 'Unavailable';
 
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-3.5 shadow-md">
@@ -24,6 +25,7 @@ export const TelemetryCard: React.FC<TelemetryCardProps> = ({ telemetry }) => {
             <Activity className="w-3.5 h-3.5" />
           </div>
           <h3 className="text-xs font-bold text-white tracking-tight uppercase">Execution & Cost Telemetry</h3>
+          <span className="text-[10px] text-slate-400">Usage: {telemetry?.token_usage_source || 'UNAVAILABLE'} · cost estimate</span>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] font-mono text-pink-300 bg-pink-950/30 px-2 py-0.5 rounded border border-pink-900/40">
           <Cpu className="w-3 h-3 text-pink-400" />

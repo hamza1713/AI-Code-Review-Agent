@@ -3,9 +3,10 @@ Tests for Phase 2: Distributed Queue, Worker Leasing, Heartbeats, Exponential Ba
 """
 
 import time
-import threading
-import pytest
-from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
+
+from production_fixtures import active_claim
+
+from code_review_agent.webhook_queue import WebhookJobQueue
 
 
 def test_priority_ordering(tmp_path):
@@ -58,6 +59,7 @@ def test_worker_leasing_and_heartbeats(tmp_path):
         current_stage="SECURITY_SCAN",
         stage_progress=0.45,
         lease_duration=2.0,
+        claim_token=active_claim(queue, job_id),
     )
     assert success is True
 
@@ -103,7 +105,12 @@ def test_exponential_backoff_scheduling(tmp_path):
     assert c1["job_id"] == job_id
 
     # Fail attempt 1 with explicit base delay of 2.0s
-    queue.fail_job(job_id, "Rate limited by upstream API", base_delay=2.0)
+    queue.fail_job(
+        job_id,
+        "Rate limited by upstream API",
+        base_delay=2.0,
+        claim_token=active_claim(queue, job_id),
+    )
 
     # Verify status is RETRYING and scheduled_at is in the future
     job_record = queue.get_job(job_id)
@@ -153,7 +160,7 @@ def test_queue_metrics_aggregation(tmp_path):
     assert metrics_1["active_workers"] == 1
 
     # Complete j1
-    queue.complete_job(j1)
+    queue.complete_job(j1, claim_token=active_claim(queue, j1))
 
     # Cancel j2
     queue.cancel_job(j2)

@@ -1,0 +1,29 @@
+{
+  "id": "requests-7440",
+  "file": "cases/requests-7440/input.diff",
+  "sha256": "b3189c0b0e73ed8f3d1b3fbcd539b1906c4b36d12b1cb010a3eec513dafb28c2",
+  "source_repository": "psf/requests",
+  "base_sha": "5691f596134c2feb121e595c77a0178921fcce61",
+  "head_sha": "b0d3707b04c81186f83e2c7c14196a29c2397e3f",
+  "source_diff_url": "https://github.com/psf/requests/compare/5691f596134c2feb121e595c77a0178921fcce61...b0d3707b04c81186f83e2c7c14196a29c2397e3f.diff",
+  "source_url": "https://github.com/psf/requests/pull/7440",
+  "merged_at": "2026-05-13T19:17:24Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7440/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": "HISTORY.md",
+      "file": "cases/requests-7440/head/HISTORY.md",
+      "sha256": "e5895362836ed570ad97a296f325f2b71b56b621ccc6b725ccfde3f023e7b22b"
+    },
+    {
+      "path": "src/requests/__version__.py",
+      "file": "cases/requests-7440/head/src/requests/__version__.py",
+      "sha256": "48258dddf3888611721a8dd085e91a27cf12ef5ea882c1edc4dd216e4001a0d8"
+    }
+  ],
+  "input_snapshot_hash": "025edb8f0aadc9d17428904dec1a6469eda8ce2b73334d2e740ed914f2a8cecf",
+  "label_status": "UNREVIEWED"
+}

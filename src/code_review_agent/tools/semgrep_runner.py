@@ -5,16 +5,16 @@ and parses the structured JSON results into normalized SastFinding objects.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional
-import re
 
-from code_review_agent.models import SastFinding
-from code_review_agent.diff_parser import DiffParser
 from code_review_agent.config import logger
+from code_review_agent.diff_parser import DiffParser
+from code_review_agent.models import SastFinding
+from code_review_agent.path_validation import safe_diff_path
 
 
 class SemgrepRunner:
@@ -26,7 +26,9 @@ class SemgrepRunner:
         return shutil.which("semgrep") is not None
 
     @classmethod
-    def scan_diff(cls, raw_diff: str, config: str = "auto") -> List[SastFinding]:
+    def scan_diff(
+        cls, raw_diff: str, config: str = "auto", *, strict: bool = False
+    ) -> list[SastFinding]:
         """
         Scan added code in a git diff using Semgrep.
         Writes modified files to a temporary workspace and runs Semgrep against them.
@@ -42,7 +44,7 @@ class SemgrepRunner:
         if not parsed_pr.files:
             return []
 
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
 
         with tempfile.TemporaryDirectory(prefix="semgrep_scan_") as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -54,21 +56,25 @@ class SemgrepRunner:
                     continue
 
                 # Write patch or reconstructed file to temp directory
-                dest = tmp_path / target_rel
+                dest = safe_diff_path(tmp_path, target_rel)
                 dest.parent.mkdir(parents=True, exist_ok=True)
 
                 # Reconstruct added lines or write raw patch
                 added_lines = DiffParser.extract_added_lines_with_numbers(file_diff)
                 if added_lines:
                     # Write lines at their approximate line numbers
-                    max_line = max(l[0] for l in added_lines)
+                    max_line = max(line_item[0] for line_item in added_lines)
                     file_lines = ["\n"] * (max_line + 1)
                     for line_no, content in added_lines:
                         if line_no < len(file_lines):
                             file_lines[line_no] = content + "\n"
-                    dest.write_text("".join(file_lines), encoding="utf-8", errors="ignore")
+                    dest.write_text(
+                        "".join(file_lines), encoding="utf-8", errors="ignore"
+                    )
                 else:
-                    dest.write_text(file_diff.raw_patch, encoding="utf-8", errors="ignore")
+                    dest.write_text(
+                        file_diff.raw_patch, encoding="utf-8", errors="ignore"
+                    )
 
                 file_map[str(dest.resolve())] = target_rel
 
@@ -82,26 +88,36 @@ class SemgrepRunner:
                     "--quiet",
                     "--disable-version-check",
                     "--no-git-ignore",
-                    str(tmp_path)
+                    str(tmp_path),
                 ]
                 res = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    check=False
+                    cmd, capture_output=True, text=True, timeout=30, check=False
                 )
+                if strict:
+                    if res.returncode not in (0, 1):
+                        raise RuntimeError("TOOL_EXECUTION_FAILED")
+                    data = json.loads(res.stdout)
+                    if (
+                        not isinstance(data, dict)
+                        or "results" not in data
+                        or data.get("errors")
+                    ):
+                        raise ValueError("INVALID_OR_PARTIAL_TOOL_OUTPUT")
                 if res.stdout:
                     findings.extend(cls._parse_semgrep_json(res.stdout, file_map))
             except subprocess.TimeoutExpired:
+                if strict:
+                    raise
                 logger.warning("Semgrep scan timed out after 30 seconds.")
             except Exception as e:
+                if strict:
+                    raise
                 logger.warning(f"Error executing Semgrep CLI: {e}")
 
         return findings
 
     @classmethod
-    def scan_path(cls, path: str, config: str = "auto") -> List[SastFinding]:
+    def scan_path(cls, path: str, config: str = "auto") -> list[SastFinding]:
         """Scan a local directory or file path directly with Semgrep."""
         if not cls.is_available():
             logger.debug("Semgrep CLI is not available on PATH.")
@@ -119,17 +135,16 @@ class SemgrepRunner:
                 f"--config={config}",
                 "--quiet",
                 "--disable-version-check",
-                str(target)
+                str(target),
             ]
             res = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=45,
-                check=False
+                cmd, capture_output=True, text=True, timeout=45, check=False
             )
             if res.stdout:
-                return cls._parse_semgrep_json(res.stdout, base_path=str(target if target.is_dir() else target.parent))
+                return cls._parse_semgrep_json(
+                    res.stdout,
+                    base_path=str(target if target.is_dir() else target.parent),
+                )
         except Exception as e:
             logger.warning(f"Semgrep path scan failed: {e}")
 
@@ -139,11 +154,11 @@ class SemgrepRunner:
     def _parse_semgrep_json(
         cls,
         json_output: str,
-        file_map: Optional[dict] = None,
-        base_path: Optional[str] = None
-    ) -> List[SastFinding]:
+        file_map: dict | None = None,
+        base_path: str | None = None,
+    ) -> list[SastFinding]:
         """Convert raw Semgrep JSON output into standard SastFinding objects."""
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
         try:
             data = json.loads(json_output)
             results = data.get("results", [])
@@ -167,9 +182,16 @@ class SemgrepRunner:
                 cwe_raw = metadata.get("cwe", "CWE-Unknown")
                 cwe_val = cwe_raw[0] if isinstance(cwe_raw, list) else str(cwe_raw)
                 cwe_match = re.search(r"CWE-\d+", cwe_val, re.IGNORECASE)
-                cwe = cwe_match.group(0).upper() if cwe_match else (cwe_val if cwe_val.startswith("CWE-") else "CWE-General")
+                cwe = (
+                    cwe_match.group(0).upper()
+                    if cwe_match
+                    else (cwe_val if cwe_val.startswith("CWE-") else "CWE-General")
+                )
 
-                fix = extra.get("fix", "") or metadata.get("fix_recommendation", "Review and remediate pattern according to OWASP guidelines.")
+                fix = extra.get("fix", "") or metadata.get(
+                    "fix_recommendation",
+                    "Review and remediate pattern according to OWASP guidelines.",
+                )
                 lines = extra.get("lines", "")
 
                 raw_path = item.get("path", "")
@@ -184,13 +206,19 @@ class SemgrepRunner:
                         norm_raw = raw_path.replace("\\", "/")
                         for k, v in file_map.items():
                             norm_k = k.replace("\\", "/")
-                            if norm_raw.endswith(norm_k) or norm_k.endswith(norm_raw) or Path(raw_path).name == Path(k).name:
+                            if (
+                                norm_raw.endswith(norm_k)
+                                or norm_k.endswith(norm_raw)
+                                or Path(raw_path).name == Path(k).name
+                            ):
                                 rel_file = v
                                 break
                 if not rel_file:
                     if base_path:
                         try:
-                            rel_file = str(Path(abs_file).relative_to(base_path)).replace("\\", "/")
+                            rel_file = str(
+                                Path(abs_file).relative_to(base_path)
+                            ).replace("\\", "/")
                         except ValueError:
                             rel_file = raw_path
                     else:
@@ -208,7 +236,7 @@ class SemgrepRunner:
                         line_number=line_start,
                         snippet=lines.strip() if lines else "",
                         fix_recommendation=fix,
-                        analyzer_source="semgrep"
+                        analyzer_source="semgrep",
                     )
                 )
         except Exception as e:

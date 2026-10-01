@@ -1,0 +1,36 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index a5fa63f14e..232b144a5c 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -26,6 +26,8 @@ Unreleased
+     such as HTMX. :issue:`5895`
+ -   ``provide_automatic_options=True`` can be used to enable it for a view when
+     it's disabled in config. Previously, only disabling worked. :issue:`5916`
++-   ``Flask.select_jinja_autoescape`` uses case-insensitive comparison instead
++    of only lower case file extensions. :pr:`6012`
+ 
+ 
+ Version 3.1.3
+diff --git a/src/flask/sansio/app.py b/src/flask/sansio/app.py
+index a734793e40..74c5b3232f 100644
+--- a/src/flask/sansio/app.py
++++ b/src/flask/sansio/app.py
+@@ -534,6 +534,9 @@ def select_jinja_autoescape(self, filename: str | None) -> bool:
+         """Returns ``True`` if autoescaping should be active for the given
+         template name. If no template name is given, returns `True`.
+ 
++        .. versionchanged:: 3.2
++            Use case-insensitive comparison instead of only lower case.
++
+         .. versionchanged:: 2.2
+             Autoescaping is now enabled by default for ``.svg`` files.
+ 
+@@ -541,7 +544,7 @@ def select_jinja_autoescape(self, filename: str | None) -> bool:
+         """
+         if filename is None:
+             return True
+-        return filename.endswith((".html", ".htm", ".xml", ".xhtml", ".svg"))
++        return filename.lower().endswith((".html", ".htm", ".xml", ".xhtml", ".svg"))
+ 
+     @property
+     def debug(self) -> bool:

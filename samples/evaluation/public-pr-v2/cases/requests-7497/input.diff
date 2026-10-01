@@ -1,0 +1,271 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index a09fda1b70..e7a1e015e0 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -118,3 +118,8 @@ testpaths = ["tests"]
+ [tool.pyright]
+ include = ["src/requests"]
+ typeCheckingMode = "strict"
++# linting rules unrelated to type checking
++reportPrivateUsage = false
++reportPrivateImportUsage = false
++reportUnnecessaryIsInstance = false
++reportUnusedImport = false  # duplicate of Ruff's F401 rule
+diff --git a/src/requests/__init__.py b/src/requests/__init__.py
+index 5c65ff8201..1093ff8bf6 100644
+--- a/src/requests/__init__.py
++++ b/src/requests/__init__.py
+@@ -111,13 +111,13 @@ def _check_cryptography(cryptography_version: str) -> None:
+ # Check imported dependencies for compatibility.
+ try:
+     check_compatibility(
+-        urllib3.__version__,  # type: ignore[reportPrivateImportUsage]
++        urllib3.__version__,
+         chardet_version,
+         charset_normalizer_version,
+     )
+ except (AssertionError, ValueError):
+     warnings.warn(
+-        f"urllib3 ({urllib3.__version__}) or chardet "  # type: ignore[reportPrivateImportUsage]
++        f"urllib3 ({urllib3.__version__}) or chardet "
+         f"({chardet_version})/charset_normalizer ({charset_normalizer_version}) "
+         "doesn't match a supported version!",
+         RequestsDependencyWarning,
+diff --git a/src/requests/adapters.py b/src/requests/adapters.py
+index 40fe8a6d5a..79ed426566 100644
+--- a/src/requests/adapters.py
++++ b/src/requests/adapters.py
+@@ -9,7 +9,7 @@
+ from __future__ import annotations
+ 
+ import os.path
+-import socket  # noqa: F401  # type: ignore[reportUnusedImport]
++import socket  # noqa: F401
+ import typing
+ import warnings
+ from typing import Any
+@@ -33,7 +33,7 @@
+ from urllib3.util import parse_url
+ from urllib3.util.retry import Retry
+ 
+-from .auth import _basic_auth_str  # type: ignore[reportPrivateUsage]
++from .auth import _basic_auth_str
+ from .compat import basestring, urlparse
+ from .cookies import extract_cookies_to_jar
+ from .exceptions import (
+diff --git a/src/requests/auth.py b/src/requests/auth.py
+index 2af481dbf5..aff9b5ba2a 100644
+--- a/src/requests/auth.py
++++ b/src/requests/auth.py
+@@ -41,7 +41,7 @@ def _basic_auth_str(username: bytes | str, password: bytes | str) -> str:
+     #
+     # These are here solely to maintain backwards compatibility
+     # for things like ints. This will be removed in 3.0.0.
+-    if not isinstance(username, basestring):  # type: ignore[reportUnnecessaryIsInstance]  # runtime guard for non-str/bytes
++    if not isinstance(username, basestring):  # runtime guard for non-str/bytes
+         warnings.warn(
+             "Non-string usernames will no longer be supported in Requests "
+             f"3.0.0. Please convert the object you've passed in ({username!r}) to "
+@@ -51,7 +51,7 @@ def _basic_auth_str(username: bytes | str, password: bytes | str) -> str:
+         )
+         username = str(username)
+ 
+-    if not isinstance(password, basestring):  # type: ignore[reportUnnecessaryIsInstance]  # runtime guard for non-str/bytes
++    if not isinstance(password, basestring):  # runtime guard for non-str/bytes
+         warnings.warn(
+             "Non-string passwords will no longer be supported in Requests "
+             f"3.0.0. Please convert the object you've passed in ({type(password)!r}) to "
+@@ -300,7 +300,7 @@ def handle_401(self, r: Response, **kwargs: Any) -> Response:
+             r.content
+             r.close()
+             prep = r.request.copy()
+-            cookie_jar = cast("CookieJar", prep._cookies)  # type: ignore[reportPrivateUsage]
++            cookie_jar = cast("CookieJar", prep._cookies)
+             extract_cookies_to_jar(cookie_jar, r.request, r.raw)
+             prep.prepare_cookies(cookie_jar)
+ 
+diff --git a/src/requests/compat.py b/src/requests/compat.py
+index 7c8e813ede..6f5b0dd239 100644
+--- a/src/requests/compat.py
++++ b/src/requests/compat.py
+@@ -19,9 +19,7 @@
+ # -------
+ # urllib3
+ # -------
+-from urllib3 import (
+-    __version__ as urllib3_version,  # type: ignore[reportPrivateImportUsage]
+-)
++from urllib3 import __version__ as urllib3_version
+ 
+ # Detect which major version of urllib3 is being used.
+ try:
+diff --git a/src/requests/cookies.py b/src/requests/cookies.py
+index 2e3fc21509..24dd9a7829 100644
+--- a/src/requests/cookies.py
++++ b/src/requests/cookies.py
+@@ -610,7 +610,7 @@ def merge_cookies(
+     :param cookies: Dictionary or CookieJar object to be added.
+     :rtype: CookieJar
+     """
+-    if not isinstance(cookiejar, cookielib.CookieJar):  # type: ignore[reportUnnecessaryIsInstance]  # runtime guard
++    if not isinstance(cookiejar, cookielib.CookieJar):  # runtime guard
+         raise ValueError("You can only merge into CookieJar")
+ 
+     if isinstance(cookies, dict):
+diff --git a/src/requests/help.py b/src/requests/help.py
+index f1a62c3aee..f0fced2534 100644
+--- a/src/requests/help.py
++++ b/src/requests/help.py
+@@ -78,7 +78,7 @@ def info() -> dict[str, Any]:
+         }
+ 
+     implementation_info = _implementation()
+-    urllib3_info = {"version": urllib3.__version__}  # type: ignore[reportPrivateImportUsage]
++    urllib3_info = {"version": urllib3.__version__}
+     charset_normalizer_info = {"version": None}
+     chardet_info: dict[str, str | None] = {"version": None}
+     if charset_normalizer:
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 7aae7a0e69..29355eb7dc 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -12,7 +12,7 @@
+ # Import encoding now, to avoid implicit import later.
+ # Implicit import within threads may cause LookupError when standard library is in a ZIP,
+ # such as in Embedded Python. See https://github.com/psf/requests/issues/3578.
+-import encodings.idna  # noqa: F401  # type: ignore[reportUnusedImport]
++import encodings.idna  # noqa: F401
+ from collections.abc import Callable, Generator, Iterable, Iterator, Mapping
+ from io import UnsupportedOperation
+ from typing import (
+@@ -50,7 +50,7 @@
+ )
+ from .compat import json as complexjson
+ from .cookies import (
+-    _copy_cookie_jar,  # type: ignore[reportPrivateUsage]
++    _copy_cookie_jar,
+     cookiejar_from_dict,
+     get_cookie_header,
+ )
+@@ -236,7 +236,7 @@ def _encode_files(
+ 
+             if isinstance(fp, (str, bytes, bytearray)):
+                 fdata = fp
+-            elif isinstance(fp, _SupportsRead):  # type: ignore[reportUnnecessaryIsInstance]  # defensive check for untyped callers
++            elif isinstance(fp, _SupportsRead):  # defensive check for untyped callers
+                 fdata = fp.read()
+             elif fp is None:  # defensive check for untyped callers
+                 continue
+@@ -266,7 +266,9 @@ def register_hook(
+         if isinstance(hook, Callable):
+             self.hooks[event].append(hook)
+         elif hasattr(hook, "__iter__"):
+-            self.hooks[event].extend(h for h in hook if isinstance(h, Callable))  # type: ignore[reportUnnecessaryIsInstance]  # defensive runtime filter
++            self.hooks[event].extend(
++                h for h in hook if isinstance(h, Callable)
++            )  # defensive runtime filter
+ 
+     def deregister_hook(self, event: str, hook: _t.HookType) -> bool:
+         """Deregister a previously registered hook.
+@@ -955,7 +957,9 @@ def generate() -> Generator[bytes, None, None]:
+ 
+         if self._content_consumed and isinstance(self._content, bool):
+             raise StreamConsumedError()
+-        elif chunk_size is not None and not isinstance(chunk_size, int):  # type: ignore[reportUnnecessaryIsInstance]  # runtime guard for untyped callers
++        elif chunk_size is not None and not isinstance(
++            chunk_size, int
++        ):  # runtime guard for untyped callers
+             raise TypeError(
+                 f"chunk_size must be an int, it is instead a {type(chunk_size)}."
+             )
+diff --git a/src/requests/sessions.py b/src/requests/sessions.py
+index c2ab37391d..d11355be66 100644
+--- a/src/requests/sessions.py
++++ b/src/requests/sessions.py
+@@ -19,7 +19,7 @@
+ from ._internal_utils import to_native_string
+ from ._types import is_prepared as _is_prepared
+ from .adapters import HTTPAdapter
+-from .auth import _basic_auth_str  # type: ignore[reportPrivateUsage]
++from .auth import _basic_auth_str
+ from .compat import cookielib, urljoin, urlparse
+ from .cookies import (
+     RequestsCookieJar,
+@@ -38,7 +38,7 @@
+ # formerly defined here, reexposed here for backward compatibility
+ from .models import (  # noqa: F401
+     DEFAULT_REDIRECT_LIMIT,
+-    REDIRECT_STATI,  # type: ignore[reportUnusedImport]
++    REDIRECT_STATI,
+     PreparedRequest,
+     Request,
+     Response,
+@@ -54,7 +54,7 @@
+     requote_uri,
+     resolve_proxies,
+     rewind_body,
+-    should_bypass_proxies,  # type: ignore[reportUnusedImport]  # re-export for external consumers
++    should_bypass_proxies,  # re-export for external consumers
+     to_key_val_list,
+ )
+ 
+@@ -263,7 +263,7 @@ def resolve_redirects(
+             # Extract any cookies sent on the response to the cookiejar
+             # in the new request. Because we've mutated our copied prepared
+             # request, use the old one that we haven't yet touched.
+-            cookie_jar = cast("CookieJar", prepared_request._cookies)  # type: ignore[reportPrivateUsage]
++            cookie_jar = cast("CookieJar", prepared_request._cookies)
+             extract_cookies_to_jar(cookie_jar, req, resp.raw)
+             merge_cookies(cookie_jar, self.cookies)
+             prepared_request.prepare_cookies(cookie_jar)
+@@ -275,7 +275,7 @@ def resolve_redirects(
+             # A failed tell() sets `_body_position` to `object()`. This non-None
+             # value ensures `rewindable` will be True, allowing us to raise an
+             # UnrewindableBodyError, instead of hanging the connection.
+-            rewindable = prepared_request._body_position is not None and (  # type: ignore[reportPrivateUsage]
++            rewindable = prepared_request._body_position is not None and (
+                 "Content-Length" in headers or "Transfer-Encoding" in headers
+             )
+ 
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 120336ddc6..fff6edf4be 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -37,10 +37,10 @@
+ 
+ # to_native_string is unused here, but imported here for backwards compatibility
+ from ._internal_utils import (  # noqa: F401
+-    _HEADER_VALIDATORS_BYTE,  # type: ignore[reportPrivateUsage]
+-    _HEADER_VALIDATORS_STR,  # type: ignore[reportPrivateUsage]
+-    HEADER_VALIDATORS,  # type: ignore[reportUnusedImport]
+-    to_native_string,  # type: ignore[reportUnusedImport]
++    _HEADER_VALIDATORS_BYTE,
++    _HEADER_VALIDATORS_STR,
++    HEADER_VALIDATORS,
++    to_native_string,
+ )
+ from ._types import SupportsItems as _SupportsItems
+ from .compat import (
+@@ -1102,7 +1102,7 @@ def _validate_header_part(
+ ) -> None:
+     if isinstance(header_part, str):
+         validator = _HEADER_VALIDATORS_STR[header_validator_index]
+-    elif isinstance(header_part, bytes):  # type: ignore[reportUnnecessaryIsInstance]
++    elif isinstance(header_part, bytes):
+         # runtime guard for non-str/bytes input
+         validator = _HEADER_VALIDATORS_BYTE[header_validator_index]
+     else:
+@@ -1142,11 +1142,11 @@ def rewind_body(prepared_request: PreparedRequest) -> None:
+     """
+     body_seek = getattr(prepared_request.body, "seek", None)
+     if body_seek is not None and isinstance(
+-        prepared_request._body_position,  # type: ignore[reportPrivateUsage]
++        prepared_request._body_position,
+         integer_types,
+     ):
+         try:
+-            body_seek(prepared_request._body_position)  # type: ignore[reportPrivateUsage]
++            body_seek(prepared_request._body_position)
+         except OSError:
+             raise UnrewindableBodyError(
+                 "An error occurred when rewinding request body for redirect."

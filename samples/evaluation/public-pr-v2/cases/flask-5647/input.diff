@@ -1,0 +1,34 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 139a343c51..14c6a6ac17 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -3,6 +3,8 @@ Version 3.1.1
+ 
+ Unreleased
+ 
++-   Fix type hint for `cli_runner.invoke`. :issue:`5645`
++
+ 
+ Version 3.1.0
+ -------------
+diff --git a/src/flask/testing.py b/src/flask/testing.py
+index 602b773b5b..a62c4836dc 100644
+--- a/src/flask/testing.py
++++ b/src/flask/testing.py
+@@ -10,6 +10,7 @@
+ 
+ import werkzeug.test
+ from click.testing import CliRunner
++from click.testing import Result
+ from werkzeug.test import Client
+ from werkzeug.wrappers import Request as BaseRequest
+ 
+@@ -273,7 +274,7 @@ def __init__(self, app: Flask, **kwargs: t.Any) -> None:
+ 
+     def invoke(  # type: ignore
+         self, cli: t.Any = None, args: t.Any = None, **kwargs: t.Any
+-    ) -> t.Any:
++    ) -> Result:
+         """Invokes a CLI command in an isolated environment. See
+         :meth:`CliRunner.invoke <click.testing.CliRunner.invoke>` for
+         full method documentation. See :ref:`testing-cli` for examples.

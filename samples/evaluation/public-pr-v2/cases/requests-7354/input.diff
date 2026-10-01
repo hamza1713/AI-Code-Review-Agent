@@ -1,0 +1,465 @@
+diff --git a/docs/_static/custom.css b/docs/_static/custom.css
+index 465e8a9a60..52824dbe8d 100644
+--- a/docs/_static/custom.css
++++ b/docs/_static/custom.css
+@@ -1,177 +1,13 @@
+-body > div.document > div.sphinxsidebar > div > form > table > tbody > tr:nth-child(2) > td > select {
+-  width: 100%!important;
+-}
+-
+-#python27 > a {
+-  color: white;
+-}
+-
+-/* Carbon by BuySellAds */
+-#carbonads {
+-  display: block;
+-  overflow: hidden;
+-  margin: 1.5em 0 2em;
+-  padding: 1em;
+-  border: solid 1px #cccccc;
+-  border-radius: 2px;
+-  background-color: #eeeeee;
+-  text-align: center;
+-  line-height: 1.5;
+-}
+-
+-#carbonads a {
+-  border-bottom: 0;
+-}
+-
+-#carbonads span {
+-  display: block;
+-  overflow: hidden;
+-}
+-
+-.carbon-img {
+-  display: block;
+-  margin: 0 auto 1em;
+-  text-align: center;
+-}
+-
+-.carbon-text {
+-  display: block;
+-  margin-bottom: 1em;
+-}
+-
+-.carbon-poweredby {
+-  display: block;
+-  text-transform: uppercase;
+-  letter-spacing: 1px;
+-  font-size: 10px;
+-  line-height: 1;
+-}
+-
+-
+-/* Native CPC by BuySellAds */
+-
+-#native-ribbon #_custom_ {
+-  position: fixed;
+-  right: 0;
+-  bottom: 0;
+-  left: 0;
+-  box-shadow: 0 -1px 4px 1px hsla(0, 0%, 0%, .15);
+-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+-    Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
+-  transition: all .25s ease-in-out;
+-  transform: translateY(calc(100% - 35px));
+-
+-  flex-flow: column nowrap;
+-}
+-
+-#native-ribbon #_custom_:hover {
+-  transform: translateY(0);
+-}
+-
+-.native-img {
+-  margin-right: 20px;
+-  max-height: 50px;
+-  border-radius: 3px;
+-}
+-
+-.native-sponsor {
+-  margin: 10px 20px;
+-  text-align: center;
+-  text-transform: uppercase;
+-  letter-spacing: .5px;
+-  font-size: 12px;
+-  transition: all .3s ease-in-out;
+-  transform-origin: left;
+-}
+-
+-#native-ribbon #_custom_:hover .native-sponsor {
+-  margin: 0 20px;
+-  opacity: 0;
+-  transform: scaleY(0);
+-}
+-
+-.native-flex {
+-  display: flex;
+-  padding: 10px 20px 25px;
+-  text-decoration: none;
+-
+-  flex-flow: row nowrap;
+-  justify-content: center;
+-  align-items: center;
+-}
+-
+-.native-main {
+-  display: flex;
+-
+-  flex-flow: row nowrap;
+-  align-items: center;
+-}
+-
+-.native-details {
+-  display: flex;
+-  margin-right: 30px;
+-
+-  flex-flow: column nowrap;
+-}
+-
+-.native-company {
+-  margin-bottom: 4px;
+-  text-transform: uppercase;
+-  letter-spacing: 2px;
+-  font-size: 10px;
+-}
+-
+-.native-desc {
+-  letter-spacing: 1px;
+-  font-weight: 300;
+-  font-size: 14px;
+-  line-height: 1.4;
+-}
+-
+-.native-cta {
+-  padding: 10px 14px;
+-  border-radius: 3px;
+-  box-shadow: 0 6px 13px 0 hsla(0, 0%, 0%, .15);
+-  text-transform: uppercase;
+-  white-space: nowrap;
+-  letter-spacing: 1px;
+-  font-weight: 400;
+-  font-size: 12px;
+-  transition: all .3s ease-in-out;
+-  transform: translateY(-1px);
+-}
+-
+-.native-cta:hover {
+-  box-shadow: none;
+-  transform: translateY(1px);
+-}
+-
+-@media only screen and (min-width: 320px) and (max-width: 759px) {
+-  .native-flex {
+-    padding: 5px 5px 15px;
+-    flex-direction: column;
+-
+-    flex-wrap: wrap;
+-  }
+-
+-  .native-img {
+-    margin: 0;
+-    display: none;
+-  }
++img.logo {margin-left: -20px!important;}
+ 
+-  .native-details {
+-    margin: 0;
+-  }
++div#searchbox h3 {text-transform: capitalize;}
+ 
+-  .native-main {
+-    flex-direction: column;
+-    text-align: left;
++div.document {width: 1008px;}
+ 
+-    flex-wrap: wrap;
+-    align-content: center;
+-  }
++div.highlight pre {padding: 11px 14px;}
+ 
+-  .native-cta {
+-    display: none;
+-  }
++@media screen and (max-width: 1008px) {
++  div.sphinxsidebar {display: none;}
++  div.document {width: 100%!important;}
++  div.highlight pre {margin-right: -30px;}
+ }
+diff --git a/docs/_templates/hacks.html b/docs/_templates/hacks.html
+deleted file mode 100644
+index eca5dffcb5..0000000000
+--- a/docs/_templates/hacks.html
++++ /dev/null
+@@ -1,80 +0,0 @@
+-<!-- Alabaster (krTheme++) Hacks -->
+-
+-<!-- CSS Adjustments (I'm very picky.) -->
+-<style type="text/css">
+-
+-  /* Rezzy requires precise alignment. */
+-  img.logo {margin-left: -20px!important;}
+-
+-  /* "Quick Search" should be capitalized. */
+-  div#searchbox h3 {text-transform: capitalize;}
+-
+-  /* Make the document a little wider, less code is cut-off. */
+-  div.document {width: 1008px;}
+-
+-  /* Much-improved spacing around code blocks. */
+-  div.highlight pre {padding: 11px 14px;}
+-
+-  /* Remain Responsive! */
+-  @media screen and (max-width: 1008px) {
+-    div.sphinxsidebar {display: none;}
+-    div.document {width: 100%!important;}
+-
+-    /* Have code blocks escape the document right-margin. */
+-    div.highlight pre {margin-right: -30px;}
+-  }
+-</style>
+-
+-<!-- Native CPC by BuySellAds -->
+-
+-<script type="text/javascript" src="//m.servedby-buysellads.com/monetization.js"></script>
+-
+-<div id="native-ribbon">
+-</div>
+-
+-<script>
+-_bsa.init('custom', 'CK7D62JU', 'placement:pythonrequestsorg',
+-    {
+-      target: '#native-ribbon',
+-      template: `
+-<div class="native-sponsor">Sponsored by ##company## — Learn More</div>
+-  <a href="##link##" class="native-flex">
+-    <style>
+-    #native-ribbon #_custom_ {
+-      background: linear-gradient(-30deg, ##backgroundColor##E5, ##backgroundColor##E5 45%, ##backgroundColor## 45%) #fff;
+-    }
+-
+-    .native-details,
+-    .native-sponsor,
+-    .native-bsa {
+-      color: ##textColor## !important;
+-    }
+-
+-    .native-details:hover {
+-      color: ##textColorHover## !important;
+-    }
+-
+-    .native-cta {
+-      color: ##ctaTextColor##;
+-      background-color: ##ctaBackgroundColor##;
+-    }
+-
+-    .native-cta:hover {
+-      color: ##ctaTextColorHover##;
+-      background-color: ##ctaBackgroundColorHover##;
+-    }
+-    </style>
+-    <div class="native-main">
+-      <img class="native-img" src="##logo##">
+-      <div class="native-details">
+-        <span class="native-company">##title##</span>
+-        <span class="native-desc">##description##</span>
+-      </div>
+-    </div>
+-    <span class="native-cta">##callToAction##</span>
+-  </a>
+-</div>
+-`
+-    }
+-  );
+-</script>
+diff --git a/docs/_templates/sidebar.html b/docs/_templates/sidebar.html
+new file mode 100644
+index 0000000000..3969105c9c
+--- /dev/null
++++ b/docs/_templates/sidebar.html
+@@ -0,0 +1,33 @@
++<p class="logo">
++  <a href="{{ pathto(root_doc) }}">
++    <img class="logo" src="{{ pathto('_static/requests-sidebar.png', 1) }}" alt="{{ _('Requests logo') }}" />
++  </a>
++</p>
++
++<p>
++  <iframe src="https://ghbtns.com/github-btn.html?user=psf&repo=requests&type=watch&count=true&size=large"
++    allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
++</p>
++
++<p>
++  {{ _('Requests is an elegant and simple HTTP library for Python, built for human beings.') }}
++</p>
++
++<h3>{{ _('Useful Links') }}</h3>
++<ul>
++  <li><a href="{{ pathto('user/quickstart') }}">{{ _('Quickstart') }}</a></li>
++  <li><a href="{{ pathto('user/advanced') }}">{{ _('Advanced Usage') }}</a></li>
++  <li><a href="{{ pathto('api') }}">{{ _('API Reference') }}</a></li>
++  <li><a href="{{ pathto('community/updates') + '#release-history' }}">{{ _('Release History') }}</a></li>
++  <li><a href="{{ pathto('dev/contributing') }}">{{ _('Contributors Guide') }}</a></li>
++
++  <p></p>
++
++  <li><a href="{{ pathto('community/recommended') }}">{{ _('Recommended Packages and Extensions') }}</a></li>
++
++  <p></p>
++
++  <li><a href="https://github.com/psf/requests">{{ _('Requests @ GitHub') }}</a></li>
++  <li><a href="https://pypi.org/project/requests/">{{ _('Requests @ PyPI') }}</a></li>
++  <li><a href="https://github.com/psf/requests/issues">{{ _('Issue Tracker') }}</a></li>
++</ul>
+diff --git a/docs/_templates/sidebarintro.html b/docs/_templates/sidebarintro.html
+deleted file mode 100644
+index 607bf92c4e..0000000000
+--- a/docs/_templates/sidebarintro.html
++++ /dev/null
+@@ -1,37 +0,0 @@
+-<p class="logo">
+-  <a href="{{ pathto(master_doc) }}">
+-    <img class="logo" src="{{ pathto('_static/requests-sidebar.png', 1) }}" alt="Requests logo" />
+-  </a>
+-</p>
+-
+-<p>
+-  <iframe src="https://ghbtns.com/github-btn.html?user=psf&repo=requests&type=watch&count=true&size=large"
+-    allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+-</p>
+-
+-<p>
+-  Requests is an elegant and simple HTTP library for Python, built for
+-  human beings.
+-</p>
+-
+-<h3>Useful Links</h3>
+-<ul>
+-  <li><a href="{{ pathto('user/quickstart') }}">Quickstart</a></li>
+-  <li><a href="{{ pathto('user/advanced') }}">Advanced Usage</a></li>
+-  <li><a href="{{ pathto('api') }}">API Reference</a></li>
+-  <li><a href="{{ pathto('community/updates') + '#release-history' }}">Release History</a></li>
+-  <li><a href="{{ pathto('dev/contributing') }}">Contributors Guide</a></li>
+-
+-  <p></p>
+-
+-  <li><a href="{{ pathto('community/recommended') }}">Recommended Packages and Extensions</a></li>
+-
+-  <p></p>
+-
+-  <li><a href="https://github.com/psf/requests">Requests @ GitHub</a></li>
+-  <li><a href="https://pypi.org/project/requests/">Requests @ PyPI</a></li>
+-  <li><a href="https://github.com/psf/requests/issues">Issue Tracker</a></li>
+-</ul>
+-
+-<div id="native-ribbon">
+-</div>
+diff --git a/docs/_templates/sidebarlogo.html b/docs/_templates/sidebarlogo.html
+deleted file mode 100644
+index 71eb82e726..0000000000
+--- a/docs/_templates/sidebarlogo.html
++++ /dev/null
+@@ -1,30 +0,0 @@
+-<p>
+-  <iframe src="https://ghbtns.com/github-btn.html?user=psf&repo=requests&type=watch&count=true&size=large"
+-    allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+-</p>
+-
+-<p>
+-  Requests is an elegant and simple HTTP library for Python, built for
+-  human beings. You are currently looking at the documentation of the
+-  development release.
+-</p>
+-
+-<h3>Useful Links</h3>
+-<ul>
+-  <li><a href="{{ pathto('user/quickstart') }}">Quickstart</a></li>
+-  <li><a href="{{ pathto('user/advanced') }}">Advanced Usage</a></li>
+-  <li><a href="{{ pathto('api') }}">API Reference</a></li>
+-  <li><a href="{{ pathto('community/updates') + '#release-history' }}">Release History</a></li>
+-  <li><a href="{{ pathto('dev/contributing') }}">Contributors Guide</a></li>
+-
+-  <p></p>
+-
+-  <li><a href="{{ pathto('community/recommended') }}">Recommended Packages and Extensions</a></li>
+-
+-  <p></p>
+-
+-  <li><a href="https://github.com/psf/requests">Requests @ GitHub</a></li>
+-  <li><a href="https://pypi.org/project/requests/">Requests @ PyPI</a></li>
+-  <li><a href="https://github.com/psf/requests/issues">Issue Tracker</a></li>
+-</ul>
+-
+diff --git a/docs/conf.py b/docs/conf.py
+index 9b81db0810..fa15d5b449 100644
+--- a/docs/conf.py
++++ b/docs/conf.py
+@@ -54,11 +54,11 @@
+ # source_encoding = 'utf-8-sig'
+ 
+ # The master toctree document.
+-master_doc = "index"
++root_doc = "index"
+ 
+ # General information about the project.
+ project = u"Requests"
+-copyright = u'MMXVIX. A Kenneth Reitz Project'
++copyright = u"Kenneth Reitz and contributors"
+ author = u"Kenneth Reitz"
+ 
+ # The version info for the project you're documenting, acts as replacement for
+@@ -126,7 +126,7 @@
+ # documentation.
+ html_theme_options = {
+     "show_powered_by": False,
+-    "github_user": "requests",
++    "github_user": "psf",
+     "github_repo": "requests",
+     "github_banner": True,
+     "show_related": False,
+@@ -172,14 +172,13 @@
+ 
+ # Custom sidebar templates, maps document names to template names.
+ html_sidebars = {
+-    "index": ["sidebarintro.html", "sourcelink.html", "searchbox.html", "hacks.html"],
++    "index": ["sidebar.html", "sourcelink.html", "searchbox.html"],
+     "**": [
+-        "sidebarlogo.html",
++        "sidebar.html",
+         "localtoc.html",
+         "relations.html",
+         "sourcelink.html",
+         "searchbox.html",
+-        "hacks.html",
+     ],
+ }
+ 
+@@ -247,7 +246,7 @@
+ # (source start file, target name, title,
+ #  author, documentclass [howto, manual, or own class]).
+ latex_documents = [
+-    (master_doc, "Requests.tex", u"Requests Documentation", u"Kenneth Reitz", "manual")
++    (root_doc, "Requests.tex", u"Requests Documentation", u"Kenneth Reitz", "manual")
+ ]
+ 
+ # The name of an image file (relative to this directory) to place at the top of
+@@ -275,7 +274,7 @@
+ 
+ # One entry per manual page. List of tuples
+ # (source start file, name, description, authors, manual section).
+-man_pages = [(master_doc, "requests", u"Requests Documentation", [author], 1)]
++man_pages = [(root_doc, "requests", u"Requests Documentation", [author], 1)]
+ 
+ # If true, show URL addresses after external links.
+ # man_show_urls = False
+@@ -288,7 +287,7 @@
+ #  dir menu entry, description, category)
+ texinfo_documents = [
+     (
+-        master_doc,
++        root_doc,
+         "Requests",
+         u"Requests Documentation",
+         author,

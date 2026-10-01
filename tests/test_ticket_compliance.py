@@ -4,11 +4,12 @@ Unit tests for TicketParser, TicketFetcher, IntentComplianceEngine, and /ticket 
 
 from unittest.mock import MagicMock, patch
 
-from code_review_agent.compliance.ticket_parser import TicketParser
-from code_review_agent.compliance.ticket_fetcher import TicketFetcher, TicketDetails
-from code_review_agent.compliance.intent_engine import IntentComplianceEngine
-from code_review_agent.bot.command_router import CommandRouter
+import pytest
 
+from code_review_agent.bot.command_router import CommandRouter
+from code_review_agent.compliance.intent_engine import IntentComplianceEngine
+from code_review_agent.compliance.ticket_fetcher import TicketDetails, TicketFetcher
+from code_review_agent.compliance.ticket_parser import TicketParser
 
 SAMPLE_AUTH_DIFF = """diff --git a/app/auth.py b/app/auth.py
 --- a/app/auth.py
@@ -57,7 +58,9 @@ class TestTicketParser:
 
     def test_extract_from_branch_name(self):
         branch = "feature/PROJ-99-secure-tokens"
-        refs = TicketParser.extract_ticket_references(title="Update tokens", body="", branch=branch)
+        refs = TicketParser.extract_ticket_references(
+            title="Update tokens", body="", branch=branch
+        )
         ids = [r.ticket_id for r in refs]
         assert "PROJ-99" in ids
 
@@ -121,13 +124,11 @@ class TestTicketFetcher:
             "title": "Secure Password Hashing",
             "body": "- [ ] Use bcrypt for password hashing\n- [ ] Store salt with password",
             "state": "open",
-            "html_url": "https://github.com/org/repo/issues/42"
+            "html_url": "https://github.com/org/repo/issues/42",
         }
         refs = TicketParser.extract_ticket_references(title="Fixes #42", body="")
         details = TicketFetcher.fetch_ticket(
-            ticket_ref=refs[0],
-            repo_full_name="org/repo",
-            github_client=mock_client
+            ticket_ref=refs[0], repo_full_name="org/repo", github_client=mock_client
         )
         assert details.ticket_id == "#42"
         assert details.title == "Secure Password Hashing"
@@ -147,9 +148,11 @@ class TestIntentComplianceEngine:
         ticket = TicketDetails(
             ticket_id="#42",
             title="Password Hashing with Bcrypt",
-            acceptance_criteria=["Use bcrypt to hash passwords"]
+            acceptance_criteria=["Use bcrypt to hash passwords"],
         )
-        report = IntentComplianceEngine.evaluate(ticket=ticket, pr_diff=SAMPLE_AUTH_DIFF)
+        report = IntentComplianceEngine.evaluate(
+            ticket=ticket, pr_diff=SAMPLE_AUTH_DIFF
+        )
         assert report.status in ("COMPLIANT", "PARTIALLY_COMPLIANT")
         assert len(report.criteria_evaluations) == 1
         assert report.criteria_evaluations[0].status == "MET"
@@ -159,10 +162,12 @@ class TestIntentComplianceEngine:
         ticket = TicketDetails(
             ticket_id="#99",
             title="Database Migration to PostgreSQL",
-            acceptance_criteria=["Migrate user schema to PostgreSQL with foreign keys"]
+            acceptance_criteria=["Migrate user schema to PostgreSQL with foreign keys"],
         )
         # Sample doc edit diff does not mention postgres or migration
-        report = IntentComplianceEngine.evaluate(ticket=ticket, pr_diff=SAMPLE_UNRELATED_DIFF)
+        report = IntentComplianceEngine.evaluate(
+            ticket=ticket, pr_diff=SAMPLE_UNRELATED_DIFF
+        )
         assert report.status == "NON_COMPLIANT"
         assert report.criteria_evaluations[0].status == "UNMET"
         assert "NON-COMPLIANT" in report.summary_markdown
@@ -203,12 +208,12 @@ class TestIntentComplianceEngine:
         ticket = TicketDetails(
             ticket_id="PROJ-101",
             title="Auth security hardening",
-            acceptance_criteria=["Hash passwords with bcrypt"]
+            acceptance_criteria=["Hash passwords with bcrypt"],
         )
         report = IntentComplianceEngine.evaluate(
             ticket=ticket,
             pr_diff=SAMPLE_AUTH_DIFF,
-            files_changed=["app/auth.py", "docs/internal_notes.txt"]
+            files_changed=["app/auth.py", "docs/internal_notes.txt"],
         )
         assert report.status == "COMPLIANT"
         assert "docs/internal_notes.txt" in report.scope_creep_files
@@ -222,7 +227,8 @@ class TestBotTicketCommand:
         res = CommandRouter.dispatch(
             command_text="/ticket #42",
             raw_diff=SAMPLE_AUTH_DIFF,
-            auto_post=False
+            auto_post=False,
+            trusted_operator=True,
         )
         assert res.command == "ticket"
         assert res.status == "SUCCESS"
@@ -232,8 +238,12 @@ class TestBotTicketCommand:
         res = CommandRouter.dispatch(
             command_text="/ticket",
             raw_diff=SAMPLE_AUTH_DIFF,
-            auto_post=False
+            auto_post=False,
+            trusted_operator=True,
         )
         assert res.command == "ticket"
         assert res.status == "SUCCESS"
         assert "No Linked Ticket Detected" in res.response_markdown
+
+
+pytestmark = pytest.mark.usefixtures("offline_repository_client")

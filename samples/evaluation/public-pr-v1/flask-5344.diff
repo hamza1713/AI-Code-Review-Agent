@@ -1,0 +1,27 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index c7ae2f651f..9f79995b46 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -4,6 +4,7 @@ Version 3.0.1
+ Unreleased
+ 
+ -   Correct type for ``path`` argument to ``send_file``. :issue:`5230`
++-   Fix a typo in an error message for the ``flask run --key`` option. :pr:`5344`
+ 
+ 
+ Version 3.0.0
+diff --git a/src/flask/cli.py b/src/flask/cli.py
+index dda266b30c..751dfd1f60 100644
+--- a/src/flask/cli.py
++++ b/src/flask/cli.py
+@@ -795,7 +795,9 @@ def _validate_key(ctx, param, value):
+ 
+         if is_context:
+             raise click.BadParameter(
+-                'When "--cert" is an SSLContext object, "--key is not used.', ctx, param
++                'When "--cert" is an SSLContext object, "--key" is not used.',
++                ctx,
++                param,
+             )
+ 
+         if not cert:

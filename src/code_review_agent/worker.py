@@ -16,12 +16,15 @@ import signal
 import sys
 import threading
 import time
+
 from code_review_agent.config import logger
 from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
 
 
 def run_worker():
-    parser = argparse.ArgumentParser(description="AI Code Review Agent Standalone Worker")
+    parser = argparse.ArgumentParser(
+        description="AI Code Review Agent Standalone Worker"
+    )
     parser.add_argument(
         "--concurrency",
         type=int,

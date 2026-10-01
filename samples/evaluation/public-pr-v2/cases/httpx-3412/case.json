@@ -1,0 +1,44 @@
+{
+  "id": "httpx-3412",
+  "file": "cases/httpx-3412/input.diff",
+  "sha256": "5fd6250fedbec9dbe8e9a8adeb79a7cc6eeb9ce250b41e875ad23b8389c666a0",
+  "source_repository": "encode/httpx",
+  "base_sha": "189fc4bcbe5f314128775dec66a616ac9a31ad48",
+  "head_sha": "3b9b2b325e5ee5f510e047c6a8775b7b45ee5a17",
+  "source_diff_url": "https://github.com/encode/httpx/compare/189fc4bcbe5f314128775dec66a616ac9a31ad48...3b9b2b325e5ee5f510e047c6a8775b7b45ee5a17.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3412",
+  "merged_at": "2024-11-22T11:42:51Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3412/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3412/head/CHANGELOG.md",
+      "sha256": "3c943dc939fc17605a96fcf6348d22ee95ec121f42ad70966745a434f31da2ed"
+    },
+    {
+      "path": "README.md",
+      "file": "cases/httpx-3412/head/README.md",
+      "sha256": "0025293013043e0c49d494dbbde876a6ac558fa70a74f93a86ed10e7ecba0ea3"
+    },
+    {
+      "path": "httpx/__version__.py",
+      "file": "cases/httpx-3412/head/httpx/__version__.py",
+      "sha256": "6b20f300565123b7ad7e0721eb080d9c99a4263cddd732d11a64870bafc22d01"
+    },
+    {
+      "path": "httpx/_decoders.py",
+      "file": "cases/httpx-3412/head/httpx/_decoders.py",
+      "sha256": "a74757f08d0d1077b1b37506a784ac66eb62321b17aeb5a5ebe1a7a956f488a3"
+    },
+    {
+      "path": "tests/test_decoders.py",
+      "file": "cases/httpx-3412/head/tests/test_decoders.py",
+      "sha256": "9f2f3cfad8a7baf4e1bb3aaf4187e278f98fc552af5b38eaad1f7fb35cfe0db4"
+    }
+  ],
+  "input_snapshot_hash": "119b7e5e4bebebe1160b56d01e2226ead1d768a055378d3aab70bd83da9f375f",
+  "label_status": "UNREVIEWED"
+}

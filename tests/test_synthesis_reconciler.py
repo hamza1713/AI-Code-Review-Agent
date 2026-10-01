@@ -6,21 +6,39 @@ badges, governance production-scoping, bounded non-saturating score, CWE correct
 the coverage/limitations note. Every report is also run through `self_check()`.
 """
 
-from code_review_agent.models import SastFinding, RuleViolation
-from code_review_agent.models import TestExecutionResult as ExecResult  # aliased: avoids pytest collecting it
+from code_review_agent.models import RuleViolation, SastFinding
+from code_review_agent.models import (
+    TestExecutionResult as ExecResult,  # aliased: avoids pytest collecting it
+)
 from code_review_agent.synthesis.reconciler import SynthesisReconciler
 
 
-def _sast(rule_id, cwe, sev, file, line, desc="", snippet="", src="regex", fix="fix it"):
+def _sast(
+    rule_id, cwe, sev, file, line, desc="", snippet="", src="regex", fix="fix it"
+):
     return SastFinding(
-        rule_id=rule_id, cwe=cwe, description=desc or rule_id, severity=sev,
-        file_path=file, line_number=line, snippet=snippet, fix_recommendation=fix, analyzer_source=src,
+        rule_id=rule_id,
+        cwe=cwe,
+        description=desc or rule_id,
+        severity=sev,
+        file_path=file,
+        line_number=line,
+        snippet=snippet,
+        fix_recommendation=fix,
+        analyzer_source=src,
     )
 
 
 def _gov(rule_id, sev, file, line, desc="violation", fix="fix"):
-    return RuleViolation(rule_id=rule_id, rule_name=rule_id, severity=sev,
-                         file_path=file, line_number=line, description=desc, suggested_fix=fix)
+    return RuleViolation(
+        rule_id=rule_id,
+        rule_name=rule_id,
+        severity=sev,
+        file_path=file,
+        line_number=line,
+        description=desc,
+        suggested_fix=fix,
+    )
 
 
 # ── Rule 1: dedup before counting ───────────────────────────────────────────
@@ -28,9 +46,36 @@ class TestDeduplication:
     def test_same_defect_across_analyzers_and_adjacent_lines_merges(self):
         # pickle: custom rule + Bandit B301 (call) + B403 (import, adjacent line) → ONE defect.
         findings = [
-            _sast("B301", "CWE-502", "MEDIUM", "app/io.py", 20, "pickle.loads", "pickle.loads(x)", "bandit"),
-            _sast("B403", "CWE-502", "LOW", "app/io.py", 18, "import pickle", "import pickle", "bandit"),
-            _sast("regex-pickle", "CWE-502", "HIGH", "app/io.py", 20, "insecure deserialization", "pickle.loads(x)", "regex"),
+            _sast(
+                "B301",
+                "CWE-502",
+                "MEDIUM",
+                "app/io.py",
+                20,
+                "pickle.loads",
+                "pickle.loads(x)",
+                "bandit",
+            ),
+            _sast(
+                "B403",
+                "CWE-502",
+                "LOW",
+                "app/io.py",
+                18,
+                "import pickle",
+                "import pickle",
+                "bandit",
+            ),
+            _sast(
+                "regex-pickle",
+                "CWE-502",
+                "HIGH",
+                "app/io.py",
+                20,
+                "insecure deserialization",
+                "pickle.loads(x)",
+                "regex",
+            ),
         ]
         report = SynthesisReconciler.reconcile(sast_findings=findings)
         assert report.findings_count == 1
@@ -59,14 +104,25 @@ class TestSeverityReconciliation:
         assert report.findings[0].severity == "HIGH"
 
     def test_sqli_is_critical(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[_sast("x", "CWE-89", "HIGH", "a.py", 1)])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[_sast("x", "CWE-89", "HIGH", "a.py", 1)]
+        )
         assert report.findings[0].severity == "CRITICAL"
 
 
 # ── Rule 6: CWE correction ──────────────────────────────────────────────────
 class TestCweCorrection:
     def test_eval_mislabeled_as_command_injection_is_corrected(self):
-        f = _sast("B307", "CWE-78", "MEDIUM", "x.py", 5, "eval(user_input)", "eval(user_input)", "bandit")
+        f = _sast(
+            "B307",
+            "CWE-78",
+            "MEDIUM",
+            "x.py",
+            5,
+            "eval(user_input)",
+            "eval(user_input)",
+            "bandit",
+        )
         report = SynthesisReconciler.reconcile(sast_findings=[f])
         assert report.findings[0].cwe == "CWE-95"
         assert report.findings[0].severity == "CRITICAL"
@@ -75,20 +131,30 @@ class TestCweCorrection:
 # ── Rule 5: bounded, non-saturating score ───────────────────────────────────
 class TestBoundedScore:
     def test_more_defects_lower_score_without_collapsing(self):
-        one = SynthesisReconciler.reconcile(sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)])
-        two = SynthesisReconciler.reconcile(sast_findings=[
-            _sast("a", "CWE-89", "HIGH", "a.py", 1),
-            _sast("b", "CWE-89", "HIGH", "b.py", 9),
-        ])
-        assert one.score > two.score          # non-saturating: 1 vs 2 are distinguishable
-        assert two.score > 0                  # never underflows to 0
+        one = SynthesisReconciler.reconcile(
+            sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)]
+        )
+        two = SynthesisReconciler.reconcile(
+            sast_findings=[
+                _sast("a", "CWE-89", "HIGH", "a.py", 1),
+                _sast("b", "CWE-89", "HIGH", "b.py", 9),
+            ]
+        )
+        assert one.score > two.score  # non-saturating: 1 vs 2 are distinguishable
+        assert two.score > 0  # never underflows to 0
 
     def test_clean_pr_scores_100(self):
         report = SynthesisReconciler.reconcile()
-        assert report.score == 100 and report.verdict == "APPROVE" and report.findings_count == 0
+        assert (
+            report.score == 100
+            and report.verdict == "APPROVE"
+            and report.findings_count == 0
+        )
 
     def test_score_terms_trace_to_findings(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)]
+        )
         # One CRITICAL defect → breakdown mentions its bucket; worst severity CRITICAL.
         assert "CRITICAL" in report.score_breakdown
         assert report.worst_severity == "CRITICAL"
@@ -98,7 +164,9 @@ class TestBoundedScore:
 class TestGovernanceScoping:
     def test_style_rule_in_test_file_downgraded_to_info(self):
         report = SynthesisReconciler.reconcile(
-            rule_violations=[_gov("gov-no-print-statements", "WARNING", "tests/test_foo.py", 3)]
+            rule_violations=[
+                _gov("gov-no-print-statements", "WARNING", "tests/test_foo.py", 3)
+            ]
         )
         assert report.findings[0].severity == "INFO"
         assert report.verdict == "APPROVE"  # low severity never drives the verdict
@@ -106,14 +174,18 @@ class TestGovernanceScoping:
     def test_style_rule_under_main_guard_downgraded(self):
         pr = '+++ b/app/cli.py\n@@ -1,0 +1,3 @@\n+if __name__ == "__main__":\n+    print("run")\n'
         report = SynthesisReconciler.reconcile(
-            rule_violations=[_gov("gov-no-print-statements", "WARNING", "app/cli.py", 2)],
+            rule_violations=[
+                _gov("gov-no-print-statements", "WARNING", "app/cli.py", 2)
+            ],
             pr_content=pr,
         )
         assert report.findings[0].severity == "INFO"
 
     def test_production_style_rule_stays_low_not_critical(self):
         report = SynthesisReconciler.reconcile(
-            rule_violations=[_gov("gov-no-print-statements", "WARNING", "app/service.py", 40)]
+            rule_violations=[
+                _gov("gov-no-print-statements", "WARNING", "app/service.py", 40)
+            ]
         )
         assert report.findings[0].severity == "LOW"
         assert report.findings[0].blocking is False
@@ -130,24 +202,38 @@ class TestGovernanceScoping:
 # ── Rule 3: honest test-evidence semantics ──────────────────────────────────
 class TestTestEvidence:
     def test_passing_confirm_vuln_suite_is_negative(self):
-        te = ExecResult(executed=True, status="PASSED", evidence_badge="PASSING", tests_run=1)
+        te = ExecResult(
+            executed=True, status="PASSED", evidence_badge="PASSING", tests_run=1
+        )
         src = "import pytest\n\ndef test_current():\n    with pytest.raises(Exception):\n        f()\n"
         ev = SynthesisReconciler.reconcile(
             sast_findings=[_sast("x", "CWE-89", "HIGH", "a.py", 1)],
-            test_execution=te, generated_tests=src,
+            test_execution=te,
+            generated_tests=src,
         ).test_evidence
         assert ev.positive is False
         assert "VULNERABILITY CONFIRMED" in ev.badge
 
     def test_reproduced_is_negative(self):
-        te = ExecResult(executed=True, status="REPRODUCED_DEFECT", evidence_badge="REPRODUCED", failures=1)
-        ev = SynthesisReconciler.reconcile(test_execution=te, generated_tests="def t(): pass").test_evidence
+        te = ExecResult(
+            executed=True,
+            status="REPRODUCED_DEFECT",
+            evidence_badge="REPRODUCED",
+            failures=1,
+        )
+        ev = SynthesisReconciler.reconcile(
+            test_execution=te, generated_tests="def t(): pass"
+        ).test_evidence
         assert ev.positive is False and "VULNERABILITY CONFIRMED" in ev.badge
 
     def test_postfix_pass_is_positive(self):
-        te = ExecResult(executed=True, status="PASSED", evidence_badge="PASSING", tests_run=1)
+        te = ExecResult(
+            executed=True, status="PASSED", evidence_badge="PASSING", tests_run=1
+        )
         src = "def test_x():\n    '''POST-FIX: validates the fix'''\n    assert fixed() == 1\n"
-        ev = SynthesisReconciler.reconcile(test_execution=te, generated_tests=src).test_evidence
+        ev = SynthesisReconciler.reconcile(
+            test_execution=te, generated_tests=src
+        ).test_evidence
         assert ev.positive is True and "FIX VERIFIED" in ev.badge
 
     def test_no_tests_is_heuristic(self):
@@ -159,32 +245,98 @@ class TestTestEvidence:
 class TestFalsePositiveHandling:
     def test_risky_import_folds_into_use_and_is_not_inflated(self):
         # Bandit B403 (import pickle, line 22) + the real pickle.loads use (line 62).
-        report = SynthesisReconciler.reconcile(sast_findings=[
-            _sast("BANDIT-B403", "CWE-502", "LOW", "io.py", 22, "import pickle", "import pickle", "bandit"),
-            _sast("SEC-DESER-001", "CWE-502", "HIGH", "io.py", 62, "insecure deser", "pickle.loads(b)", "regex"),
-        ])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[
+                _sast(
+                    "BANDIT-B403",
+                    "CWE-502",
+                    "LOW",
+                    "io.py",
+                    22,
+                    "import pickle",
+                    "import pickle",
+                    "bandit",
+                ),
+                _sast(
+                    "SEC-DESER-001",
+                    "CWE-502",
+                    "HIGH",
+                    "io.py",
+                    62,
+                    "insecure deser",
+                    "pickle.loads(b)",
+                    "regex",
+                ),
+            ]
+        )
         cwe502 = [f for f in report.findings if f.cwe == "CWE-502"]
-        assert len(cwe502) == 1                     # import merged into the use, not a second finding
-        assert cwe502[0].severity == "HIGH"         # import did not inflate/attach its own severity
+        assert len(cwe502) == 1  # import merged into the use, not a second finding
+        assert (
+            cwe502[0].severity == "HIGH"
+        )  # import did not inflate/attach its own severity
 
     def test_lone_risky_import_is_info_not_high(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[
-            _sast("BANDIT-B404", "CWE-78", "LOW", "x.py", 3, "import subprocess", "import subprocess", "bandit"),
-        ])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[
+                _sast(
+                    "BANDIT-B404",
+                    "CWE-78",
+                    "LOW",
+                    "x.py",
+                    3,
+                    "import subprocess",
+                    "import subprocess",
+                    "bandit",
+                ),
+            ]
+        )
         assert report.findings[0].severity == "INFO"
-        assert report.score >= 85 and report.verdict == "APPROVE"   # a bare import never tanks the score
+        assert (
+            report.score >= 85 and report.verdict == "APPROVE"
+        )  # a bare import never tanks the score
 
     def test_safe_low_confidence_subprocess_is_dropped(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[
-            _sast("BANDIT-B603", "CWE-78", "LOW", "s.py", 158, "subprocess", 'subprocess.run(["ping","-c","1",host])', "bandit"),
-            _sast("BANDIT-B607", "CWE-78", "LOW", "s.py", 158, "partial path", 'subprocess.run(["ping","-c","1",host])', "bandit"),
-        ])
-        assert report.findings == []                # spurious on a safe list-based call
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[
+                _sast(
+                    "BANDIT-B603",
+                    "CWE-78",
+                    "LOW",
+                    "s.py",
+                    158,
+                    "subprocess",
+                    'subprocess.run(["ping","-c","1",host])',
+                    "bandit",
+                ),
+                _sast(
+                    "BANDIT-B607",
+                    "CWE-78",
+                    "LOW",
+                    "s.py",
+                    158,
+                    "partial path",
+                    'subprocess.run(["ping","-c","1",host])',
+                    "bandit",
+                ),
+            ]
+        )
+        assert report.findings == []  # spurious on a safe list-based call
 
     def test_bare_except_kept_as_low(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[
-            _sast("BANDIT-B110", "CWE-390", "LOW", "r.py", 5, "try/except/pass", "except Exception:", "bandit"),
-        ])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[
+                _sast(
+                    "BANDIT-B110",
+                    "CWE-390",
+                    "LOW",
+                    "r.py",
+                    5,
+                    "try/except/pass",
+                    "except Exception:",
+                    "bandit",
+                ),
+            ]
+        )
         assert len(report.findings) == 1 and report.findings[0].severity == "LOW"
 
 
@@ -207,7 +359,9 @@ class TestCoverageAndConsistency:
         assert report.findings_count == len(report.findings)
 
     def test_markdown_renders_consistently(self):
-        report = SynthesisReconciler.reconcile(sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)])
+        report = SynthesisReconciler.reconcile(
+            sast_findings=[_sast("a", "CWE-89", "HIGH", "a.py", 1)]
+        )
         md = report.to_markdown()
         assert f"Quality Score**: {report.score}/100" in md
         assert f"Findings**: {report.findings_count}" in md

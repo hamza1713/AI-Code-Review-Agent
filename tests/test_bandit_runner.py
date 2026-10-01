@@ -4,6 +4,7 @@ Verifies Bandit execution on Python code diffs and JSON output normalization.
 """
 
 import pytest
+
 from code_review_agent.tools.bandit_runner import BanditRunner
 
 

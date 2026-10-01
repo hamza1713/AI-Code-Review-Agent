@@ -2,7 +2,6 @@
 Unit tests for ContentHashCache and memoization cost optimizer.
 """
 
-import pytest
 from code_review_agent.cache import ContentHashCache, memoize_by_content
 
 

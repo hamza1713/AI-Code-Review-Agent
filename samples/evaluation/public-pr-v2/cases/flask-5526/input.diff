@@ -1,0 +1,194 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index bffdbdce80..985c8a0d72 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -3,7 +3,9 @@ Version 3.1.0
+ 
+ -   Provide a configuration option to control automatic option
+     responses. :pr:`5496`
+-
++-   ``Flask.open_resource``/``open_instance_resource`` and
++    ``Blueprint.open_resource`` take an ``encoding`` parameter to use when
++    opening in text mode. It defaults to ``utf-8``. :issue:`5504`
+ 
+ Version 3.0.3
+ -------------
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 5124233c72..53eb602c2a 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -320,9 +320,10 @@ def send_static_file(self, filename: str) -> Response:
+             t.cast(str, self.static_folder), filename, max_age=max_age
+         )
+ 
+-    def open_resource(self, resource: str, mode: str = "rb") -> t.IO[t.AnyStr]:
+-        """Open a resource file relative to :attr:`root_path` for
+-        reading.
++    def open_resource(
++        self, resource: str, mode: str = "rb", encoding: str | None = None
++    ) -> t.IO[t.AnyStr]:
++        """Open a resource file relative to :attr:`root_path` for reading.
+ 
+         For example, if the file ``schema.sql`` is next to the file
+         ``app.py`` where the ``Flask`` app is defined, it can be opened
+@@ -333,31 +334,46 @@ def open_resource(self, resource: str, mode: str = "rb") -> t.IO[t.AnyStr]:
+             with app.open_resource("schema.sql") as f:
+                 conn.executescript(f.read())
+ 
+-        :param resource: Path to the resource relative to
+-            :attr:`root_path`.
+-        :param mode: Open the file in this mode. Only reading is
+-            supported, valid values are "r" (or "rt") and "rb".
+-
+-        Note this is a duplicate of the same method in the Flask
+-        class.
++        :param resource: Path to the resource relative to :attr:`root_path`.
++        :param mode: Open the file in this mode. Only reading is supported,
++            valid values are ``"r"`` (or ``"rt"``) and ``"rb"``.
++        :param encoding: Open the file with this encoding when opening in text
++            mode. This is ignored when opening in binary mode.
+ 
++        .. versionchanged:: 3.1
++            Added the ``encoding`` parameter.
+         """
+         if mode not in {"r", "rt", "rb"}:
+             raise ValueError("Resources can only be opened for reading.")
+ 
+-        return open(os.path.join(self.root_path, resource), mode)
++        path = os.path.join(self.root_path, resource)
++
++        if mode == "rb":
++            return open(path, mode)
+ 
+-    def open_instance_resource(self, resource: str, mode: str = "rb") -> t.IO[t.AnyStr]:
+-        """Opens a resource from the application's instance folder
+-        (:attr:`instance_path`).  Otherwise works like
+-        :meth:`open_resource`.  Instance resources can also be opened for
+-        writing.
++        return open(path, mode, encoding=encoding)
+ 
+-        :param resource: the name of the resource.  To access resources within
+-                         subfolders use forward slashes as separator.
+-        :param mode: resource file opening mode, default is 'rb'.
++    def open_instance_resource(
++        self, resource: str, mode: str = "rb", encoding: str | None = "utf-8"
++    ) -> t.IO[t.AnyStr]:
++        """Open a resource file relative to the application's instance folder
++        :attr:`instance_path`. Unlike :meth:`open_resource`, files in the
++        instance folder can be opened for writing.
++
++        :param resource: Path to the resource relative to :attr:`instance_path`.
++        :param mode: Open the file in this mode.
++        :param encoding: Open the file with this encoding when opening in text
++            mode. This is ignored when opening in binary mode.
++
++        .. versionchanged:: 3.1
++            Added the ``encoding`` parameter.
+         """
+-        return open(os.path.join(self.instance_path, resource), mode)
++        path = os.path.join(self.instance_path, resource)
++
++        if "b" in mode:
++            return open(path, mode)
++
++        return open(path, mode, encoding=encoding)
+ 
+     def create_jinja_environment(self) -> Environment:
+         """Create the Jinja environment based on :attr:`jinja_options`
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index aa9eacf21b..86c5d59aa2 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -101,29 +101,28 @@ def send_static_file(self, filename: str) -> Response:
+             t.cast(str, self.static_folder), filename, max_age=max_age
+         )
+ 
+-    def open_resource(self, resource: str, mode: str = "rb") -> t.IO[t.AnyStr]:
+-        """Open a resource file relative to :attr:`root_path` for
+-        reading.
+-
+-        For example, if the file ``schema.sql`` is next to the file
+-        ``app.py`` where the ``Flask`` app is defined, it can be opened
+-        with:
+-
+-        .. code-block:: python
+-
+-            with app.open_resource("schema.sql") as f:
+-                conn.executescript(f.read())
+-
+-        :param resource: Path to the resource relative to
+-            :attr:`root_path`.
+-        :param mode: Open the file in this mode. Only reading is
+-            supported, valid values are "r" (or "rt") and "rb".
+-
+-        Note this is a duplicate of the same method in the Flask
+-        class.
+-
++    def open_resource(
++        self, resource: str, mode: str = "rb", encoding: str | None = "utf-8"
++    ) -> t.IO[t.AnyStr]:
++        """Open a resource file relative to :attr:`root_path` for reading. The
++        blueprint-relative equivalent of the app's :meth:`~.Flask.open_resource`
++        method.
++
++        :param resource: Path to the resource relative to :attr:`root_path`.
++        :param mode: Open the file in this mode. Only reading is supported,
++            valid values are ``"r"`` (or ``"rt"``) and ``"rb"``.
++        :param encoding: Open the file with this encoding when opening in text
++            mode. This is ignored when opening in binary mode.
++
++        .. versionchanged:: 3.1
++            Added the ``encoding`` parameter.
+         """
+         if mode not in {"r", "rt", "rb"}:
+             raise ValueError("Resources can only be opened for reading.")
+ 
+-        return open(os.path.join(self.root_path, resource), mode)
++        path = os.path.join(self.root_path, resource)
++
++        if mode == "rb":
++            return open(path, mode)
++
++        return open(path, mode, encoding=encoding)
+diff --git a/tests/test_helpers.py b/tests/test_helpers.py
+index 3566385cf1..ee77f1760c 100644
+--- a/tests/test_helpers.py
++++ b/tests/test_helpers.py
+@@ -334,16 +334,27 @@ def test_make_response(self):
+             assert rv.data == b"Hello"
+             assert rv.mimetype == "text/html"
+ 
+-    @pytest.mark.parametrize("mode", ("r", "rb", "rt"))
+-    def test_open_resource(self, mode):
+-        app = flask.Flask(__name__)
+ 
+-        with app.open_resource("static/index.html", mode) as f:
+-            assert "<h1>Hello World!</h1>" in str(f.read())
++@pytest.mark.parametrize("mode", ("r", "rb", "rt"))
++def test_open_resource(mode):
++    app = flask.Flask(__name__)
+ 
+-    @pytest.mark.parametrize("mode", ("w", "x", "a", "r+"))
+-    def test_open_resource_exceptions(self, mode):
+-        app = flask.Flask(__name__)
++    with app.open_resource("static/index.html", mode) as f:
++        assert "<h1>Hello World!</h1>" in str(f.read())
+ 
+-        with pytest.raises(ValueError):
+-            app.open_resource("static/index.html", mode)
++
++@pytest.mark.parametrize("mode", ("w", "x", "a", "r+"))
++def test_open_resource_exceptions(mode):
++    app = flask.Flask(__name__)
++
++    with pytest.raises(ValueError):
++        app.open_resource("static/index.html", mode)
++
++
++@pytest.mark.parametrize("encoding", ("utf-8", "utf-16-le"))
++def test_open_resource_with_encoding(tmp_path, encoding):
++    app = flask.Flask(__name__, root_path=os.fspath(tmp_path))
++    (tmp_path / "test").write_text("test", encoding=encoding)
++
++    with app.open_resource("test", mode="rt", encoding=encoding) as f:
++        assert f.read() == "test"

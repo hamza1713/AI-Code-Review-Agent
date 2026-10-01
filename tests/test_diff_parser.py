@@ -4,7 +4,6 @@ Verifies line number mapping accuracy, single and multi-hunk parsing,
 added line extraction, and token-aware diff chunking.
 """
 
-import pytest
 from code_review_agent.diff_parser import DiffParser
 
 
@@ -79,5 +78,7 @@ diff --git a/file2.py b/file2.py
 +new2
 """
         parsed_pr = DiffParser.parse_diff(diff)
-        chunks = DiffParser.chunk_diff_by_token_budget(parsed_pr, max_chars_per_chunk=50)
+        chunks = DiffParser.chunk_diff_by_token_budget(
+            parsed_pr, max_chars_per_chunk=50
+        )
         assert len(chunks) >= 1

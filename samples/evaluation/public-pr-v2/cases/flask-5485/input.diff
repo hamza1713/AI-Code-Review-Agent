@@ -1,0 +1,13 @@
+diff --git a/src/flask/sansio/app.py b/src/flask/sansio/app.py
+index 01fd5dbfae..858403c85d 100644
+--- a/src/flask/sansio/app.py
++++ b/src/flask/sansio/app.py
+@@ -291,7 +291,7 @@ def __init__(
+         instance_path: str | None = None,
+         instance_relative_config: bool = False,
+         root_path: str | None = None,
+-    ):
++    ) -> None:
+         super().__init__(
+             import_name=import_name,
+             static_folder=static_folder,

@@ -74,3 +74,37 @@ frontend/playwright-report/
 
 # Local verification workspaces
 /.cache/
+
+/.uv-cache/
+/production_test_tmp*/
+/production-tests.log
+/.pytest-production/
+/review_pytest_tmp*/
+
+/.release-tools/
+/.mypy_cache/
+
+# Runtime lock files produced by the queue manager
+*.application.lock
+*.migration.lock
+*.pilot-migration.lock
+
+# CI / production run artifacts (regenerated on every test run)
+production-audit.json
+production-*.log
+
+# Stale runtime state files
+telemetry_metrics.json
+flow_state.json
+
+# Local audit cache
+/.audit-cache/
+
+# Local developer backups (not source of truth)
+/backups/
+
+# Sandbox test workspace temporaries
+/sandbox/
+
+# Agent teamwork scratch
+/.agents/

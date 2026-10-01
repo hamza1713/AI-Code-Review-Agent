@@ -3,15 +3,16 @@ Unit tests for GeminiEmbedder and embedding factory integration.
 """
 
 import math
-import pytest
 from unittest.mock import patch
 
-genai = pytest.importorskip("google.generativeai")
+import pytest
 
 from code_review_agent.context_engine.semantic.embeddings import (
     GeminiEmbedder,
     get_embedder,
 )
+
+pytest.importorskip("google.generativeai")
 
 
 class TestGeminiEmbedder:
@@ -20,7 +21,10 @@ class TestGeminiEmbedder:
     def test_missing_api_key_raises_value_error(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        with patch("code_review_agent.context_engine.semantic.embeddings.get_gemini_api_key", return_value=""):
+        with patch(
+            "code_review_agent.context_engine.semantic.embeddings.get_gemini_api_key",
+            return_value="",
+        ):
             with pytest.raises(ValueError, match="GEMINI_API_KEY is required"):
                 GeminiEmbedder(api_key=None)
 
@@ -66,6 +70,9 @@ class TestGeminiEmbedder:
     def test_factory_fallback_on_gemini_error(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        with patch("code_review_agent.context_engine.semantic.embeddings.get_gemini_api_key", return_value=""):
+        with patch(
+            "code_review_agent.context_engine.semantic.embeddings.get_gemini_api_key",
+            return_value="",
+        ):
             embedder = get_embedder("gemini")
             assert embedder.name == "hashing"

@@ -1,0 +1,34 @@
+{
+  "id": "requests-7354",
+  "file": "cases/requests-7354/input.diff",
+  "sha256": "d44174f85cc99d5965afd4d65d5c2179bca7f2286ef20afc3e807162a2bf84f1",
+  "source_repository": "psf/requests",
+  "base_sha": "ef439eb779c1eba7cbdeeeb302b11e1e061b4b7d",
+  "head_sha": "07dc19ed95cec0cbd929b93382dff80524a32a65",
+  "source_diff_url": "https://github.com/psf/requests/compare/ef439eb779c1eba7cbdeeeb302b11e1e061b4b7d...07dc19ed95cec0cbd929b93382dff80524a32a65.diff",
+  "source_url": "https://github.com/psf/requests/pull/7354",
+  "merged_at": "2026-04-11T19:39:24Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7354/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": "docs/_static/custom.css",
+      "file": "cases/requests-7354/head/docs/_static/custom.css",
+      "sha256": "867af84ce02eed9a2b44871e96600214100ea6df01f4911809e4247aaf9e3523"
+    },
+    {
+      "path": "docs/_templates/sidebar.html",
+      "file": "cases/requests-7354/head/docs/_templates/sidebar.html",
+      "sha256": "1863aecd1bc986fe30ddb944aca522f99e669ef36e257e48a244e0b544c51a0c"
+    },
+    {
+      "path": "docs/conf.py",
+      "file": "cases/requests-7354/head/docs/conf.py",
+      "sha256": "6ae03d28d23dcc0dbbaf18334a7208a07eb87268bc1ebb6f81ad6931f9f217af"
+    }
+  ],
+  "input_snapshot_hash": "d8205d77f75d4f9532a8603278f30891e31c11d7da40506a0d17dedd6e369cd9",
+  "label_status": "UNREVIEWED"
+}

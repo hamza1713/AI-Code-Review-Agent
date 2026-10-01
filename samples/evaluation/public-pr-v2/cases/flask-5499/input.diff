@@ -1,0 +1,124 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 1cfbc5fe9f..118751e90f 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -15,6 +15,8 @@ Unreleased
+     through the ``MAX_CONTENT_LENGTH`` config. Added
+     ``MAX_FORM_MEMORY_SIZE`` and ``MAX_FORM_PARTS`` config. Added documentation
+     about resource limits to the security page. :issue:`5625`
++-   Add support for the ``Partitioned`` cookie attribute (CHIPS), with the
++    ``SESSION_COOKIE_PARTITIONED`` config. :issue`5472`
+ 
+ 
+ Version 3.0.3
+diff --git a/docs/config.rst b/docs/config.rst
+index 4f7d902614..c17fc93277 100644
+--- a/docs/config.rst
++++ b/docs/config.rst
+@@ -173,6 +173,23 @@ The following configuration values are used internally by Flask:
+ 
+     Default: ``False``
+ 
++.. py:data:: SESSION_COOKIE_PARTITIONED
++
++    Browsers will send cookies based on the top-level document's domain, rather
++    than only the domain of the document setting the cookie. This prevents third
++    party cookies set in iframes from "leaking" between separate sites.
++
++    Browsers are beginning to disallow non-partitioned third party cookies, so
++    you need to mark your cookies partitioned if you expect them to work in such
++    embedded situations.
++
++    Enabling this implicitly enables :data:`SESSION_COOKIE_SECURE` as well, as
++    it is only valid when served over HTTPS.
++
++    Default: ``False``
++
++    .. versionadded:: 3.1
++
+ .. py:data:: SESSION_COOKIE_SAMESITE
+ 
+     Restrict how cookies are sent with requests from external sites. Can
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 8074ed4dad..5133052fc4 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -189,6 +189,7 @@ class Flask(App):
+             "SESSION_COOKIE_PATH": None,
+             "SESSION_COOKIE_HTTPONLY": True,
+             "SESSION_COOKIE_SECURE": False,
++            "SESSION_COOKIE_PARTITIONED": False,
+             "SESSION_COOKIE_SAMESITE": None,
+             "SESSION_REFRESH_EACH_REQUEST": True,
+             "MAX_CONTENT_LENGTH": None,
+diff --git a/src/flask/sessions.py b/src/flask/sessions.py
+index 05b367a25f..beb2f3f3ac 100644
+--- a/src/flask/sessions.py
++++ b/src/flask/sessions.py
+@@ -224,6 +224,14 @@ def get_cookie_samesite(self, app: Flask) -> str | None:
+         """
+         return app.config["SESSION_COOKIE_SAMESITE"]  # type: ignore[no-any-return]
+ 
++    def get_cookie_partitioned(self, app: Flask) -> bool:
++        """Returns True if the cookie should be partitioned. By default, uses
++        the value of :data:`SESSION_COOKIE_PARTITIONED`.
++
++        .. versionadded:: 3.1
++        """
++        return app.config["SESSION_COOKIE_PARTITIONED"]  # type: ignore[no-any-return]
++
+     def get_expiration_time(self, app: Flask, session: SessionMixin) -> datetime | None:
+         """A helper method that returns an expiration date for the session
+         or ``None`` if the session is linked to the browser session.  The
+@@ -338,6 +346,7 @@ def save_session(
+         domain = self.get_cookie_domain(app)
+         path = self.get_cookie_path(app)
+         secure = self.get_cookie_secure(app)
++        partitioned = self.get_cookie_partitioned(app)
+         samesite = self.get_cookie_samesite(app)
+         httponly = self.get_cookie_httponly(app)
+ 
+@@ -354,6 +363,7 @@ def save_session(
+                     domain=domain,
+                     path=path,
+                     secure=secure,
++                    partitioned=partitioned,
+                     samesite=samesite,
+                     httponly=httponly,
+                 )
+@@ -374,6 +384,7 @@ def save_session(
+             domain=domain,
+             path=path,
+             secure=secure,
++            partitioned=partitioned,
+             samesite=samesite,
+         )
+         response.vary.add("Cookie")
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 64337ab38c..1fc0d67aa4 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -293,6 +293,7 @@ def test_session_using_session_settings(app, client):
+         SESSION_COOKIE_DOMAIN=".example.com",
+         SESSION_COOKIE_HTTPONLY=False,
+         SESSION_COOKIE_SECURE=True,
++        SESSION_COOKIE_PARTITIONED=True,
+         SESSION_COOKIE_SAMESITE="Lax",
+         SESSION_COOKIE_PATH="/",
+     )
+@@ -315,6 +316,7 @@ def clear():
+     assert "secure" in cookie
+     assert "httponly" not in cookie
+     assert "samesite" in cookie
++    assert "partitioned" in cookie
+ 
+     rv = client.get("/clear", "http://www.example.com:8080/test/")
+     cookie = rv.headers["set-cookie"].lower()
+@@ -324,6 +326,7 @@ def clear():
+     assert "path=/" in cookie
+     assert "secure" in cookie
+     assert "samesite" in cookie
++    assert "partitioned" in cookie
+ 
+ 
+ def test_session_using_samesite_attribute(app, client):

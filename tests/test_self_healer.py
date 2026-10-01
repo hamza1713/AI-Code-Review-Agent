@@ -5,8 +5,7 @@ fixture reconciliation, and iterative healing loop.
 """
 
 import ast
-import pytest
-from unittest.mock import MagicMock
+
 from code_review_agent.models import TestExecutionResult
 from code_review_agent.sandbox.self_healer import FailureCategory, TestSelfHealer
 
@@ -18,17 +17,23 @@ def test_diagnose_failure():
 
     # Missing module
     log_module = "E   ModuleNotFoundError: No module named 'jwt'"
-    diag2 = TestSelfHealer.diagnose_failure("import jwt\ndef test_jwt(): pass", log_module)
+    diag2 = TestSelfHealer.diagnose_failure(
+        "import jwt\ndef test_jwt(): pass", log_module
+    )
     assert FailureCategory.MISSING_MODULE in diag2
 
     # Missing fixture
     log_fixture = "E       fixture 'custom_fixture' not found"
-    diag3 = TestSelfHealer.diagnose_failure("def test_it(custom_fixture): pass", log_fixture)
+    diag3 = TestSelfHealer.diagnose_failure(
+        "def test_it(custom_fixture): pass", log_fixture
+    )
     assert FailureCategory.FIXTURE_ERROR in diag3
 
     # Assertion failure
     log_assert = "E       AssertionError: assert 2 == 3"
-    diag4 = TestSelfHealer.diagnose_failure("def test_math(): assert 2 == 3", log_assert)
+    diag4 = TestSelfHealer.diagnose_failure(
+        "def test_math(): assert 2 == 3", log_assert
+    )
     assert FailureCategory.ASSERTION_FAILURE in diag4
 
 
@@ -81,21 +86,19 @@ def test_heal_and_run_iterative_success():
                 status="PASSED",
                 evidence_badge="PASSING",
                 tests_run=1,
-                summary_message="Tests passed"
+                summary_message="Tests passed",
             )
         return TestExecutionResult(
             executed=True,
             status="ERROR",
             evidence_badge="UNVERIFIED",
             stdout="ModuleNotFoundError: No module named 'fakelib'",
-            summary_message="Collection failed"
+            summary_message="Collection failed",
         )
 
     initial_code = "import fakelib\ndef test_fn(): assert True"
     final_result, final_code = TestSelfHealer.heal_and_run(
-        mock_runner,
-        test_code=initial_code,
-        max_attempts=2
+        mock_runner, test_code=initial_code, max_attempts=2
     )
 
     assert final_result.status == "PASSED"

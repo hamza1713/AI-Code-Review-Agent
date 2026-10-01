@@ -1,0 +1,28 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 44c7fa815c..dcde263dd8 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -51,7 +51,7 @@ Source = "https://github.com/psf/requests"
+ [project.optional-dependencies]
+ security = []
+ socks = ["PySocks>=1.5.6, !=1.5.7"]
+-use_chardet_on_py3 = ["chardet>=3.0.2,<7"]
++use_chardet_on_py3 = ["chardet>=3.0.2,<8"]
+ test = [
+     "pytest-httpbin==2.1.0",
+     "pytest-cov",
+diff --git a/src/requests/__init__.py b/src/requests/__init__.py
+index 4d6b135e2c..8ecd8b8149 100644
+--- a/src/requests/__init__.py
++++ b/src/requests/__init__.py
+@@ -75,8 +75,8 @@ def check_compatibility(urllib3_version, chardet_version, charset_normalizer_ver
+     if chardet_version:
+         major, minor, patch = chardet_version.split(".")[:3]
+         major, minor, patch = int(major), int(minor), int(patch)
+-        # chardet_version >= 3.0.2, < 6.0.0
+-        assert (3, 0, 2) <= (major, minor, patch) < (7, 0, 0)
++        # chardet_version >= 3.0.2, < 8.0.0
++        assert (3, 0, 2) <= (major, minor, patch) < (8, 0, 0)
+     elif charset_normalizer_version:
+         major, minor, patch = charset_normalizer_version.split(".")[:3]
+         major, minor, patch = int(major), int(minor), int(patch)

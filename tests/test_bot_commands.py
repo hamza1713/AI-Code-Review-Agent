@@ -3,8 +3,9 @@ Unit tests for Interactive PR Bot CommandRouter and slash command endpoints.
 """
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from code_review_agent.bot.command_router import CommandRouter
@@ -12,18 +13,20 @@ from code_review_agent.webhook_server import app
 
 TOKEN = "test-operator-token-with-32-characters-minimum"
 
+
 @pytest.fixture(autouse=True)
 def configured_operator(monkeypatch):
     monkeypatch.setenv("REVIEW_API_TOKEN", TOKEN)
     monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
-    from code_review_agent.review_worker import execute
     from code_review_agent.review_service import rate_limiter
+    from code_review_agent.review_worker import execute
+
     rate_limiter.reset()
+
     async def in_process(operation, payload):
         return execute(operation, payload)
-    monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)
-    monkeypatch.setattr("code_review_agent.webhook_server.dispatch_webhook_command", lambda **payload: CommandRouter.dispatch(**payload))
 
+    monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)
 
 
 SAMPLE_SQLI_DIFF = """diff --git a/app/db.py b/app/db.py
@@ -73,7 +76,7 @@ class TestCommandRouter:
         assert args == ""
 
     def test_help_command(self):
-        result = CommandRouter.dispatch("/help", auto_post=False)
+        result = CommandRouter.dispatch("/help", auto_post=False, trusted_operator=True)
         assert result.command == "help"
         assert result.status == "SUCCESS"
         assert "/describe" in result.response_markdown
@@ -81,14 +84,28 @@ class TestCommandRouter:
         assert "/compliance" in result.response_markdown
 
     def test_compliance_command_detects_violations(self):
-        result = CommandRouter.dispatch("/compliance", raw_diff=SAMPLE_SQLI_DIFF, auto_post=False)
+        result = CommandRouter.dispatch(
+            "/compliance",
+            raw_diff=SAMPLE_SQLI_DIFF,
+            auto_post=False,
+            trusted_operator=True,
+        )
         assert result.command == "compliance"
         assert result.status == "SUCCESS"
         # Should flag raw SQL interpolation rule
-        assert "NON-COMPLIANT" in result.response_markdown or "gov-no-raw-sql" in result.response_markdown or "Violations" in result.response_markdown
+        assert (
+            "NON-COMPLIANT" in result.response_markdown
+            or "gov-no-raw-sql" in result.response_markdown
+            or "Violations" in result.response_markdown
+        )
 
     def test_compliance_command_clean_code(self):
-        result = CommandRouter.dispatch("/compliance", raw_diff=SAMPLE_CLEAN_DIFF, auto_post=False)
+        result = CommandRouter.dispatch(
+            "/compliance",
+            raw_diff=SAMPLE_CLEAN_DIFF,
+            auto_post=False,
+            trusted_operator=True,
+        )
         assert result.command == "compliance"
         assert result.status == "SUCCESS"
         assert "COMPLIANT" in result.response_markdown
@@ -99,7 +116,12 @@ class TestCommandRouter:
         mock_llm.call.return_value = "### Summary\nRefactored user lookup to dynamic SQL.\n```mermaid\ngraph LR\nA-->B\n```"
         mock_llm_factory.return_value = mock_llm
 
-        result = CommandRouter.dispatch("/describe", raw_diff=SAMPLE_SQLI_DIFF, auto_post=False)
+        result = CommandRouter.dispatch(
+            "/describe",
+            raw_diff=SAMPLE_SQLI_DIFF,
+            auto_post=False,
+            trusted_operator=True,
+        )
         assert result.command == "describe"
         assert result.status == "SUCCESS"
         assert "PR Description" in result.response_markdown
@@ -111,14 +133,21 @@ class TestCommandRouter:
         mock_llm.call.return_value = "This query is vulnerable to SQL Injection (CWE-89) because of f-string interpolation."
         mock_llm_factory.return_value = mock_llm
 
-        result = CommandRouter.dispatch("/ask Why is this vulnerable?", raw_diff=SAMPLE_SQLI_DIFF, auto_post=False)
+        result = CommandRouter.dispatch(
+            "/ask Why is this vulnerable?",
+            raw_diff=SAMPLE_SQLI_DIFF,
+            auto_post=False,
+            trusted_operator=True,
+        )
         assert result.command == "ask"
         assert result.status == "SUCCESS"
-        assert "Response to: \"Why is this vulnerable?\"" in result.response_markdown
+        assert 'Response to: "Why is this vulnerable?"' in result.response_markdown
         assert "SQL Injection" in result.response_markdown
 
     def test_unknown_command(self):
-        result = CommandRouter.dispatch("/foobar", auto_post=False)
+        result = CommandRouter.dispatch(
+            "/foobar", auto_post=False, trusted_operator=True
+        )
         assert result.command == "foobar"
         assert result.status == "ERROR"
         assert "Unknown command" in result.response_markdown
@@ -140,19 +169,23 @@ class TestBotAPIEndpoints:
         assert "/describe" in data["response_markdown"]
 
     def test_api_bot_command_compliance(self, client):
-        resp = client.post("/api/bot/command", json={
-            "command": "/compliance",
-            "raw_diff": SAMPLE_CLEAN_DIFF
-        })
+        resp = client.post(
+            "/api/bot/command",
+            json={"command": "/compliance", "raw_diff": SAMPLE_CLEAN_DIFF},
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["command"] == "compliance"
         assert data["status"] == "SUCCESS"
 
-    @patch("code_review_agent.webhook_server.verify_github_signature", return_value=True)
+    @patch(
+        "code_review_agent.webhook_server.verify_github_signature", return_value=True
+    )
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
-    def test_webhook_issue_comment_schedules_command(self, mock_dispatch, mock_sig, client):
-        """A slash command is accepted immediately and dispatched in the background."""
+    def test_webhook_issue_comment_schedules_command(
+        self, mock_dispatch, mock_sig, client
+    ):
+        """A slash command is persisted without executing on the request path."""
         payload = {
             "action": "created",
             "issue": {
@@ -175,11 +208,19 @@ class TestBotAPIEndpoints:
         # /help is exempt from authz and is accepted for background processing.
         assert data["status"] == "accepted"
         assert data["command"] == "help"
-        mock_dispatch.assert_called_once()
+        mock_dispatch.assert_not_called()
+        from code_review_agent.webhook_server import queue
 
-    @patch("code_review_agent.webhook_server.verify_github_signature", return_value=True)
+        jobs = queue.list_jobs()
+        assert len(jobs) == 1 and jobs[0]["job_kind"] == "command"
+
+    @patch(
+        "code_review_agent.webhook_server.verify_github_signature", return_value=True
+    )
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
-    def test_webhook_rejects_unauthorized_command(self, mock_dispatch, mock_sig, client):
+    def test_webhook_rejects_unauthorized_command(
+        self, mock_dispatch, mock_sig, client
+    ):
         """A cost-bearing command from an untrusted commenter is refused and never dispatched."""
         payload = {
             "action": "created",
@@ -198,11 +239,12 @@ class TestBotAPIEndpoints:
             headers={"X-GitHub-Event": "issue_comment"},
             json=payload,
         )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ignored"
+        assert resp.status_code == 403
         mock_dispatch.assert_not_called()
 
-    @patch("code_review_agent.webhook_server.verify_github_signature", return_value=True)
+    @patch(
+        "code_review_agent.webhook_server.verify_github_signature", return_value=True
+    )
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
     def test_webhook_allows_authorized_command(self, mock_dispatch, mock_sig, client):
         """A collaborator may run /review; it is accepted and dispatched."""
@@ -218,14 +260,21 @@ class TestBotAPIEndpoints:
                 "author_association": "COLLABORATOR",
             },
         }
-        resp = client.post(
-            "/webhook/github",
-            headers={"X-GitHub-Event": "issue_comment"},
-            json=payload,
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "accepted"
-        mock_dispatch.assert_called_once()
+        with patch(
+            "code_review_agent.platform.github_adapter.GitHubPlatformClient.get_repository_permission",
+            return_value="maintain",
+        ):
+            resp = client.post(
+                "/webhook/github",
+                headers={"X-GitHub-Event": "issue_comment"},
+                json=payload,
+            )
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "accepted"
+            mock_dispatch.assert_not_called()
+            from code_review_agent.webhook_server import queue
+
+            assert len(queue.list_jobs()) == 1
 
 
 class TestDescribeMerge:
@@ -253,22 +302,38 @@ class TestDescribeMerge:
 class TestPlatformAgnosticDispatch:
     """dispatch must resolve non-GitHub PRs through the platform adapter factory."""
 
-    def test_dispatch_uses_resolved_platform_client(self):
-        from code_review_agent.platform.base import PlatformPRIdentifier, PlatformPRMetadata
+    def test_dispatch_uses_resolved_platform_client(self, queued_claim):
+        from code_review_agent.platform.base import (
+            PlatformPRIdentifier,
+            PlatformPRMetadata,
+        )
 
         fake = MagicMock()
+        fake.post_issue_comment.return_value = {"id": 11}
         fake.fetch_pull_request_diff.return_value = "diff --git a/x b/x\n+ok\n"
-        fake.fetch_pull_request_metadata.return_value = PlatformPRMetadata(title="t", body="b", head_ref="feat")
+        fake.fetch_pull_request_metadata.return_value = PlatformPRMetadata(
+            title="t", body="b", head_ref="feat"
+        )
         ident = PlatformPRIdentifier(
-            platform="gitlab", owner_or_project="grp", repo_or_slug="proj", pr_id=5,
+            platform="gitlab",
+            owner_or_project="grp",
+            repo_or_slug="proj",
+            pr_id=5,
             raw_identifier="https://gitlab.com/grp/proj/-/merge_requests/5",
         )
 
-        with patch("code_review_agent.bot.command_router.get_platform_client", return_value=(fake, ident)):
+        with patch(
+            "code_review_agent.platform.factory.get_platform_client",
+            return_value=(fake, ident),
+        ):
             result = CommandRouter.dispatch(
                 "/help",
                 pr_url="https://gitlab.com/grp/proj/-/merge_requests/5",
                 auto_post=True,
+                trusted_operator=True,
+                _job_claim=queued_claim(
+                    "https://gitlab.com/grp/proj/-/merge_requests/5"
+                ),
             )
 
         assert result.command == "help"
@@ -298,36 +363,57 @@ class TestMultiPlatformWebhookAuth:
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
     def test_gitlab_rejects_unlisted_user_fail_closed(self, mock_dispatch, client):
         """With no BOT_ALLOWED_USERS configured, a cost-bearing command is refused."""
-        env = {"GITLAB_WEBHOOK_SECRET": "test-gitlab-secret", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": ""}
+        env = {
+            "GITLAB_WEBHOOK_SECRET": "test-gitlab-secret",
+            "GITLAB_TOKEN": "",
+            "BOT_ALLOWED_USERS": "",
+        }
         with patch.dict(os.environ, env, clear=False):
             resp = client.post(
                 "/webhook/gitlab",
-                headers={"X-Gitlab-Event": "Note Hook", "X-Gitlab-Token": "test-gitlab-secret"},
+                headers={
+                    "X-Gitlab-Event": "Note Hook",
+                    "X-Gitlab-Token": "test-gitlab-secret",
+                },
                 json=self._gitlab_note_payload("/review", "random-user"),
             )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ignored"
+        assert resp.status_code == 403
         mock_dispatch.assert_not_called()
 
     @patch("code_review_agent.bot.command_router.CommandRouter.dispatch")
     def test_gitlab_allows_listed_user(self, mock_dispatch, client):
-        env = {"GITLAB_WEBHOOK_SECRET": "test-gitlab-secret", "GITLAB_TOKEN": "", "BOT_ALLOWED_USERS": "maintainer"}
+        env = {
+            "GITLAB_WEBHOOK_SECRET": "test-gitlab-secret",
+            "GITLAB_TOKEN": "",
+            "BOT_ALLOWED_USERS": "maintainer",
+        }
         with patch.dict(os.environ, env, clear=False):
             resp = client.post(
                 "/webhook/gitlab",
-                headers={"X-Gitlab-Event": "Note Hook", "X-Gitlab-Token": "test-gitlab-secret"},
+                headers={
+                    "X-Gitlab-Event": "Note Hook",
+                    "X-Gitlab-Token": "test-gitlab-secret",
+                },
                 json=self._gitlab_note_payload("/review", "maintainer"),
             )
         assert resp.status_code == 200
         assert resp.json()["status"] == "accepted"
-        mock_dispatch.assert_called_once()
+        mock_dispatch.assert_not_called()
+        from code_review_agent.webhook_server import queue
+
+        assert len(queue.list_jobs()) == 1
 
     def test_bitbucket_rejects_wrong_token(self, client):
-        with patch.dict(os.environ, {"BITBUCKET_WEBHOOK_SECRET": "s3cret"}, clear=False):
+        with patch.dict(
+            os.environ, {"BITBUCKET_WEBHOOK_SECRET": "s3cret"}, clear=False
+        ):
             resp = client.post(
                 "/webhook/bitbucket",
                 headers={"X-Event-Key": "pullrequest:comment_created"},
-                json={"comment": {"content": {"raw": "/review"}}, "actor": {"nickname": "x"}},
+                json={
+                    "comment": {"content": {"raw": "/review"}},
+                    "actor": {"nickname": "x"},
+                },
             )
         assert resp.status_code == 401
 
@@ -341,9 +427,14 @@ class TestMultiPlatformWebhookAuth:
                 json={
                     "comment": {"content": {"raw": "/ask what is this"}},
                     "actor": {"nickname": "drive-by"},
-                    "pullrequest": {"links": {"html": {"href": "https://bitbucket.org/w/r/pull-requests/2"}}},
+                    "pullrequest": {
+                        "links": {
+                            "html": {
+                                "href": "https://bitbucket.org/w/r/pull-requests/2"
+                            }
+                        }
+                    },
                 },
             )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ignored"
+        assert resp.status_code == 403
         mock_dispatch.assert_not_called()

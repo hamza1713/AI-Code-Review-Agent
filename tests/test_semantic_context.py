@@ -14,11 +14,15 @@ import pytest
 
 from code_review_agent.context_engine.semantic.embeddings import (
     HashingEmbedder,
-    tokenize_code,
     get_embedder,
+    tokenize_code,
 )
-from code_review_agent.context_engine.semantic.vector_store import VectorStore, ChunkRecord, cosine
 from code_review_agent.context_engine.semantic.engine import SemanticContextEngine
+from code_review_agent.context_engine.semantic.vector_store import (
+    ChunkRecord,
+    VectorStore,
+    cosine,
+)
 
 
 # ── Tokenization ─────────────────────────────────────────────────────────────
@@ -29,14 +33,21 @@ class TestTokenization:
         assert tokenize_code("GetUserByID")[:3] == ["get", "user", "by"]
 
     def test_strips_punctuation(self):
-        assert tokenize_code("db.query(sql, params)") == ["db", "query", "sql", "params"]
+        assert tokenize_code("db.query(sql, params)") == [
+            "db",
+            "query",
+            "sql",
+            "params",
+        ]
 
 
 # ── Hashing embedder ─────────────────────────────────────────────────────────
 class TestHashingEmbedder:
     def test_deterministic(self):
         e = HashingEmbedder(dimension=256)
-        assert e.embed("def authenticate(user): ...") == e.embed("def authenticate(user): ...")
+        assert e.embed("def authenticate(user): ...") == e.embed(
+            "def authenticate(user): ..."
+        )
 
     def test_unit_norm(self):
         e = HashingEmbedder(dimension=256)
@@ -49,8 +60,12 @@ class TestHashingEmbedder:
 
     def test_similar_code_scores_higher_than_unrelated(self):
         e = HashingEmbedder(dimension=512)
-        base = e.embed("def login(username, password): return check_password(username, password)")
-        similar = e.embed("def signin(username, password): return verify_password(username, password)")
+        base = e.embed(
+            "def login(username, password): return check_password(username, password)"
+        )
+        similar = e.embed(
+            "def signin(username, password): return verify_password(username, password)"
+        )
         unrelated = e.embed("def render_chart(points): draw_svg_axis(points)")
         assert cosine(base, similar) > cosine(base, unrelated)
 
@@ -70,8 +85,16 @@ class TestHashingEmbedder:
 class TestVectorStore:
     def _rec(self, rec_id, repo, vec):
         return ChunkRecord(
-            id=rec_id, repo=repo, file_path="a.py", qualified_name=f"a.py:{rec_id}",
-            kind="function", language="python", line_start=1, line_end=3, text="x", vector=vec,
+            id=rec_id,
+            repo=repo,
+            file_path="a.py",
+            qualified_name=f"a.py:{rec_id}",
+            kind="function",
+            language="python",
+            line_start=1,
+            line_end=3,
+            text="x",
+            vector=vec,
         )
 
     def test_add_dedups_by_id(self):
@@ -88,7 +111,9 @@ class TestVectorStore:
 
     def test_filter_fn_scopes_results(self):
         s = VectorStore()
-        s.add([self._rec("a", "repo1", [1.0, 0.0]), self._rec("b", "repo2", [1.0, 0.0])])
+        s.add(
+            [self._rec("a", "repo1", [1.0, 0.0]), self._rec("b", "repo2", [1.0, 0.0])]
+        )
         results = s.search([1.0, 0.0], top_k=5, filter_fn=lambda r: r.repo == "repo2")
         assert [r.id for r, _ in results] == ["b"]
 
@@ -202,9 +227,11 @@ class TestSemanticEngine:
         )
         results = engine.retrieve(diff, top_k=5)
         overlapping = [
-            r for r in results
+            r
+            for r in results
             if r.record.file_path == "auth.py"
-            and r.record.line_start <= 5 and r.record.line_end >= 2
+            and r.record.line_start <= 5
+            and r.record.line_end >= 2
             and "authenticate_user" in r.record.qualified_name
         ]
         assert not overlapping, "changed code should be filtered out as PR-self noise"

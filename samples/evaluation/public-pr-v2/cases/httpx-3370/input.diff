@@ -1,0 +1,109 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4c22049a7c..122fa74749 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,10 +4,12 @@ All notable changes to this project will be documented in this file.
+ 
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ 
+-## Unreleased
++## 0.28.0 (28th October, 2024)
+ 
+-* Added `httpx.SSLContext` class and `ssl_context` argument. (#3022)
+-* The `verify` and `cert` arguments continue to function, but are deprecated and will raise warnings. Use the `ssl_context = httpx.SSLContext()` API instead. (#3022, #3335)
++Version 0.28.0 introduces an `httpx.SSLContext()` class and `ssl_context` parameter.
++
++* Added `httpx.SSLContext` class and `ssl_context` parameter. (#3022, #3335)
++* The `verify` and `cert` arguments have been deprecated and will now raise warnings. (#3022, #3335)
+ * The deprecated `proxies` argument has now been removed.
+ * The deprecated `app` argument has now been removed.
+ * The `URL.raw` property has now been removed.
+diff --git a/docs/advanced/ssl.md b/docs/advanced/ssl.md
+index 9e0b2e9955..0c91a38700 100644
+--- a/docs/advanced/ssl.md
++++ b/docs/advanced/ssl.md
+@@ -9,7 +9,7 @@ By default httpx will verify HTTPS connections, and raise an error for invalid S
+ httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:997)
+ ```
+ 
+-You can configure the verification using `httpx.SSLContext()`.
++You can create and use new SSL context other than the default.
+ 
+ ```pycon
+ >>> context = httpx.SSLContext()
+@@ -31,7 +31,7 @@ You can use this to disable verification completely and allow insecure requests.
+ 
+ ### Configuring client instances
+ 
+-If you're using a `Client()` instance you should pass any SSL settings when instantiating the client.
++If you're using a `Client()` instance you should pass any SSL context when instantiating the client.
+ 
+ ```pycon
+ >>> context = httpx.SSLContext()
+@@ -40,42 +40,12 @@ If you're using a `Client()` instance you should pass any SSL settings when inst
+ 
+ The `client.get(...)` method and other request methods on a `Client` instance *do not* support changing the SSL settings on a per-request basis.
+ 
+-If you need different SSL settings in different cases you should use more that one client instance, with different settings on each. Each client will then be using an isolated connection pool with a specific fixed SSL configuration on all connections within that pool.
++If you need different SSL settings in different cases you should use more than one client instance, with different settings on each. Each client will then be using an isolated connection pool with a specific fixed SSL configuration on all connections within that pool.
+ 
+-### Changing the verification defaults
++### Configuring certificate stores
+ 
+ By default, HTTPX uses the CA bundle provided by [Certifi](https://pypi.org/project/certifi/).
+ 
+-The following all have the same behaviour...
+-
+-Using the default SSL context.
+-
+-```pycon
+->>> client = httpx.Client()
+->>> client.get("https://www.example.com")
+-<Response [200 OK]>
+-```
+-
+-Using the default SSL context, but specified explicitly.
+-
+-```pycon
+->>> context = httpx.SSLContext()
+->>> client = httpx.Client(ssl_context=context)
+->>> client.get("https://www.example.com")
+-<Response [200 OK]>
+-```
+-
+-Using the default SSL context, with `verify=True` specified explicitly.
+-
+-```pycon
+->>> context = httpx.SSLContext(verify=True)
+->>> client = httpx.Client(ssl_context=context)
+->>> client.get("https://www.example.com")
+-<Response [200 OK]>
+-```
+-
+-### Configuring certificate verification
+-
+ You can load additional certificate verification using the [`.load_verify_locations()`](https://docs.python.org/3/library/ssl.html#ssl.SSLContext.load_verify_locations) API:
+ 
+ ```pycon
+diff --git a/httpx/__version__.py b/httpx/__version__.py
+index 5eaaddbac9..0a684ac3a9 100644
+--- a/httpx/__version__.py
++++ b/httpx/__version__.py
+@@ -1,3 +1,3 @@
+ __title__ = "httpx"
+ __description__ = "A next generation HTTP client, for Python 3."
+-__version__ = "0.27.2"
++__version__ = "0.28.0"
+diff --git a/httpx/_config.py b/httpx/_config.py
+index d384f80301..2c9634a666 100644
+--- a/httpx/_config.py
++++ b/httpx/_config.py
+@@ -28,6 +28,8 @@ def create_ssl_context(
+     trust_env: bool = True,
+     http2: bool = False,
+ ) -> ssl.SSLContext:  # pragma: nocover
++    # The `create_ssl_context` helper function is now deprecated
++    # in favour of `httpx.SSLContext()`.
+     if isinstance(verify, bool):
+         ssl_context: ssl.SSLContext = SSLContext(verify=verify)
+         warnings.warn(

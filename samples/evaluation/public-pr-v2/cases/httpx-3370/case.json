@@ -1,0 +1,39 @@
+{
+  "id": "httpx-3370",
+  "file": "cases/httpx-3370/input.diff",
+  "sha256": "c1e7846e9d8cade7c50b1dc18adc95e50a1be042a22627c96defee364ce0d890",
+  "source_repository": "encode/httpx",
+  "base_sha": "ffbddc1b006d4781b2f77427a340c6164600f3c0",
+  "head_sha": "b6666617bc39aca8a7af53cd2cc15c28e66aa761",
+  "source_diff_url": "https://github.com/encode/httpx/compare/ffbddc1b006d4781b2f77427a340c6164600f3c0...b6666617bc39aca8a7af53cd2cc15c28e66aa761.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3370",
+  "merged_at": "2024-10-28T14:13:22Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3370/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3370/head/CHANGELOG.md",
+      "sha256": "a93fe2ed28dfbbb2dd71d1e57d62636f4e43cb9709aa3400e93577a1d8ea2182"
+    },
+    {
+      "path": "docs/advanced/ssl.md",
+      "file": "cases/httpx-3370/head/docs/advanced/ssl.md",
+      "sha256": "c53a07ba43cfaa0da8bccf785587193b860b30b029fbd57ce09da0466e5957ef"
+    },
+    {
+      "path": "httpx/__version__.py",
+      "file": "cases/httpx-3370/head/httpx/__version__.py",
+      "sha256": "6b20f300565123b7ad7e0721eb080d9c99a4263cddd732d11a64870bafc22d01"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3370/head/httpx/_config.py",
+      "sha256": "35062499fd8c36ea00c642737d3ea44fb6ee2423338cdcbc7a44b2859bebd629"
+    }
+  ],
+  "input_snapshot_hash": "7d90ce738bbcde0bcb961927e1a7534eaa25b1ea93bc94e7cf650647e25cd5b4",
+  "label_status": "UNREVIEWED"
+}

@@ -1,0 +1,74 @@
+{
+  "id": "httpx-3394",
+  "file": "cases/httpx-3394/input.diff",
+  "sha256": "9c6c4fc76ce733d6fcdff69fcfbc5325efcaf67e207e077369414263a87e249e",
+  "source_repository": "encode/httpx",
+  "base_sha": "41597adffa9d34171a63f7511fc0f702558dd08c",
+  "head_sha": "0f9cd3fdf3c73e217b9f78c304aa266163245da8",
+  "source_diff_url": "https://github.com/encode/httpx/compare/41597adffa9d34171a63f7511fc0f702558dd08c...0f9cd3fdf3c73e217b9f78c304aa266163245da8.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3394",
+  "merged_at": "2024-11-12T11:31:42Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3394/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3394/head/CHANGELOG.md",
+      "sha256": "c8b27d1ccf4d53e84601a96846d4e89700c301a68bc645b3647f89cd9f423363"
+    },
+    {
+      "path": "docs/advanced/ssl.md",
+      "file": "cases/httpx-3394/head/docs/advanced/ssl.md",
+      "sha256": "96dc8e954c5965bcf2ee68f436a143bcc8dab3cd647aa1631c1190593d241831"
+    },
+    {
+      "path": "docs/contributing.md",
+      "file": "cases/httpx-3394/head/docs/contributing.md",
+      "sha256": "88182650dd83fc38ac39de2fa8cadbee937ff72afdbdd7d4721f4e84aef2f520"
+    },
+    {
+      "path": "httpx/__init__.py",
+      "file": "cases/httpx-3394/head/httpx/__init__.py",
+      "sha256": "0ac6997bac998f4ac783adf6d8058a587193315afdb718047c3e4fdff46bcfad"
+    },
+    {
+      "path": "httpx/_api.py",
+      "file": "cases/httpx-3394/head/httpx/_api.py",
+      "sha256": "c1f7d98f2c80fb7b9c464a299fa5e71ef17018e95d67717741e071fa85683a01"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3394/head/httpx/_client.py",
+      "sha256": "55c2d8ee8d86f99c250ee3cbc7a7ded79bb9320cc11509e187cffeb801effca5"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3394/head/httpx/_config.py",
+      "sha256": "0bf0368dd8e6398e3f88663f0218f902ef1d815fb62af61480898cffccc4ade1"
+    },
+    {
+      "path": "httpx/_main.py",
+      "file": "cases/httpx-3394/head/httpx/_main.py",
+      "sha256": "0a0f4631a6e24d3fecc1a0df5202118ad4b0c4b44c4b05033a6ecb7521aa940e"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3394/head/httpx/_transports/default.py",
+      "sha256": "338381e51ad28230438c7198effc1e54d1327aec13231612ab9fdbd1f5a0722c"
+    },
+    {
+      "path": "httpx/_urls.py",
+      "file": "cases/httpx-3394/head/httpx/_urls.py",
+      "sha256": "757f7d551d4348e1e9828f40abb3f360ee0529dc6a2a3c32369f20adff1d1cdd"
+    },
+    {
+      "path": "tests/test_config.py",
+      "file": "cases/httpx-3394/head/tests/test_config.py",
+      "sha256": "c1da4019686c6a62fb69f196ea09e00e529ffb207adae457c91f91819b9951fc"
+    }
+  ],
+  "input_snapshot_hash": "4fe6317cf7361697b1cc8c286c247703f0d10392b15b56946d90549b32d79905",
+  "label_status": "UNREVIEWED"
+}

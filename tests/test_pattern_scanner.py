@@ -4,8 +4,10 @@ Verifies heuristic regex pattern detection on vulnerable code diffs
 and confirms zero false positives on safe parameterized code diffs.
 """
 
-import pytest
-from code_review_agent.tools.sast_scanner import QuickPatternScanner, QuickPatternScannerTool
+from code_review_agent.tools.sast_scanner import (
+    QuickPatternScanner,
+    QuickPatternScannerTool,
+)
 
 
 class TestQuickPatternScanner:

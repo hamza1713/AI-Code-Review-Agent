@@ -1,0 +1,38 @@
+diff --git a/HISTORY.md b/HISTORY.md
+index 3c3d673f1a..ef79f06556 100644
+--- a/HISTORY.md
++++ b/HISTORY.md
+@@ -6,8 +6,17 @@ dev
+ 
+ - \[Short description of non-trivial change.\]
+ 
++2.33.1 (2026-03-30)
++-------------------
++
++**Bugfixes**
++- Fixed test cleanup for CVE-2026-25645 to avoid leaving unnecessary
++  files in the tmp directory. (#7305)
++- Fixed Content-Type header parsing for malformed values. (#7309)
++- Improved error consistency for malformed header values. (#7308)
++
+ 2.33.0 (2026-03-25)
+---------------------
++-------------------
+ 
+ **Announcements**
+ - 📣 Requests is adding inline types. If you have a typed code base that
+diff --git a/src/requests/__version__.py b/src/requests/__version__.py
+index 567b49f549..7f8a52c856 100644
+--- a/src/requests/__version__.py
++++ b/src/requests/__version__.py
+@@ -5,8 +5,8 @@
+ __title__ = "requests"
+ __description__ = "Python HTTP for Humans."
+ __url__ = "https://requests.readthedocs.io"
+-__version__ = "2.33.0"
+-__build__ = 0x023300
++__version__ = "2.33.1"
++__build__ = 0x023301
+ __author__ = "Kenneth Reitz"
+ __author_email__ = "me@kennethreitz.org"
+ __license__ = "Apache-2.0"

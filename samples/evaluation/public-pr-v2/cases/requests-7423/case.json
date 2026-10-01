@@ -1,0 +1,24 @@
+{
+  "id": "requests-7423",
+  "file": "cases/requests-7423/input.diff",
+  "sha256": "3db37ec1f083f96aafcb42bca7d7e021917bed4a3c1046908a8446cf29a98b90",
+  "source_repository": "psf/requests",
+  "base_sha": "e8d2c015eecda8273612dd4562425e00cd164ba5",
+  "head_sha": "da905d0eb1de1184d323d39dfc2ce2b423df7bee",
+  "source_diff_url": "https://github.com/psf/requests/compare/e8d2c015eecda8273612dd4562425e00cd164ba5...da905d0eb1de1184d323d39dfc2ce2b423df7bee.diff",
+  "source_url": "https://github.com/psf/requests/pull/7423",
+  "merged_at": "2026-05-11T02:05:15Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7423/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": "tests/conftest.py",
+      "file": "cases/requests-7423/head/tests/conftest.py",
+      "sha256": "6d65ffb582519f80a66c5d1ef571e3c33395a199f9e67fcb500c6ad2d7800e0a"
+    }
+  ],
+  "input_snapshot_hash": "39e9f00c885292fefce05abbcdfbaf0928ba694ff0d063a56f4677fa1b4eca90",
+  "label_status": "UNREVIEWED"
+}

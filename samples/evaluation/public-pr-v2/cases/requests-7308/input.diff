@@ -1,0 +1,35 @@
+diff --git a/src/requests/_internal_utils.py b/src/requests/_internal_utils.py
+index 8c7c05190c..b7cf4695b0 100644
+--- a/src/requests/_internal_utils.py
++++ b/src/requests/_internal_utils.py
+@@ -10,10 +10,10 @@
+ 
+ from .compat import builtin_str
+ 
+-_VALID_HEADER_NAME_RE_BYTE = re.compile(rb"^[^:\s][^:\r\n]*$")
+-_VALID_HEADER_NAME_RE_STR = re.compile(r"^[^:\s][^:\r\n]*$")
+-_VALID_HEADER_VALUE_RE_BYTE = re.compile(rb"^\S[^\r\n]*$|^$")
+-_VALID_HEADER_VALUE_RE_STR = re.compile(r"^\S[^\r\n]*$|^$")
++_VALID_HEADER_NAME_RE_BYTE = re.compile(rb"^[^:\s][^:\r\n]*\Z")
++_VALID_HEADER_NAME_RE_STR = re.compile(r"^[^:\s][^:\r\n]*\Z")
++_VALID_HEADER_VALUE_RE_BYTE = re.compile(rb"^\S[^\r\n]*\Z|^\Z")
++_VALID_HEADER_VALUE_RE_STR = re.compile(r"^\S[^\r\n]*\Z|^\Z")
+ 
+ _HEADER_VALIDATORS_STR = (_VALID_HEADER_NAME_RE_STR, _VALID_HEADER_VALUE_RE_STR)
+ _HEADER_VALIDATORS_BYTE = (_VALID_HEADER_NAME_RE_BYTE, _VALID_HEADER_VALUE_RE_BYTE)
+diff --git a/tests/test_requests.py b/tests/test_requests.py
+index 257d9d7ab1..a482dd727d 100644
+--- a/tests/test_requests.py
++++ b/tests/test_requests.py
+@@ -1791,6 +1791,11 @@ def test_header_value_not_str(self, httpbin, invalid_header, key):
+             {"fo\r\no": "bar"},
+             {"fo\n\ro": "bar"},
+             {"fo\no": "bar"},
++            {"foo": "bar\n"},
++            {"foo\n": "bar"},
++            {"foo": "bar\r\n"},
++            {"foo": "\n"},
++            {"foo": "\r\n"},
+         ),
+     )
+     def test_header_no_return_chars(self, httpbin, invalid_header):

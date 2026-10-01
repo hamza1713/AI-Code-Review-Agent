@@ -1,0 +1,68 @@
+diff --git a/src/requests/_types.py b/src/requests/_types.py
+index 18b561ea42..963867b012 100644
+--- a/src/requests/_types.py
++++ b/src/requests/_types.py
+@@ -20,6 +20,8 @@
+ )
+ 
+ _T_co = TypeVar("_T_co", covariant=True)
++_KT_co = TypeVar("_KT_co", covariant=True)
++_VT_co = TypeVar("_VT_co", covariant=True)
+ 
+ 
+ @runtime_checkable
+@@ -28,8 +30,8 @@ def read(self, length: int = ..., /) -> _T_co: ...
+ 
+ 
+ @runtime_checkable
+-class SupportsItems(Protocol):
+-    def items(self) -> Iterable[tuple[Any, Any]]: ...
++class SupportsItems(Protocol[_KT_co, _VT_co]):
++    def items(self) -> Iterable[tuple[_KT_co, _VT_co]]: ...
+ 
+ 
+ # These are needed at runtime for default_hooks() return type
+@@ -79,7 +81,7 @@ class _ValidatedRequest(PreparedRequest):
+         str | bytes | int | float | Iterable[str | bytes | int | float] | None
+     )
+     ParamsType: TypeAlias = (
+-        Mapping[_ParamsMappingKeyType, _ParamsMappingValueType]
++        SupportsItems[_ParamsMappingKeyType, _ParamsMappingValueType]
+         | tuple[tuple[_ParamsMappingKeyType, _ParamsMappingValueType], ...]
+         | Iterable[tuple[_ParamsMappingKeyType, _ParamsMappingValueType]]
+         | str
+@@ -87,7 +89,7 @@ class _ValidatedRequest(PreparedRequest):
+         | None
+     )
+ 
+-    KVDataType: TypeAlias = Iterable[tuple[Any, Any]] | Mapping[Any, Any]
++    KVDataType: TypeAlias = Iterable[tuple[Any, Any]] | SupportsItems[Any, Any]
+ 
+     RawDataType: TypeAlias = KVDataType | str | bytes
+     StreamDataType: TypeAlias = SupportsRead[str | bytes]
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index e69ad0d7f0..838bf7bb6b 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -147,7 +147,7 @@ def proxy_bypass(host: str) -> bool:  # noqa
+ 
+ 
+ def dict_to_sequence(
+-    d: _t.SupportsItems | Iterable[tuple[Any, Any]],
++    d: _t.SupportsItems[Any, Any] | Iterable[tuple[Any, Any]],
+ ) -> Iterable[tuple[Any, Any]]:
+     """Returns an internal sequence dictionary update."""
+ 
+@@ -371,10 +371,10 @@ def from_key_val_list(
+ def to_key_val_list(value: None) -> None: ...
+ @overload
+ def to_key_val_list(
+-    value: Mapping[_KT, _VT] | Iterable[tuple[_KT, _VT]],
++    value: _t.SupportsItems[_KT, _VT] | Iterable[tuple[_KT, _VT]],
+ ) -> list[tuple[_KT, _VT]]: ...
+ def to_key_val_list(
+-    value: Mapping[_KT, _VT] | Iterable[tuple[_KT, _VT]] | None,
++    value: _t.SupportsItems[_KT, _VT] | Iterable[tuple[_KT, _VT]] | None,
+ ) -> list[tuple[_KT, _VT]] | None:
+     """Take an object and test to see if it can be represented as a
+     dictionary. If it can be, return a list of tuples, e.g.,

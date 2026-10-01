@@ -9,9 +9,9 @@ listed finding. See `reconciler.SynthesisReconciler`.
 """
 
 from .reconciler import (
-    SynthesisReconciler,
-    ReconciledReport,
     ReconciledFinding,
+    ReconciledReport,
+    SynthesisReconciler,
     TestEvidence,
 )
 

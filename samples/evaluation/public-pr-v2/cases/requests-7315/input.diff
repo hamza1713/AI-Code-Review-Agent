@@ -1,0 +1,28 @@
+diff --git a/src/requests/adapters.py b/src/requests/adapters.py
+index 98f74465f2..279194688e 100644
+--- a/src/requests/adapters.py
++++ b/src/requests/adapters.py
+@@ -545,8 +545,6 @@ def request_url(self, request, proxies):
+             using_socks_proxy = proxy_scheme.startswith("socks")
+ 
+         url = request.path_url
+-        if url.startswith("//"):  # Don't confuse urllib3
+-            url = f"/{url.lstrip('/')}"
+ 
+         if is_proxied_http_request and not using_socks_proxy:
+             url = urldefragauth(request.url)
+diff --git a/tests/test_adapters.py b/tests/test_adapters.py
+index 6c55d5a130..303e4cc300 100644
+--- a/tests/test_adapters.py
++++ b/tests/test_adapters.py
+@@ -1,8 +1,8 @@
+ import requests.adapters
+ 
+ 
+-def test_request_url_trims_leading_path_separators():
++def test_request_url_handles_leading_path_separators():
+     """See also https://github.com/psf/requests/issues/6643."""
+     a = requests.adapters.HTTPAdapter()
+     p = requests.Request(method="GET", url="http://127.0.0.1:10000//v:h").prepare()
+-    assert "/v:h" == a.request_url(p, {})
++    assert "//v:h" == a.request_url(p, {})

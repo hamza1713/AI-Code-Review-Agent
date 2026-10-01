@@ -1,0 +1,15 @@
+diff --git a/httpx/_models.py b/httpx/_models.py
+index 01d9583bc5..2ff22b4876 100644
+--- a/httpx/_models.py
++++ b/httpx/_models.py
+@@ -328,9 +328,7 @@ def __init__(
+             if isinstance(method, bytes)
+             else method.upper()
+         )
+-        self.url = URL(url)
+-        if params is not None:
+-            self.url = self.url.copy_merge_params(params=params)
++        self.url = URL(url) if params is None else URL(url, params=params)
+         self.headers = Headers(headers)
+         self.extensions = {} if extensions is None else extensions
+ 

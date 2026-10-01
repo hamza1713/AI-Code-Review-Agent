@@ -1,0 +1,54 @@
+{
+  "id": "flask-5626",
+  "file": "cases/flask-5626/input.diff",
+  "sha256": "e09c2646819aba5721a96a48554ec810754270f180ad29f62e87d6bed8110188",
+  "source_repository": "pallets/flask",
+  "base_sha": "62c56e08c43f5eb174d15dd050591cfba9aed548",
+  "head_sha": "c7a53888a1a514619b0611fd8b7928592f4ed612",
+  "source_diff_url": "https://github.com/pallets/flask/compare/62c56e08c43f5eb174d15dd050591cfba9aed548...c7a53888a1a514619b0611fd8b7928592f4ed612.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5626",
+  "merged_at": "2024-11-01T20:21:36Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5626/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5626/head/CHANGES.rst",
+      "sha256": "b2a8f8a12435d6a03b58708216e4026c3ef9189335fe5a46f86f3112d64c9a16"
+    },
+    {
+      "path": "docs/config.rst",
+      "file": "cases/flask-5626/head/docs/config.rst",
+      "sha256": "ee4d65e14dd3e0e9cc0b6fe32b6afcc28b2f15fa7cafd8711c53e3bd29d14e86"
+    },
+    {
+      "path": "docs/web-security.rst",
+      "file": "cases/flask-5626/head/docs/web-security.rst",
+      "sha256": "c2893ad0c276be3a9f158fd29ff968002484922a38173f44a1009aa78d9d04ad"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5626/head/src/flask/app.py",
+      "sha256": "9b621fc393d740244ef1eaf2a69adc95c6c2d76b8490dcff232516b827157255"
+    },
+    {
+      "path": "src/flask/wrappers.py",
+      "file": "cases/flask-5626/head/src/flask/wrappers.py",
+      "sha256": "8d492fe2655e93622ae21c3177846faab20c6faf41bf43c49438162e6779391a"
+    },
+    {
+      "path": "tests/test_basic.py",
+      "file": "cases/flask-5626/head/tests/test_basic.py",
+      "sha256": "cfb944da4201d9a9ed71a81f97edd176b3fd656543f3b34a9bbcab21e1edd1b5"
+    },
+    {
+      "path": "tests/test_request.py",
+      "file": "cases/flask-5626/head/tests/test_request.py",
+      "sha256": "b3922ade7ddccf69602efc920d55692fc31f42dbec7b33c6dfca1fc92dabf0d5"
+    }
+  ],
+  "input_snapshot_hash": "684142d59a0e34b0b4631b30d27aa0e676a3551f31b370e9b795f0ed201e53de",
+  "label_status": "UNREVIEWED"
+}

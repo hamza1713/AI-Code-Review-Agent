@@ -6,15 +6,17 @@ validates Pydantic schemas, and provides structured graceful fallbacks when LLM 
 
 import json
 import re
-from typing import Type, TypeVar, Optional, Tuple, Any, Dict, Callable
+from collections.abc import Callable
+from typing import Any, TypeVar
+
 from pydantic import BaseModel, ValidationError
 
-from code_review_agent.models import (
-    SummarizedFindingsJSON,
-    CodeQualityJSON,
-    ReviewSecurityJSON
-)
 from code_review_agent.config import logger
+from code_review_agent.models import (
+    CodeQualityJSON,
+    ReviewSecurityJSON,
+    SummarizedFindingsJSON,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -26,7 +28,7 @@ class RobustLLMOutputParser:
     """
 
     @staticmethod
-    def extract_json_block(text: str) -> Optional[str]:
+    def extract_json_block(text: str) -> str | None:
         """Extract JSON substring from markdown code blocks or conversational prose."""
         if not text or not isinstance(text, str):
             return None
@@ -34,23 +36,25 @@ class RobustLLMOutputParser:
         clean_text = text.strip()
 
         # 1. Match ```json ... ``` or ``` ... ```
-        fence_match = re.search(r"```(?:json)?\s*\n?([\s\S]*?)\n?```", clean_text, re.IGNORECASE)
+        fence_match = re.search(
+            r"```(?:json)?\s*\n?([\s\S]*?)\n?```", clean_text, re.IGNORECASE
+        )
         if fence_match:
             candidate = fence_match.group(1).strip()
-            if candidate.startswith("{") or candidate.startswith("["):
+            if candidate.startswith(("{", "[")):
                 return candidate
 
         # 2. Match outermost { ... }
         start_brace = clean_text.find("{")
         end_brace = clean_text.rfind("}")
         if start_brace != -1 and end_brace > start_brace:
-            return clean_text[start_brace:end_brace + 1]
+            return clean_text[start_brace : end_brace + 1]
 
         # 3. Match outermost [ ... ]
         start_bracket = clean_text.find("[")
         end_bracket = clean_text.rfind("]")
         if start_bracket != -1 and end_bracket > start_bracket:
-            return clean_text[start_bracket:end_bracket + 1]
+            return clean_text[start_bracket : end_bracket + 1]
 
         return None
 
@@ -63,7 +67,9 @@ class RobustLLMOutputParser:
         return repaired
 
     @classmethod
-    def parse_to_dict(cls, raw_output: Any) -> Tuple[Optional[Dict[str, Any]], bool, Optional[str]]:
+    def parse_to_dict(
+        cls, raw_output: Any
+    ) -> tuple[dict[str, Any] | None, bool, str | None]:
         """
         Attempt to parse raw output into a dictionary.
         Returns: (parsed_dict, is_success, error_or_warning_message)
@@ -72,7 +78,11 @@ class RobustLLMOutputParser:
             return raw_output, True, None
 
         # Check if object has json_dict attribute (e.g. CrewAI TaskOutput)
-        if hasattr(raw_output, "json_dict") and isinstance(raw_output.json_dict, dict) and raw_output.json_dict:
+        if (
+            hasattr(raw_output, "json_dict")
+            and isinstance(raw_output.json_dict, dict)
+            and raw_output.json_dict
+        ):
             return raw_output.json_dict, True, None
 
         raw_str = ""
@@ -100,9 +110,9 @@ class RobustLLMOutputParser:
     def parse_with_schema(
         cls,
         raw_output: Any,
-        target_schema: Type[T],
-        fallback_factory: Optional[Callable[[str], T]] = None
-    ) -> Tuple[T, bool, Optional[str]]:
+        target_schema: type[T],
+        fallback_factory: Callable[[str], T] | None = None,
+    ) -> tuple[T, bool, str | None]:
         """
         Parse and validate against target Pydantic schema with automatic fallback.
         Guarantees returning a valid instance of target_schema.
@@ -119,11 +129,15 @@ class RobustLLMOutputParser:
                 instance = target_schema.model_validate(parsed_dict)
                 return instance, True, None
             except ValidationError as ve:
-                logger.warning(f"Schema validation error against {target_schema.__name__}: {ve}")
+                logger.warning(
+                    f"Schema validation error against {target_schema.__name__}: {ve}"
+                )
                 parse_error = f"Schema validation error: {str(ve)}"
 
         # Fallback path
-        logger.warning(f"⚠️ Activating graceful fallback for {target_schema.__name__}. Error: {parse_error}")
+        logger.warning(
+            f"⚠️ Activating graceful fallback for {target_schema.__name__}. Error: {parse_error}"
+        )
 
         if fallback_factory:
             fallback_instance = fallback_factory(raw_text_str)
@@ -133,7 +147,7 @@ class RobustLLMOutputParser:
         return fallback_instance, False, parse_error
 
     @classmethod
-    def _default_fallback(cls, target_schema: Type[T], raw_text: str) -> T:
+    def _default_fallback(cls, target_schema: type[T], raw_text: str) -> T:
         """Create a safe, structured fallback instance for known schema types."""
         clean_text = raw_text.strip() or "No review response generated."
 
@@ -144,11 +158,12 @@ class RobustLLMOutputParser:
                 findings=f"⚠️ Notice: The LLM returned unstructured output. Raw review content:\n\n{clean_text}",
                 coverage_gaps=[],
                 fix=[],
-                recommendations=["Review output required fallback parsing; manual review recommended."],
+                recommendations=[
+                    "Review output required fallback parsing; manual review recommended."
+                ],
                 inline_comments=[],
-                suggested_unit_tests=""
-            ) # type: ignore
-
+                suggested_unit_tests="",
+            )  # type: ignore
 
         elif target_schema is CodeQualityJSON:
             return CodeQualityJSON(
@@ -156,17 +171,19 @@ class RobustLLMOutputParser:
                 minor_issues=[],
                 reasoning=f"Unstructured code quality output: {clean_text}",
                 cross_file_risks=[],
-                inline_suggestions=[]
-            ) # type: ignore
+                inline_suggestions=[],
+            )  # type: ignore
 
         elif target_schema is ReviewSecurityJSON:
             return ReviewSecurityJSON(
                 security_vulnerabilities=[],
                 blocking=False,
                 highest_risk="none",
-                security_recommendations=["Output degraded to raw text; verify security manually."],
-                inline_security_comments=[]
-            ) # type: ignore
+                security_recommendations=[
+                    "Output degraded to raw text; verify security manually."
+                ],
+                inline_security_comments=[],
+            )  # type: ignore
 
         # Generic fallback
         try:

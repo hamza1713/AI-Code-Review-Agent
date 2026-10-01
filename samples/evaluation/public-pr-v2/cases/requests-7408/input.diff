@@ -1,0 +1,41 @@
+diff --git a/HISTORY.md b/HISTORY.md
+index ef79f06556..847a0cce8d 100644
+--- a/HISTORY.md
++++ b/HISTORY.md
+@@ -6,6 +6,21 @@ dev
+ 
+ - \[Short description of non-trivial change.\]
+ 
++2.34.0 (2026-05-??)
++-------------------
++
++**Improvements**
++* Requests 2.34.0 introduces inline types, replacing those provided by
++  typeshed. Public API types should be fully compatible with mypy, pyright,
++  and ty. (#7272)
++* Digest Auth hashing algorithms have added `usedforsecurity=False` to clarify
++  security considerations. (#7310)
++
++**Bugfixes**
++* ``Response.history`` no longer contains a reference to itself, preventing
++  accidental looping when traversing the history list. (#7328)
++
++
+ 2.33.1 (2026-03-30)
+ -------------------
+ 
+diff --git a/src/requests/__version__.py b/src/requests/__version__.py
+index 7f8a52c856..3f1461d76e 100644
+--- a/src/requests/__version__.py
++++ b/src/requests/__version__.py
+@@ -5,8 +5,8 @@
+ __title__ = "requests"
+ __description__ = "Python HTTP for Humans."
+ __url__ = "https://requests.readthedocs.io"
+-__version__ = "2.33.1"
+-__build__ = 0x023301
++__version__ = "2.34.0.dev1"
++__build__ = 0x023400
+ __author__ = "Kenneth Reitz"
+ __author_email__ = "me@kennethreitz.org"
+ __license__ = "Apache-2.0"

@@ -2,7 +2,6 @@
 Unit tests for adaptive chunking and token estimation in DiffParser.
 """
 
-import pytest
 from code_review_agent.diff_parser import DiffParser
 
 

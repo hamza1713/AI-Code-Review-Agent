@@ -1,0 +1,32 @@
+diff --git a/httpx/_utils.py b/httpx/_utils.py
+index a9ece19438..46a4d63b1d 100644
+--- a/httpx/_utils.py
++++ b/httpx/_utils.py
+@@ -50,6 +50,8 @@ def normalize_header_value(value: str | bytes, encoding: str | None = None) -> b
+     """
+     if isinstance(value, bytes):
+         return value
++    if not isinstance(value, str):
++        raise TypeError(f"Header value must be str or bytes, not {type(value)}")
+     return value.encode(encoding or "ascii")
+ 
+ 
+diff --git a/tests/client/test_headers.py b/tests/client/test_headers.py
+index c51e40c335..b8d2976700 100755
+--- a/tests/client/test_headers.py
++++ b/tests/client/test_headers.py
+@@ -177,6 +177,14 @@ def test_header_does_not_exist():
+         del headers["baz"]
+ 
+ 
++def test_header_with_incorrect_value():
++    with pytest.raises(
++        TypeError,
++        match=f"Header value must be str or bytes, not {type(None)}",
++    ):
++        httpx.Headers({"foo": None})  # type: ignore
++
++
+ def test_host_with_auth_and_port_in_url():
+     """
+     The Host header should only include the hostname, or hostname:port

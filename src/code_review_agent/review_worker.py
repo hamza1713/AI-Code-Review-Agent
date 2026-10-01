@@ -1,40 +1,79 @@
 """Internal subprocess entry point; never evaluates arbitrary operation names."""
+
 import json
 import sys
 from pathlib import Path
+
 from code_review_agent.review_executor import decode_inputs
 
 
 def execute(operation, payload):
-    if operation == 'review':
+    if operation == "review":
         from code_review_agent.review_service import ReviewService
+
         return ReviewService.execute_review(**payload).model_dump()
-    if operation == 'bot':
-        from code_review_agent.bot import CommandRouter
+    if operation == "bot":
         from dataclasses import asdict
+
+        from code_review_agent.bot import CommandRouter
+
         return asdict(CommandRouter.dispatch(**payload))
-    if operation == 'webhook':
+    if operation == "merge":
+        from code_review_agent.learning.suggestion_tracker import SuggestionTracker
+
+        payload.pop("_job_claim", None)
+        return [
+            item.model_dump() if hasattr(item, "model_dump") else str(item)
+            for item in SuggestionTracker().process_merged_pr(**payload)
+        ]
+    if operation == "webhook":
         from code_review_agent.webhook_queue import execute_platform_review
+
         return execute_platform_review(**payload)
-    raise ValueError('Unsupported worker operation')
+    raise ValueError("Unsupported worker operation")
 
 
 def main():
     request_file, result_file = map(Path, sys.argv[1:3])
-    request = json.loads(request_file.read_text(encoding='utf-8'))
+    request = json.loads(request_file.read_text(encoding="utf-8"))
     try:
-        result = {'result': execute(request['operation'], decode_inputs(request['payload']))}
+        result = {
+            "result": execute(request["operation"], decode_inputs(request["payload"]))
+        }
     except Exception as error:
-        from code_review_agent.review_service import InputValidationError, RateLimitExceeded
-        if isinstance(error, InputValidationError):
-            result = {'error': str(error), 'status': 400}
+        from code_review_agent.path_validation import UnsafeDiffPathError
+        from code_review_agent.review_service import (
+            InputValidationError,
+            RateLimitExceeded,
+        )
+
+        if isinstance(error, UnsafeDiffPathError):
+            result = {"error": "Unsafe diff path; review refused.", "status": 422}
+        elif isinstance(error, PermissionError):
+            result = {"error": str(error), "status": 403}
+        elif isinstance(error, InputValidationError):
+            result = {"error": str(error), "status": 400}
         elif isinstance(error, RateLimitExceeded):
-            result = {'error': 'Rate limit exceeded.', 'status': 429}
+            result = {"error": "Rate limit exceeded.", "status": 429}
+        elif "RECONCILIATION_REQUIRED" in str(error):
+            result = {
+                "error": "RECONCILIATION_REQUIRED: delivery requires reconciliation",
+                "status": 409,
+            }
+        elif isinstance(error, ValueError):
+            result = {"error": str(error), "status": 422}
         else:
-            result = {'error': 'Review execution failed. Check server logs and provider configuration.', 'status': 500}
-    temporary = result_file.with_suffix('.tmp')
-    temporary.write_text(json.dumps(result), encoding='utf-8')
+            from code_review_agent.config import logger
+
+            logger.exception("Review worker failed")
+            result = {
+                "error": "Review execution failed. Check server logs and provider configuration.",
+                "status": 500,
+            }
+    temporary = result_file.with_suffix(".tmp")
+    temporary.write_text(json.dumps(result), encoding="utf-8")
     temporary.replace(result_file)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

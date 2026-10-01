@@ -36,7 +36,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
     downloadAnchor.remove();
   };
 
-  const securityCount = data.pattern_findings?.length || 0;
+  const securityCount = (data.findings ?? data.pattern_findings)?.length || 0;
   const govCount = data.governance_violations?.length || 0;
   const inlineCount = data.inline_comments?.length || 0;
 
@@ -50,6 +50,15 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         onReset={onReset}
         onExportJSON={handleExportJSON}
       />
+
+      <section aria-label="Review coverage" className="rounded-xl border border-slate-800 p-4 text-sm text-slate-300 space-y-2">
+        <p>{data.analysis_complete === false ? 'Incomplete analysis — manual review required' : 'Analysis coverage'} · {data.reviewer_profile?.model ?? 'Reviewer identity unavailable'}</p>
+        {data.reviewer_profile_id && <p className="text-xs break-all">Reviewer: <code>{data.reviewer_profile_id}</code></p>}
+        {data.input_snapshot_hash && <p className="text-xs break-all">Input: <code>{data.input_snapshot_hash}</code></p>}
+        {(data.file_coverage ?? []).filter(file => !['AVAILABLE', 'DELETED'].includes(file.status)).map(file => (
+          <p key={file.path} className="text-amber-300"><code>{file.path}</code>: {file.status.toLowerCase().replaceAll('_', ' ')}{file.reason ? ` — ${file.reason}` : ''}</p>
+        ))}
+      </section>
 
       <section className="review-metrics" aria-label="Review counts">
         <button className="review-metric" aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}><span>Security findings</span><strong className="text-rose-300">{securityCount}</strong><small>Explore risks and fixes →</small></button>
@@ -175,7 +184,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
             {/* Left Column: Security & Governance */}
             <div className="space-y-4">
               <FindingsList
-                findings={data.pattern_findings || []}
+                findings={data.findings ?? data.pattern_findings ?? []}
                 label={data.pattern_findings_label}
               />
               <GovernanceViolations
@@ -208,7 +217,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
 
       {activeTab === 'security' && (
         <FindingsList
-          findings={data.pattern_findings || []}
+          findings={data.findings ?? data.pattern_findings ?? []}
           label={data.pattern_findings_label}
         />
       )}
@@ -246,6 +255,10 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       <TelemetryCard telemetry={data.telemetry} />
 
       {/* 6. Scope Disclaimer */}
+      {data.analysis_complete === false && <p role="alert" className="rounded border border-amber-500 p-4">Analysis incomplete. Required analyzers failed; this review cannot approve the change.</p>}
+      {data.analyzer_status && <details><summary>Analysis completeness and verification</summary>
+        <ul>{Object.entries(data.analyzer_status).map(([name,status]) => <li key={name}>{name}: {status}</li>)}</ul>
+      </details>}
       <ScopeDisclaimer note={data.scope_note} />
     </div>
   );

@@ -5,17 +5,16 @@ into a unified vulnerability reporting pipeline before LLM reasoning.
 """
 
 import re
-from typing import List, Type, Tuple
-from crewai.tools import BaseTool
+
 from pydantic import BaseModel, Field
 
-from code_review_agent.models import SastFinding
-from code_review_agent.diff_parser import DiffParser
-from code_review_agent.tools.semgrep_runner import SemgrepRunner
-from code_review_agent.tools.bandit_runner import BanditRunner, is_safe_subprocess_call
-from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
 from code_review_agent.cache import memoize_by_content
-
+from code_review_agent.diff_parser import DiffParser
+from code_review_agent.models import SastFinding
+from code_review_agent.native_tools import BaseTool
+from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
+from code_review_agent.tools.bandit_runner import BanditRunner, is_safe_subprocess_call
+from code_review_agent.tools.semgrep_runner import SemgrepRunner
 
 
 class SecurityPatternRule(BaseModel):
@@ -29,7 +28,7 @@ class SecurityPatternRule(BaseModel):
 
 
 # Built-in Regex Security Patterns (Heuristic Pattern Matchers)
-SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
+SECURITY_PATTERN_RULES: list[SecurityPatternRule] = [
     SecurityPatternRule(
         rule_id="SEC-SQLI-001",
         cwe="CWE-89",
@@ -37,7 +36,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*f[\"']|(?:query|sql|stmt)\s*=\s*f[\"']).*?(?:SELECT|INSERT|UPDATE|DELETE).*?\{.*?\}",
         description="Formatted string (f-string) interpolation used directly in SQL query execution. Allows manipulation of SQL syntax.",
-        fix_recommendation="Use parameterized queries or prepared statements: db.query('SELECT * FROM users WHERE username = %s', (username,))"
+        fix_recommendation="Use parameterized queries or prepared statements: `db.query('SELECT * FROM users WHERE username = %s', (username,))`",
     ),
     SecurityPatternRule(
         rule_id="SEC-SQLI-002",
@@ -46,7 +45,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*[\"']|(?:query|sql|stmt)\s*=\s*[\"']).*?(?:SELECT|INSERT|UPDATE|DELETE).*?[\"']\s*\+",
         description="String concatenation used directly in SQL query execution.",
-        fix_recommendation="Pass SQL parameters as a tuple/dictionary rather than concatenating strings."
+        fix_recommendation="Pass SQL parameters as a tuple/dictionary rather than concatenating strings: `db.execute('SELECT * FROM users WHERE id = %s', (user_id,))`",
     ),
     SecurityPatternRule(
         rule_id="SEC-AUTH-001",
@@ -55,7 +54,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="HIGH",
         pattern=r"user\.password\s*==\s*password|password\s*==\s*user\.password",
         description="Comparing passwords directly in plain text. Passwords must be verified via cryptographic hashes.",
-        fix_recommendation="Use a password hashing library: bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))"
+        fix_recommendation="Use a password hashing library: `bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))`",
     ),
     SecurityPatternRule(
         rule_id="SEC-SECRET-001",
@@ -64,9 +63,8 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:api_key|secret_key|private_key|token|password|aws_secret|stripe_secret|_key)\s*=\s*['\"][A-Za-z0-9_\-]{16,}['\"]",
         description="Hardcoded credentials, API keys, or secrets detected in source code.",
-        fix_recommendation="Move sensitive credentials to environment variables or a secure key management service."
+        fix_recommendation="Move sensitive credentials to environment variables: `api_key = os.getenv('API_KEY')`",
     ),
-
     SecurityPatternRule(
         rule_id="SEC-CMD-001",
         cwe="CWE-78",
@@ -74,7 +72,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:os\.system|subprocess\.(?:call|run|Popen))\s*\(",
         description="Executing operating system commands with os.system or subprocess.",
-        fix_recommendation="Pass arguments as a list with shell=False: subprocess.run(['ls', '-l', directory], shell=False, check=True)"
+        fix_recommendation="Pass arguments as a list with shell=False: `subprocess.run(['ls', '-l', directory], shell=False, check=True)`",
     ),
     SecurityPatternRule(
         rule_id="SEC-DESER-001",
@@ -83,7 +81,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="HIGH",
         pattern=r"pickle\.loads\s*\(",
         description="Deserializing untrusted data with python pickle can lead to arbitrary code execution.",
-        fix_recommendation="Use safe serialization formats like JSON, Protocol Buffers, or MessagePack."
+        fix_recommendation="Use safe serialization formats like JSON: `json.loads(data)`",
     ),
     SecurityPatternRule(
         rule_id="SEC-CRYPTO-001",
@@ -92,7 +90,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="MEDIUM",
         pattern=r"hashlib\.(?:md5|sha1)\s*\(|hashlib\.new\s*\(\s*['\"](?:md5|sha1|md4|md2)['\"]",
         description="MD5 and SHA-1 are cryptographically broken for security verification.",
-        fix_recommendation="Upgrade to SHA-256 (hashlib.sha256) or SHA-3 for hashing."
+        fix_recommendation="Upgrade to SHA-256 for hashing: `hashlib.sha256(data.encode('utf-8')).hexdigest()`",
     ),
     SecurityPatternRule(
         rule_id="SEC-PATH-001",
@@ -109,7 +107,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
             r"|open\s*\(\s*f[\"'].*?\{.*?\}.*?[\"']"
         ),
         description="Opening files using an unsanitized, caller-controlled file path can permit directory traversal (e.g. '../../etc/passwd').",
-        fix_recommendation="Resolve and validate the path against an allowed base directory: base=os.path.realpath(base_dir); target=os.path.realpath(os.path.join(base, name)); assert target.startswith(base + os.sep)."
+        fix_recommendation="Resolve and validate the path against an allowed base directory: `os.path.realpath(os.path.join(base_dir, filename))`",
     ),
     SecurityPatternRule(
         rule_id="SEC-TLS-001",
@@ -123,7 +121,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
             r"|(?:^|[^\w.])verify\s*=\s*False"
         ),
         description="TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-middle attacks on encrypted connections.",
-        fix_recommendation="Keep verification enabled: use ssl.create_default_context() with check_hostname=True and CERT_REQUIRED, or pass verify=True (or a CA bundle path) to the HTTP client."
+        fix_recommendation="Keep TLS verification enabled: `ssl.create_default_context(check_hostname=True)`",
     ),
     SecurityPatternRule(
         rule_id="SEC-PASS-001",
@@ -132,7 +130,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="HIGH",
         pattern=r"(?:db_password|password|passwd|pwd)\s*=\s*['\"][^'\"]{4,}['\"]",
         description="Hardcoded password string detected in assignment.",
-        fix_recommendation="Load passwords from environment variables or a secrets manager."
+        fix_recommendation="Load passwords from environment variables: `db_password = os.getenv('DB_PASSWORD')`",
     ),
     SecurityPatternRule(
         rule_id="SEC-SQLI-003",
@@ -144,7 +142,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
             r"|['\"][^'\"]*?(?:SELECT|INSERT|UPDATE|DELETE)[^'\"]*?['\"]\s*\.format\s*\("
         ),
         description="String formatting (% or .format()) used directly in SQL query construction. Allows SQL injection.",
-        fix_recommendation="Use parameterized queries: cursor.execute('SELECT * FROM users WHERE name = ?', (username,))"
+        fix_recommendation="Use parameterized queries: `cursor.execute('SELECT * FROM users WHERE name = %s', (username,))`",
     ),
     SecurityPatternRule(
         rule_id="SEC-EVAL-001",
@@ -153,7 +151,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:^|[^\w.])(?:eval|exec)\s*\([^)]+\)",
         description="Direct use of eval() or exec() to dynamically execute code/expressions. Enables arbitrary code execution if inputs are untrusted.",
-        fix_recommendation="Use ast.literal_eval() for parsing data structures, or avoid dynamic evaluation."
+        fix_recommendation="Use ast.literal_eval() for parsing data structures, or avoid dynamic evaluation.",
     ),
     SecurityPatternRule(
         rule_id="SEC-RAND-001",
@@ -162,7 +160,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="MEDIUM",
         pattern=r"(?:^|[^\w.])random\.(?:choice|random|randint|randrange|choices)\s*\(",
         description="Standard pseudo-random number generator (random module) used for generating tokens, keys, or security values.",
-        fix_recommendation="Use secrets module for cryptographic or security tokens: secrets.token_hex() or secrets.choice()."
+        fix_recommendation="Use secrets module for cryptographic or security tokens: secrets.token_hex() or secrets.choice().",
     ),
     SecurityPatternRule(
         rule_id="SEC-YAML-001",
@@ -171,7 +169,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="HIGH",
         pattern=r"yaml\.load\s*\([^)]*(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)",
         description="Unsafe yaml.load() allows arbitrary object deserialization and remote code execution.",
-        fix_recommendation="Use yaml.safe_load() or specify Loader=yaml.SafeLoader."
+        fix_recommendation="Use yaml.safe_load() or specify Loader=yaml.SafeLoader.",
     ),
     SecurityPatternRule(
         rule_id="SEC-PERM-001",
@@ -180,7 +178,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="HIGH",
         pattern=r"os\.chmod\s*\([^,]+,\s*(?:0o?777|0o?666|stat\.S_IRWXU\s*\|\s*stat\.S_IRWXG\s*\|\s*stat\.S_IRWXO)\)",
         description="Overly permissive file mask (0o777 / 0o666) grants read/write/execute permissions to all system users.",
-        fix_recommendation="Restrict permissions to owner only (e.g. 0o600 or 0o700): os.chmod(path, 0o600)."
+        fix_recommendation="Restrict permissions to owner only (e.g. 0o600 or 0o700): os.chmod(path, 0o600).",
     ),
     SecurityPatternRule(
         rule_id="SEC-EXCEPT-001",
@@ -192,7 +190,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         # scanner, which reports it at the correct line number.
         pattern=r"except(?:\s+(?:Base)?Exception)?\s*:[ \t]+(?:pass|\.\.\.)\s*$",
         description="Bare except, except Exception, or except BaseException with pass silently swallows unexpected errors and hides runtime bugs.",
-        fix_recommendation="Catch specific exceptions and log the error: except SpecificError as e: logger.warning(f'... {e}')"
+        fix_recommendation="Catch specific exceptions and log the error: except SpecificError as e: logger.warning(f'... {e}')",
     ),
     SecurityPatternRule(
         rule_id="SEC-SQLI-004",
@@ -201,7 +199,7 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:query|sql|stmt)\s*(?:\+=|\+)\s*(?:['\"].*?['\"]\s*\+\s*)?[A-Za-z_]\w*",
         description="Accumulating SQL query strings by concatenating untrusted variables directly with + or +=.",
-        fix_recommendation="Use parameterized queries instead of dynamically concatenating SQL strings."
+        fix_recommendation="Use parameterized queries instead of dynamically concatenating SQL strings.",
     ),
     SecurityPatternRule(
         rule_id="SEC-CMD-002",
@@ -210,8 +208,8 @@ SECURITY_PATTERN_RULES: List[SecurityPatternRule] = [
         severity="CRITICAL",
         pattern=r"(?:cmd|command|exec_cmd|shell_cmd)\s*(?:\+=|=)\s*['\"][^'\"]*?['\"]\s*\+\s*[A-Za-z_]\w*",
         description="Building operating system command string via concatenation with variables before shell execution.",
-        fix_recommendation="Pass arguments as a list to subprocess without shell=True: subprocess.run(['cmd', arg], check=True)"
-    )
+        fix_recommendation="Pass arguments as a list to subprocess without shell=True: subprocess.run(['cmd', arg], check=True)",
+    ),
 ]
 
 
@@ -268,7 +266,7 @@ def strip_line_comment(line: str) -> str:
     return line
 
 
-def is_comment_or_docstring_line(line: str, in_docstring: bool) -> Tuple[bool, bool]:
+def is_comment_or_docstring_line(line: str, in_docstring: bool) -> tuple[bool, bool]:
     """
     Determine if a line is a comment or inside a multiline docstring.
     Returns (is_comment, new_in_docstring_state).
@@ -292,12 +290,13 @@ def is_comment_or_docstring_line(line: str, in_docstring: bool) -> Tuple[bool, b
         return True, True
 
     # Single-line full docstring e.g. """docstring here"""
-    if (s.startswith('"""') and s.endswith('"""') and len(s) >= 6) or \
-       (s.startswith("'''") and s.endswith("'''") and len(s) >= 6):
+    if (s.startswith('"""') and s.endswith('"""') and len(s) >= 6) or (
+        s.startswith("'''") and s.endswith("'''") and len(s) >= 6
+    ):
         return True, False
 
     # Full line comment
-    if s.startswith("#") or s.startswith("//") or s.startswith("/*") or s.startswith("*"):
+    if s.startswith(("#", "//", "/*", "*")):
         return True, in_docstring
 
     return False, in_docstring
@@ -311,10 +310,10 @@ class QuickPatternScanner:
 
     @staticmethod
     @memoize_by_content("quick_pattern")
-    def scan_diff(raw_diff: str) -> List[SastFinding]:
+    def scan_diff(raw_diff: str) -> list[SastFinding]:
         """Scan all added lines in a unified diff for known security patterns with comment filtering."""
         parsed_pr = DiffParser.parse_diff(raw_diff)
-        findings: List[SastFinding] = []
+        findings: list[SastFinding] = []
 
         for file_diff in parsed_pr.files:
             file_path = file_diff.target_file
@@ -323,7 +322,9 @@ class QuickPatternScanner:
             # Check line-by-line with comment stripping
             in_docstring = False
             for line_no, line_content in added_lines:
-                is_comm, in_docstring = is_comment_or_docstring_line(line_content, in_docstring)
+                is_comm, in_docstring = is_comment_or_docstring_line(
+                    line_content, in_docstring
+                )
                 if is_comm:
                     continue
 
@@ -332,7 +333,9 @@ class QuickPatternScanner:
                     continue
 
                 for rule in SECURITY_PATTERN_RULES:
-                    if rule.rule_id == "SEC-CMD-001" and is_safe_subprocess_call(code_part):
+                    if rule.rule_id == "SEC-CMD-001" and is_safe_subprocess_call(
+                        code_part
+                    ):
                         continue
                     if re.search(rule.pattern, code_part, re.IGNORECASE):
                         findings.append(
@@ -345,7 +348,7 @@ class QuickPatternScanner:
                                 line_number=line_no,
                                 snippet=code_part.strip(),
                                 fix_recommendation=rule.fix_recommendation,
-                                analyzer_source="regex"
+                                analyzer_source="regex",
                             )
                         )
 
@@ -353,10 +356,14 @@ class QuickPatternScanner:
             raw_patch = file_diff.raw_patch
             clean_patch_lines = []
             in_doc = False
-            for l in raw_patch.splitlines():
-                content_only = l[1:] if l.startswith(("+", "-", " ")) else l
+            for line_item in raw_patch.splitlines():
+                content_only = (
+                    line_item[1:]
+                    if line_item.startswith(("+", "-", " "))
+                    else line_item
+                )
                 is_c, in_doc = is_comment_or_docstring_line(content_only, in_doc)
-                prefix = l[:1] if l.startswith(("+", "-", " ")) else ""
+                prefix = line_item[:1] if line_item.startswith(("+", "-", " ")) else ""
                 if is_c:
                     clean_patch_lines.append(prefix)
                 else:
@@ -370,9 +377,21 @@ class QuickPatternScanner:
                     matched_snippet = match.group(0).strip()
                     if not matched_snippet:
                         continue
-                    if not any(f.file_path == file_path and f.rule_id == rule.rule_id for f in findings):
-                        first_line = matched_snippet.splitlines()[0].lstrip("+- ").strip()
-                        line_no = next((ln for ln, content in added_lines if first_line and first_line in content), 1)
+                    if not any(
+                        f.file_path == file_path and f.rule_id == rule.rule_id
+                        for f in findings
+                    ):
+                        first_line = (
+                            matched_snippet.splitlines()[0].lstrip("+- ").strip()
+                        )
+                        line_no = next(
+                            (
+                                ln
+                                for ln, content in added_lines
+                                if first_line and first_line in content
+                            ),
+                            1,
+                        )
                         findings.append(
                             SastFinding(
                                 rule_id=rule.rule_id,
@@ -383,7 +402,7 @@ class QuickPatternScanner:
                                 line_number=line_no,
                                 snippet=matched_snippet,
                                 fix_recommendation=rule.fix_recommendation,
-                                analyzer_source="regex"
+                                analyzer_source="regex",
                             )
                         )
 
@@ -400,9 +419,9 @@ class UnifiedSecurityScanner:
     """
 
     @classmethod
-    def scan_diff(cls, raw_diff: str) -> List[SastFinding]:
+    def scan_diff(cls, raw_diff: str) -> list[SastFinding]:
         """Execute all available security scanners and merge results without duplication."""
-        all_findings: List[SastFinding] = []
+        all_findings: list[SastFinding] = []
         seen_keys = set()
 
         # 1. AST Constant Folding & Variable Indirection Scanner (Python AST - high semantic fidelity)
@@ -449,20 +468,26 @@ PatternEngine = QuickPatternScanner
 
 # --- CrewAI Tool Wrappers ---
 
+
 class QuickPatternScannerInput(BaseModel):
     """Input parameters for QuickPatternScannerTool."""
-    diff_content: str = Field(..., description="The raw unified git diff content to scan for security patterns")
+
+    diff_content: str = Field(
+        ...,
+        description="The raw unified git diff content to scan for security patterns",
+    )
 
 
 class QuickPatternScannerTool(BaseTool):
     """CrewAI Tool for unified security vulnerability scanning (Semgrep, Bandit, Regex)."""
+
     name: str = "Unified Security Vulnerability Scanner"
     description: str = (
         "Scans PR diffs for security vulnerabilities, injection flaws (SQLi, XSS, Command Injection), "
         "plaintext credentials, hardcoded secrets, and dangerous deserialization using AST analysis "
         "(Semgrep, Bandit) and heuristic patterns. Returns structured findings with CWEs, line numbers, and fixes."
     )
-    args_schema: Type[BaseModel] = QuickPatternScannerInput
+    args_schema: type[BaseModel] = QuickPatternScannerInput
 
     def _run(self, diff_content: str) -> str:
         """Execute unified scan and format results for agent context."""
@@ -470,7 +495,9 @@ class QuickPatternScannerTool(BaseTool):
         if not findings:
             return "✅ No common security anti-patterns detected in the analyzed diff."
 
-        output_lines = [f"🚨 Detected {len(findings)} Security Vulnerability Finding(s):"]
+        output_lines = [
+            f"🚨 Detected {len(findings)} Security Vulnerability Finding(s):"
+        ]
         for i, f in enumerate(findings, 1):
             source_tag = f"[{f.analyzer_source.upper()}] " if f.analyzer_source else ""
             output_lines.append(

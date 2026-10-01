@@ -1,0 +1,138 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index a964f9b593..a09fda1b70 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -69,6 +69,9 @@ test = [
+ typecheck = [
+     "pyright",
+     "typing_extensions",
++    "chardet",
++    "cryptography",
++    "PyOpenSSL",
+ ]
+ 
+ [tool.setuptools]
+diff --git a/src/requests/__init__.py b/src/requests/__init__.py
+index ad842400b9..5c65ff8201 100644
+--- a/src/requests/__init__.py
++++ b/src/requests/__init__.py
+@@ -52,7 +52,7 @@
+     charset_normalizer_version = None
+ 
+ try:
+-    from chardet import __version__ as chardet_version  # type: ignore[import-not-found]
++    from chardet import __version__ as chardet_version
+ except ImportError:
+     chardet_version = None
+ 
+@@ -112,7 +112,7 @@ def _check_cryptography(cryptography_version: str) -> None:
+ try:
+     check_compatibility(
+         urllib3.__version__,  # type: ignore[reportPrivateImportUsage]
+-        chardet_version,  # type: ignore[reportUnknownArgumentType]
++        chardet_version,
+         charset_normalizer_version,
+     )
+ except (AssertionError, ValueError):
+@@ -138,11 +138,11 @@ def _check_cryptography(cryptography_version: str) -> None:
+         pyopenssl.inject_into_urllib3()
+ 
+         # Check cryptography version
+-        from cryptography import (  # type: ignore[reportMissingImports]
+-            __version__ as cryptography_version,  # type: ignore[reportUnknownVariableType]
++        from cryptography import (
++            __version__ as cryptography_version,
+         )
+ 
+-        _check_cryptography(cryptography_version)  # type: ignore[reportUnknownArgumentType]
++        _check_cryptography(cryptography_version)
+ except ImportError:
+     pass
+ 
+diff --git a/src/requests/compat.py b/src/requests/compat.py
+index deab3c091f..7c8e813ede 100644
+--- a/src/requests/compat.py
++++ b/src/requests/compat.py
+@@ -14,6 +14,7 @@
+ import importlib
+ import sys
+ from types import ModuleType
++from typing import TYPE_CHECKING
+ 
+ # -------
+ # urllib3
+@@ -46,7 +47,10 @@ def _resolve_char_detection() -> ModuleType | None:
+     return chardet
+ 
+ 
+-chardet = _resolve_char_detection()
++if TYPE_CHECKING:
++    import chardet
++else:
++    chardet = _resolve_char_detection()
+ 
+ # -------
+ # Pythons
+diff --git a/src/requests/help.py b/src/requests/help.py
+index 9269cc7126..f1a62c3aee 100644
+--- a/src/requests/help.py
++++ b/src/requests/help.py
+@@ -1,7 +1,5 @@
+ """Module containing bug report helper(s)."""
+ 
+-# pyright: reportUnknownMemberType=false
+-
+ import json
+ import platform
+ import ssl
+@@ -19,7 +17,7 @@
+     charset_normalizer = None
+ 
+ try:
+-    import chardet  # type: ignore[import-not-found]
++    import chardet
+ except ImportError:
+     chardet = None
+ 
+@@ -30,8 +28,8 @@
+     OpenSSL = None
+     cryptography = None
+ else:
+-    import cryptography  # type: ignore[import-not-found]
+-    import OpenSSL  # type: ignore[import-not-found]
++    import cryptography
++    import OpenSSL
+ 
+ 
+ def _implementation():
+@@ -51,7 +49,7 @@ def _implementation():
+         implementation_version = platform.python_version()
+     elif implementation == "PyPy":
+         pypy = sys.pypy_version_info  # type: ignore[attr-defined]
+-        implementation_version = f"{pypy.major}.{pypy.minor}.{pypy.micro}"
++        implementation_version = f"{pypy.major}.{pypy.minor}.{pypy.micro}"  # pyright: ignore[reportUnknownMemberType]
+         if sys.pypy_version_info.releaselevel != "final":  # type: ignore[attr-defined]
+             implementation_version = "".join(
+                 [implementation_version, sys.pypy_version_info.releaselevel]  # type: ignore[attr-defined]
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 59b5615960..7aae7a0e69 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -238,7 +238,7 @@ def _encode_files(
+                 fdata = fp
+             elif isinstance(fp, _SupportsRead):  # type: ignore[reportUnnecessaryIsInstance]  # defensive check for untyped callers
+                 fdata = fp.read()
+-            elif fp is None:  # type: ignore[reportUnnecessaryComparison]  # defensive check for untyped callers
++            elif fp is None:  # defensive check for untyped callers
+                 continue
+             else:
+                 fdata = fp
+@@ -1010,7 +1010,7 @@ def iter_lines(
+         ):
+             if pending is not None:
+                 # TODO: remove cast after iter_lines rewrite
+-                chunk = cast("str | bytes", pending + chunk)  # type: ignore[operator]
++                chunk = cast("str | bytes", pending + chunk)
+ 
+             if delimiter:
+                 lines = chunk.split(delimiter)  # type: ignore[arg-type]

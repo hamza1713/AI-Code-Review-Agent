@@ -1,7 +1,6 @@
-import pytest
 from code_review_agent.models import (
-    SastFinding,
     InlineComment,
+    SastFinding,
     compute_finding_fingerprint,
     compute_finding_lifecycle,
 )
@@ -19,7 +18,9 @@ def test_fingerprint_generation_and_normalization():
         file_path="./src/app/api.py",
         snippet="cursor.execute('SELECT * FROM users WHERE id = %s' % user_id)",
     )
-    assert fp1 == fp2, "Fingerprints should be invariant to whitespace and relative path prefixes"
+    assert fp1 == fp2, (
+        "Fingerprints should be invariant to whitespace and relative path prefixes"
+    )
 
 
 def test_finding_auto_fingerprint():
@@ -58,7 +59,9 @@ def test_compute_finding_lifecycle():
     )
 
     # 1. First run: No prior findings -> all NEW
-    res1 = compute_finding_lifecycle([current_finding_1, current_finding_2], prior_findings=[])
+    res1 = compute_finding_lifecycle(
+        [current_finding_1, current_finding_2], prior_findings=[]
+    )
     assert len(res1.current) == 2
     assert all(f.lifecycle_status == "NEW" for f in res1.current)
     assert len(res1.resolved) == 0

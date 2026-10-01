@@ -4,9 +4,8 @@ Verifies markdown JSON extraction, trailing comma repairs, schema validation,
 and graceful degradation on truncated/malformed LLM responses without crashing.
 """
 
-import pytest
 from code_review_agent.flow_parser import RobustLLMOutputParser
-from code_review_agent.models import SummarizedFindingsJSON, CodeQualityJSON, ReviewSecurityJSON
+from code_review_agent.models import CodeQualityJSON, SummarizedFindingsJSON
 
 
 class TestLLMOutputResilience:
@@ -29,7 +28,9 @@ Here is my review analysis:
 
 Hope this helps!
 """
-        model, ok, err = RobustLLMOutputParser.parse_with_schema(llm_response, SummarizedFindingsJSON)
+        model, ok, err = RobustLLMOutputParser.parse_with_schema(
+            llm_response, SummarizedFindingsJSON
+        )
         assert ok is True
         assert model.confidence == 92
         assert model.findings == "Code changes look solid."
@@ -48,7 +49,9 @@ Hope this helps!
   "inline_comments": [],
 }
 """
-        model, ok, err = RobustLLMOutputParser.parse_with_schema(raw_json, SummarizedFindingsJSON)
+        model, ok, err = RobustLLMOutputParser.parse_with_schema(
+            raw_json, SummarizedFindingsJSON
+        )
         assert ok is True
         assert model.confidence == 80
         assert "Refactor auth logic" in model.recommendations
@@ -63,18 +66,25 @@ Hope this helps!
   "confidence": 40,
   "findings": "The authentication query is severely truncated and syntax error...
 """
-        model, ok, err = RobustLLMOutputParser.parse_with_schema(truncated_response, SummarizedFindingsJSON)
+        model, ok, err = RobustLLMOutputParser.parse_with_schema(
+            truncated_response, SummarizedFindingsJSON
+        )
         # Should gracefully return fallback model without throwing
         assert ok is False
         assert isinstance(model, SummarizedFindingsJSON)
         assert model.confidence == 50
-        assert "unstructured output" in model.findings.lower() or "truncated" in model.findings.lower()
+        assert (
+            "unstructured output" in model.findings.lower()
+            or "truncated" in model.findings.lower()
+        )
         assert len(model.recommendations) > 0
 
     def test_graceful_degradation_on_plain_conversational_text(self):
         """Confirm pure conversational prose without JSON structure degrades gracefully."""
         plain_text = "I reviewed the code and everything looks okay, but please remove the print statement on line 12."
-        model, ok, err = RobustLLMOutputParser.parse_with_schema(plain_text, CodeQualityJSON)
+        model, ok, err = RobustLLMOutputParser.parse_with_schema(
+            plain_text, CodeQualityJSON
+        )
         assert ok is False
         assert isinstance(model, CodeQualityJSON)
         assert "print statement" in model.reasoning

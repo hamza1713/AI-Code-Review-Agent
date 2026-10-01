@@ -4,11 +4,13 @@ Caches deterministic static analysis and tool outputs by SHA-256 content hashes,
 reducing redundant compute and token expenditure by up to 30-50%.
 """
 
-import hashlib
 import functools
+import hashlib
 import threading
-from typing import Any, Optional, Callable
 from collections import OrderedDict
+from collections.abc import Callable
+from typing import Any
+
 from pydantic import BaseModel
 
 from code_review_agent.config import logger
@@ -16,6 +18,7 @@ from code_review_agent.config import logger
 
 class CacheStats(BaseModel):
     """Real-time cache performance and token-saving metrics."""
+
     hits: int = 0
     misses: int = 0
     saved_operations: int = 0
@@ -41,10 +44,10 @@ class ContentHashCache:
     @staticmethod
     def hash_key(content: str, namespace: str = "default") -> str:
         """Generate SHA-256 deterministic key from content and namespace."""
-        payload = f"{namespace}:{content}".encode("utf-8")
+        payload = f"{namespace}:{content}".encode()
         return hashlib.sha256(payload).hexdigest()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Retrieve cached output for key."""
         with self._lock:
             if key in self._cache:
@@ -82,6 +85,7 @@ def memoize_by_content(namespace: str, token_estimate_factor: float = 0.25):
     """
     Decorator for memoizing deterministic functions by the SHA-256 hash of their first argument.
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         def wrapper(content: str, *args, **kwargs):
@@ -91,12 +95,16 @@ def memoize_by_content(namespace: str, token_estimate_factor: float = 0.25):
             key = ContentHashCache.hash_key(content, namespace=namespace)
             cached_result = global_tool_cache.get(key)
             if cached_result is not None:
-                logger.debug(f"⚡ Cache hit for namespace '{namespace}' (key: {key[:8]}...)")
+                logger.debug(
+                    f"⚡ Cache hit for namespace '{namespace}' (key: {key[:8]}...)"
+                )
                 return cached_result
 
             result = func(content, *args, **kwargs)
             est_tokens = int(len(content) * token_estimate_factor)
             global_tool_cache.set(key, result, estimated_tokens=est_tokens)
             return result
+
         return wrapper
+
     return decorator

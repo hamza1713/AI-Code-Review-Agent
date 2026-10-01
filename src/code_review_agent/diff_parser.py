@@ -4,14 +4,40 @@ Parses unified git diffs, computes line number mappings for GitHub inline commen
 and chunks large diffs into manageable batches.
 """
 
+import ast
 import re
-from typing import List, Dict, Tuple, Optional, Any
-from code_review_agent.models import ParsedPR, FileDiff, DiffHunk
+from typing import Any
 
+from code_review_agent.models import DiffHunk, FileDiff, ParsedPR
+from code_review_agent.path_validation import UnsafeDiffPathError, validate_diff_path
 
 DIFF_SPLIT_RE = re.compile(r"(?=diff --git )")
-DIFF_HEADER_RE = re.compile(r"diff --git a/(.*?) b/(.*)")
+DIFF_HEADER_RE = re.compile(
+    r'diff --git ("(?:[^"\\]|\\.)*"|a/.*?) ("(?:[^"\\]|\\.)*"|b/.*)$'
+)
 HUNK_HEADER_RE = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)")
+
+
+def _header_path(value: str, prefix: str = "") -> str:
+    if value.startswith('"'):
+        try:
+            value = ast.literal_eval(value)
+        except (ValueError, SyntaxError) as error:
+            raise UnsafeDiffPathError(
+                "Unsafe diff path: malformed quoted filename"
+            ) from error
+        if not isinstance(value, str):
+            raise UnsafeDiffPathError("Unsafe diff path: malformed filename")
+        # Git quotes non-ASCII UTF-8 bytes using octal escapes.
+        try:
+            value = value.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    if value == "/dev/null":
+        return value
+    if prefix and value.startswith(prefix):
+        value = value[len(prefix) :]
+    return validate_diff_path(value)
 
 
 class DiffParser:
@@ -24,12 +50,12 @@ class DiffParser:
             return ParsedPR(files=[], total_added=0, total_deleted=0, files_changed=0)
 
         file_diff_blocks = DIFF_SPLIT_RE.split(raw_diff)
-        files: List[FileDiff] = []
+        files: list[FileDiff] = []
         total_added = 0
         total_deleted = 0
 
         for block in file_diff_blocks:
-            block = block.strip()
+            block = block.strip("\r\n")
             if not block:
                 continue
 
@@ -47,7 +73,7 @@ class DiffParser:
         )
 
     @staticmethod
-    def _parse_single_file_diff(block: str) -> Optional[FileDiff]:
+    def _parse_single_file_diff(block: str) -> FileDiff | None:
         """Parse a single file's diff block."""
         lines = block.splitlines()
         if not lines:
@@ -62,25 +88,35 @@ class DiffParser:
         first_line = lines[0]
         match = DIFF_HEADER_RE.search(first_line)
         if match:
-            source_file = match.group(1)
-            target_file = match.group(2)
+            source_file = _header_path(match.group(1), "a/")
+            target_file = _header_path(match.group(2), "b/")
+        elif first_line.startswith("diff --git "):
+            raise UnsafeDiffPathError("Unsafe diff path: malformed git header")
 
-        for line in lines[:10]:
+        for line in lines:
+            if line.startswith("@@ "):
+                break
             if line.startswith("new file mode"):
                 is_new = True
             elif line.startswith("deleted file mode"):
                 is_deleted = True
-            elif line.startswith("--- a/"):
-                source_file = line[6:]
-            elif line.startswith("+++ b/"):
-                target_file = line[6:]
+            elif line.startswith("--- "):
+                source_file = _header_path(line[4:].split("\t", 1)[0], "a/")
+                is_new = is_new or source_file == "/dev/null"
+            elif line.startswith("+++ "):
+                target_file = _header_path(line[4:].split("\t", 1)[0], "b/")
+                is_deleted = is_deleted or target_file == "/dev/null"
+            elif line.startswith(
+                ("rename from ", "rename to ", "copy from ", "copy to ")
+            ):
+                _header_path(line.split(" ", 2)[2])
 
         if not target_file:
-            target_file = source_file or "unknown_file"
+            target_file = source_file or "source_file.py"
 
         # Parse Hunks
-        hunks: List[DiffHunk] = []
-        current_hunk: Optional[DiffHunk] = None
+        hunks: list[DiffHunk] = []
+        current_hunk: DiffHunk | None = None
         added_count = 0
         deleted_count = 0
 
@@ -103,7 +139,7 @@ class DiffParser:
                         new_start=new_start,
                         new_lines=new_lines,
                         header=header,
-                        lines=[]
+                        lines=[],
                     )
                     continue
 
@@ -117,6 +153,36 @@ class DiffParser:
         if current_hunk:
             hunks.append(current_hunk)
 
+        if not hunks and lines:
+            code_lines = [
+                line_item
+                for line_item in lines
+                if not line_item.startswith(
+                    ("diff --git", "index ", "---", "+++", "new file", "deleted file")
+                )
+            ]
+            if code_lines:
+                formatted_lines = [
+                    line_item if line_item.startswith(("+", "-")) else f"+{line_item}"
+                    for line_item in code_lines
+                ]
+                added_count = sum(
+                    1 for line_item in formatted_lines if line_item.startswith("+")
+                )
+                deleted_count = sum(
+                    1 for line_item in formatted_lines if line_item.startswith("-")
+                )
+                hunks.append(
+                    DiffHunk(
+                        old_start=1,
+                        old_lines=0,
+                        new_start=1,
+                        new_lines=len(formatted_lines),
+                        header="@@ -0,0 +1 @@",
+                        lines=formatted_lines,
+                    )
+                )
+
         return FileDiff(
             source_file=source_file,
             target_file=target_file,
@@ -125,16 +191,16 @@ class DiffParser:
             hunks=hunks,
             added_lines_count=added_count,
             deleted_lines_count=deleted_count,
-            raw_patch=block
+            raw_patch=block,
         )
 
     @staticmethod
-    def extract_added_lines_with_numbers(file_diff: FileDiff) -> List[Tuple[int, str]]:
+    def extract_added_lines_with_numbers(file_diff: FileDiff) -> list[tuple[int, str]]:
         """
         Extract added (+) lines along with their actual 1-indexed line numbers
         in the target new file for accurate GitHub inline commenting.
         """
-        results: List[Tuple[int, str]] = []
+        results: list[tuple[int, str]] = []
 
         for hunk in file_diff.hunks:
             current_new_line = hunk.new_start
@@ -164,10 +230,8 @@ class DiffParser:
 
     @classmethod
     def chunk_diff_by_token_budget(
-        cls,
-        parsed_pr: ParsedPR,
-        max_chars_per_chunk: int = 12000
-    ) -> List[str]:
+        cls, parsed_pr: ParsedPR, max_chars_per_chunk: int = 12000
+    ) -> list[str]:
         """
         Split a large PR diff into modular text chunks to avoid LLM context saturation.
         Ensures each file's changes remain contiguous where possible, and splits oversized
@@ -176,8 +240,8 @@ class DiffParser:
         if not parsed_pr or not parsed_pr.files:
             return [""]
 
-        chunks: List[str] = []
-        current_chunk_parts: List[str] = []
+        chunks: list[str] = []
+        current_chunk_parts: list[str] = []
         current_length = 0
 
         for file_diff in parsed_pr.files:
@@ -193,11 +257,16 @@ class DiffParser:
                     current_length = 0
 
                 # Split large file by hunks with header preservation
-                file_subchunks = cls._chunk_large_file_by_hunks(file_diff, max_chars_per_chunk)
+                file_subchunks = cls._chunk_large_file_by_hunks(
+                    file_diff, max_chars_per_chunk
+                )
                 chunks.extend(file_subchunks)
                 continue
 
-            if current_length + patch_length > max_chars_per_chunk and current_chunk_parts:
+            if (
+                current_length + patch_length > max_chars_per_chunk
+                and current_chunk_parts
+            ):
                 chunks.append("\n\n".join(current_chunk_parts))
                 current_chunk_parts = [file_patch]
                 current_length = patch_length
@@ -211,20 +280,26 @@ class DiffParser:
         return chunks or [""]
 
     @classmethod
-    def _chunk_large_file_by_hunks(cls, file_diff: FileDiff, max_chars: int) -> List[str]:
+    def _chunk_large_file_by_hunks(
+        cls, file_diff: FileDiff, max_chars: int
+    ) -> list[str]:
         """Splits an oversized single-file diff across hunk boundaries with header reproduction."""
         header_lines = [
-            f"diff --git a/{file_diff.source_file} b/{file_diff.target_file}",
-            f"--- a/{file_diff.source_file}",
-            f"+++ b/{file_diff.target_file}"
+            f"diff --git a/{file_diff.source_file if file_diff.source_file != '/dev/null' else file_diff.target_file} b/{file_diff.target_file if file_diff.target_file != '/dev/null' else file_diff.source_file}",
+            "--- /dev/null"
+            if file_diff.source_file == "/dev/null"
+            else f"--- a/{file_diff.source_file}",
+            "+++ /dev/null"
+            if file_diff.target_file == "/dev/null"
+            else f"+++ b/{file_diff.target_file}",
         ]
         header = "\n".join(header_lines)
 
         if not file_diff.hunks:
             return [file_diff.raw_patch]
 
-        subchunks: List[str] = []
-        current_hunks: List[str] = []
+        subchunks: list[str] = []
+        current_hunks: list[str] = []
         current_len = len(header)
 
         for hunk in file_diff.hunks:
@@ -244,29 +319,30 @@ class DiffParser:
 
     @classmethod
     def chunk_diff_adaptively(
-        cls,
-        raw_diff: str,
-        max_tokens: int = 3000
-    ) -> List[Dict[str, Any]]:
+        cls, raw_diff: str, max_tokens: int = 3000
+    ) -> list[dict[str, Any]]:
         """
         Adaptive chunking that returns structured metadata for multi-segment reviews.
         """
         parsed = cls.parse_diff(raw_diff)
         max_chars = int(max_tokens * 3.7)
-        raw_chunks = cls.chunk_diff_by_token_budget(parsed, max_chars_per_chunk=max_chars)
+        raw_chunks = cls.chunk_diff_by_token_budget(
+            parsed, max_chars_per_chunk=max_chars
+        )
 
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         total = len(raw_chunks)
         for i, chunk_text in enumerate(raw_chunks):
             chunk_parsed = cls.parse_diff(chunk_text)
             files = [f.target_file for f in chunk_parsed.files]
-            result.append({
-                "chunk_index": i + 1,
-                "total_chunks": total,
-                "files": files,
-                "estimated_tokens": cls.estimate_tokens(chunk_text),
-                "diff_content": chunk_text
-            })
+            result.append(
+                {
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "files": files,
+                    "estimated_tokens": cls.estimate_tokens(chunk_text),
+                    "diff_content": chunk_text,
+                }
+            )
 
         return result
-

@@ -1,0 +1,24 @@
+{
+  "id": "flask-5599",
+  "file": "cases/flask-5599/input.diff",
+  "sha256": "0f18381fc4a36df2bc3c1aa8c2056cc06b077d28859371babcb5353d6f8b5e82",
+  "source_repository": "pallets/flask",
+  "base_sha": "c77b099cbb979269d45df06753cadd8abc662e23",
+  "head_sha": "629fa0ab3e0017150b4edde4f5fbcb0fe9b6d113",
+  "source_diff_url": "https://github.com/pallets/flask/compare/c77b099cbb979269d45df06753cadd8abc662e23...629fa0ab3e0017150b4edde4f5fbcb0fe9b6d113.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5599",
+  "merged_at": "2024-11-06T17:47:58Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5599/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "src/flask/helpers.py",
+      "file": "cases/flask-5599/head/src/flask/helpers.py",
+      "sha256": "35be96f56513393aa6d1102b3d43d7b48e665b5833f1644983f4ec9e1dfb8628"
+    }
+  ],
+  "input_snapshot_hash": "045e44173072db6375d3df10cd1e53f2f83c53a48421530338b5b90701e90ce8",
+  "label_status": "UNREVIEWED"
+}

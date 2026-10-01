@@ -4,9 +4,9 @@ Verifies job persistence, crash recovery across process restarts, retry backoff 
 and queue state transitions.
 """
 
-import time
-import pytest
-from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
+from production_fixtures import active_claim
+
+from code_review_agent.webhook_queue import WebhookJobQueue
 
 
 class TestWebhookQueueAndWorker:
@@ -18,7 +18,10 @@ class TestWebhookQueueAndWorker:
         queue = WebhookJobQueue(db_path=str(db_file))
 
         # Enqueue job
-        payload = {"pull_request": {"number": 42}, "repository": {"name": "repo", "owner": {"login": "org"}}}
+        payload = {
+            "pull_request": {"number": 42},
+            "repository": {"name": "repo", "owner": {"login": "org"}},
+        }
         job_id = queue.enqueue("org/repo/pull/42", payload)
         assert job_id.startswith("job_")
 
@@ -30,7 +33,7 @@ class TestWebhookQueueAndWorker:
         assert claimed["attempts"] == 1
 
         # Complete job
-        queue.complete_job(job_id)
+        queue.complete_job(job_id, claim_token=active_claim(queue, job_id))
 
         # Confirm status in DB
         job_record = queue.get_job(job_id)
@@ -61,19 +64,26 @@ class TestWebhookQueueAndWorker:
         queue_instance_2 = WebhookJobQueue(db_path=str(db_file))
 
         # Crash recovery method runs on startup
+        assert queue_instance_2.recover_orphan_jobs() == 0
+        with queue_instance_2._get_connection() as conn:
+            conn.execute(
+                "UPDATE webhook_jobs SET lease_expires_at=0 WHERE job_id=?", (job_id,)
+            )
         recovered_count = queue_instance_2.recover_orphan_jobs()
         assert recovered_count == 1
 
         # Confirm job was reset to QUEUED with recovery note and not lost
         job_after_restart = queue_instance_2.get_job(job_id)
-        assert job_after_restart["status"] == "QUEUED"
-        assert "Recovered after ungraceful process restart" in job_after_restart["last_error"]
+        assert job_after_restart["status"] == "RETRYING"
+        assert "Expired worker lease" in job_after_restart["last_error"]
 
         # 3. New server process can re-claim and successfully process the recovered job
         reclaimed_job = queue_instance_2.claim_next_job()
         assert reclaimed_job is not None
         assert reclaimed_job["job_id"] == job_id
-        queue_instance_2.complete_job(job_id)
+        queue_instance_2.complete_job(
+            job_id, claim_token=active_claim(queue_instance_2, job_id)
+        )
 
     def test_retry_on_failure_up_to_max_retries(self, tmp_path):
         """Verify failed jobs retry until max_retries is reached, then transition to FAILED."""
@@ -83,13 +93,20 @@ class TestWebhookQueueAndWorker:
         job_id = queue.enqueue("org/repo/pull/1", {"pr": 1}, max_retries=2)
 
         # Attempt 1 -> Fails
-        j1 = queue.claim_next_job()
-        queue.fail_job(job_id, "Network timeout 1")
+        queue.claim_next_job()
+        queue.fail_job(
+            job_id,
+            "Network timeout 1",
+            base_delay=0,
+            claim_token=active_claim(queue, job_id),
+        )
         assert queue.get_job(job_id)["status"] == "RETRYING"
 
         # Attempt 2 -> Fails (reaches max_retries)
-        j2 = queue.claim_next_job()
-        queue.fail_job(job_id, "Network timeout 2")
+        queue.claim_next_job()
+        queue.fail_job(
+            job_id, "Network timeout 2", claim_token=active_claim(queue, job_id)
+        )
         assert queue.get_job(job_id)["status"] == "FAILED"
 
         # No more jobs available to claim
@@ -98,6 +115,7 @@ class TestWebhookQueueAndWorker:
     def test_job_persists_and_retrieves_review_result(self, tmp_path):
         """Verify that complete_job persists review results and get_job/list_jobs decodes them (F6)."""
         import json
+
         db_file = tmp_path / "result_test.db"
         queue = WebhookJobQueue(db_path=str(db_file))
 
@@ -109,9 +127,13 @@ class TestWebhookQueueAndWorker:
             "verdict": "APPROVE",
             "confidence_score": 95,
             "summary": "Clean code changes with zero regressions.",
-            "action_items": []
+            "action_items": [],
         }
-        queue.complete_job(job_id, result_json=json.dumps(review_payload))
+        queue.complete_job(
+            job_id,
+            result_json=json.dumps(review_payload),
+            claim_token=active_claim(queue, job_id),
+        )
 
         # Check get_job
         record = queue.get_job(job_id)
@@ -127,6 +149,7 @@ class TestWebhookQueueAndWorker:
     def test_concurrent_claims_do_not_produce_duplicate_claims(self, tmp_path):
         """Verify BEGIN IMMEDIATE transaction locking prevents duplicate job claims (F7)."""
         import threading
+
         db_file = tmp_path / "concurrency_test.db"
         queue = WebhookJobQueue(db_path=str(db_file))
 
@@ -173,11 +196,15 @@ class TestWebhookQueueAndWorker:
         queue = WebhookJobQueue(db_path=str(db_file))
 
         key = "github:delivery-uuid-12345"
-        job_id_1 = queue.enqueue("org/repo/pull/42", {"commit": "abc"}, idempotency_key=key)
+        job_id_1 = queue.enqueue(
+            "org/repo/pull/42", {"commit": "abc"}, idempotency_key=key
+        )
         assert job_id_1.startswith("job_")
 
         # Duplicate delivery retry
-        job_id_2 = queue.enqueue("org/repo/pull/42", {"commit": "abc"}, idempotency_key=key)
+        job_id_2 = queue.enqueue(
+            "org/repo/pull/42", {"commit": "abc"}, idempotency_key=key
+        )
         assert job_id_2 == job_id_1
 
         # Confirm only one job exists in database

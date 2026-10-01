@@ -6,6 +6,13 @@ export type Verdict = 'APPROVE' | 'REQUEST CHANGES' | 'ESCALATE' | 'COMMENT';
 export type FindingLifecycleStatus = 'NEW' | 'RESOLVED' | 'REGRESSED' | 'SUPPRESSED';
 
 export interface SastFinding {
+  finding_id?: string;
+  pr_id?: string;
+  publication_status: string;
+  publication_reasons?: string[];
+  blocking: boolean;
+  evidence_grade: "HEURISTIC" | "REPRODUCED";
+  evidence_provenance: Record<string, unknown>;
   rule_id: string;
   cwe: string;
   description: string;
@@ -52,7 +59,10 @@ export interface TelemetryMetrics {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
-  estimated_cost_usd: number;
+  estimated_cost_usd: number | null;
+  token_usage_source?: string;
+  cost_source?: string;
+  pricing_as_of?: string | null;
   model_used: string;
   sast_findings_count: number;
   rule_violations_count: number;
@@ -81,6 +91,14 @@ export interface TraceData {
 }
 
 export interface ReviewAPIResponse {
+  reviewer_profile_id?: string | null;
+  reviewer_profile?: { model: string; application_commit: string } | null;
+  input_snapshot_hash?: string | null;
+  file_coverage?: { path: string; status: string; reason: string; sha256?: string | null }[];
+  findings: SastFinding[];
+  analysis_complete: boolean;
+  analyzer_status: Record<string, string>;
+  analyzed_commit?: string;
   verdict: string;
   confidence_score: number;
   summary: string;
@@ -103,7 +121,7 @@ export interface ReviewAPIResponse {
 export interface WebhookJob {
   job_id: string;
   pr_identifier: string;
-  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING' | 'CANCELLED';
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING' | 'CANCELLED' | 'RECONCILIATION_REQUIRED';
   created_at: string | number;
   updated_at?: string | number | null;
   started_at?: string | number | null;

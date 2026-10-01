@@ -5,14 +5,14 @@ and graceful error handling for IDE clients (Cursor, Claude Code).
 """
 
 import json
-import pytest
+
 from code_review_agent.mcp_server import (
-    mcp,
-    scan_sast_patterns,
     check_governance_rules,
     find_impacted_callers,
     generate_unit_tests,
-    review_diff
+    mcp,
+    review_diff,
+    scan_sast_patterns,
 )
 
 

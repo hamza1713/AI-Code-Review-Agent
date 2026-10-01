@@ -15,20 +15,31 @@ service can be reasoned about against callers and patterns in a sibling service.
 """
 
 import hashlib
-from pathlib import Path
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Sequence
+from pathlib import Path
 
 from code_review_agent.config import logger
 from code_review_agent.context_engine.code_graph import CodeGraphIndexer
+from code_review_agent.context_engine.semantic.embeddings import (
+    Embedder,
+    get_embedder,
+    tokenize_code,
+)
+from code_review_agent.context_engine.semantic.vector_store import (
+    ChunkRecord,
+    VectorStore,
+)
 from code_review_agent.diff_parser import DiffParser
-from code_review_agent.context_engine.semantic.embeddings import Embedder, get_embedder, tokenize_code
-from code_review_agent.context_engine.semantic.vector_store import VectorStore, ChunkRecord
-
 
 _EXT_LANGUAGE = {
-    ".py": "python", ".js": "javascript", ".jsx": "javascript",
-    ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".java": "java",
+    ".py": "python",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".go": "go",
+    ".java": "java",
 }
 
 # Chunk source is capped so a giant function does not dominate an embedding or a prompt.
@@ -44,6 +55,7 @@ _MAX_PER_FILE = 2
 @dataclass
 class ScoredChunk:
     """A retrieved chunk with its final (post-re-rank) relevance score."""
+
     record: ChunkRecord
     score: float
     cosine: float
@@ -55,9 +67,9 @@ class SemanticContextEngine:
 
     def __init__(
         self,
-        repo_roots: Optional[Sequence[str]] = None,
-        embedder: Optional[Embedder] = None,
-        persist_path: Optional[str] = None,
+        repo_roots: Sequence[str] | None = None,
+        embedder: Embedder | None = None,
+        persist_path: str | None = None,
     ):
         if repo_roots is None:
             repo_roots = ["."]
@@ -81,7 +93,11 @@ class SemanticContextEngine:
         if self._indexed and not force:
             return len(self.store)
 
-        if self.persist_path and not force and self.store.load(self.persist_path, embedder_id=self.embedder.identity()):
+        if (
+            self.persist_path
+            and not force
+            and self.store.load(self.persist_path, embedder_id=self.embedder.identity())
+        ):
             self._indexed = True
             return len(self.store)
 
@@ -112,9 +128,9 @@ class SemanticContextEngine:
         indexer.index_repository(max_files=max_files)
 
         # A small cache of file contents so we read each source file at most once.
-        file_cache: Dict[str, List[str]] = {}
-        records: List[ChunkRecord] = []
-        texts: List[str] = []
+        file_cache: dict[str, list[str]] = {}
+        records: list[ChunkRecord] = []
+        texts: list[str] = []
 
         for sym in indexer.symbols.values():
             if sym.kind not in ("function", "method", "class"):
@@ -134,46 +150,50 @@ class SemanticContextEngine:
             # signal-rich header (qualified name + docstring) followed by the body.
             header = f"{sym.kind} {sym.qualified_name}"
             if sym.docstring:
-                header += f"\n\"\"\"{sym.docstring.strip()}\"\"\""
+                header += f'\n"""{sym.docstring.strip()}"""'
             chunk_text = f"{header}\n{snippet}"[:_MAX_CHUNK_CHARS]
 
             chunk_id = hashlib.blake2b(
-                f"{repo_name}:{sym.qualified_name}:{sym.line_start}".encode("utf-8"),
+                f"{repo_name}:{sym.qualified_name}:{sym.line_start}".encode(),
                 digest_size=12,
             ).hexdigest()
 
-            records.append(ChunkRecord(
-                id=chunk_id,
-                repo=repo_name,
-                file_path=sym.file_path,
-                qualified_name=sym.qualified_name or f"{sym.file_path}:{sym.name}",
-                kind=sym.kind,
-                language=language,
-                line_start=sym.line_start,
-                line_end=sym.line_end,
-                text=chunk_text,
-                docstring=sym.docstring,
-            ))
+            records.append(
+                ChunkRecord(
+                    id=chunk_id,
+                    repo=repo_name,
+                    file_path=sym.file_path,
+                    qualified_name=sym.qualified_name or f"{sym.file_path}:{sym.name}",
+                    kind=sym.kind,
+                    language=language,
+                    line_start=sym.line_start,
+                    line_end=sym.line_end,
+                    text=chunk_text,
+                    docstring=sym.docstring,
+                )
+            )
             texts.append(chunk_text)
 
         if not records:
             return 0
 
         vectors = self.embedder.embed_batch(texts)
-        for rec, vec in zip(records, vectors):
+        for rec, vec in zip(records, vectors, strict=False):
             rec.vector = vec
 
         self.store.clear_repo(repo_name)
         return self.store.add(records)
 
     @staticmethod
-    def _read_file_lines(repo_root: str, rel_path: str, cache: Dict[str, List[str]]) -> Optional[List[str]]:
+    def _read_file_lines(
+        repo_root: str, rel_path: str, cache: dict[str, list[str]]
+    ) -> list[str] | None:
         """Read and cache a source file's lines; returns None if unreadable."""
         if rel_path in cache:
             return cache[rel_path]
         abs_path = Path(repo_root) / rel_path
         try:
-            with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(abs_path, encoding="utf-8", errors="ignore") as f:
                 lines = f.read().splitlines()
         except Exception:
             cache[rel_path] = None  # type: ignore[assignment]
@@ -182,14 +202,16 @@ class SemanticContextEngine:
         return lines
 
     @staticmethod
-    def _slice_source(lines: List[str], line_start: int, line_end: int) -> str:
+    def _slice_source(lines: list[str], line_start: int, line_end: int) -> str:
         """Extract [line_start, line_end] (1-indexed, inclusive), clamped to the file."""
         start = max(1, line_start)
         end = min(len(lines), max(start, line_end))
-        return "\n".join(lines[start - 1:end])
+        return "\n".join(lines[start - 1 : end])
 
     # ── Retrieval ────────────────────────────────────────────────────────────
-    def retrieve(self, diff: str, top_k: int = 8, repo: Optional[str] = None) -> List[ScoredChunk]:
+    def retrieve(
+        self, diff: str, top_k: int = 8, repo: str | None = None
+    ) -> list[ScoredChunk]:
         """
         Retrieve the most relevant chunks for a PR diff.
 
@@ -202,19 +224,25 @@ class SemanticContextEngine:
         if len(self.store) == 0 or not diff or not diff.strip():
             return []
 
-        changed_files, changed_line_map, diff_languages, query_text = self._analyze_diff(diff)
+        changed_files, changed_line_map, diff_languages, query_text = (
+            self._analyze_diff(diff)
+        )
         if not query_text.strip():
             return []
 
         query_vec = self.embedder.embed_query(query_text)
-        query_tokens: Set[str] = set(tokenize_code(query_text))
+        query_tokens: set[str] = set(tokenize_code(query_text))
 
         def _keep(rec: ChunkRecord) -> bool:
             # Optional hard scope to a single repo.
             if repo and rec.repo != repo:
                 return False
             # Language filter — only when the diff has recognizable languages.
-            if diff_languages and rec.language not in diff_languages and rec.language != "unknown":
+            if (
+                diff_languages
+                and rec.language not in diff_languages
+                and rec.language != "unknown"
+            ):
                 return False
             # Dedup vs the PR: drop a chunk that IS (overlaps) the changed code itself.
             if rec.file_path in changed_files:
@@ -225,20 +253,22 @@ class SemanticContextEngine:
 
         # Cosine shortlist, then lexical re-rank on that pool only (cheap).
         pool = self.store.search(query_vec, top_k=_RERANK_POOL, filter_fn=_keep)
-        rescored: List[ScoredChunk] = []
+        rescored: list[ScoredChunk] = []
         for rec, cos in pool:
             overlap = self._lexical_overlap(query_tokens, rec.text)
-            rescored.append(ScoredChunk(
-                record=rec,
-                score=cos + _LEXICAL_WEIGHT * overlap,
-                cosine=cos,
-                lexical=overlap,
-            ))
+            rescored.append(
+                ScoredChunk(
+                    record=rec,
+                    score=cos + _LEXICAL_WEIGHT * overlap,
+                    cosine=cos,
+                    lexical=overlap,
+                )
+            )
         rescored.sort(key=lambda s: s.score, reverse=True)
 
         # Diversify: cap chunks per file so one file cannot fill the whole result.
-        diversified: List[ScoredChunk] = []
-        per_file: Dict[str, int] = {}
+        diversified: list[ScoredChunk] = []
+        per_file: dict[str, int] = {}
         for sc in rescored:
             key = f"{sc.record.repo}:{sc.record.file_path}"
             if per_file.get(key, 0) >= _MAX_PER_FILE:
@@ -249,7 +279,9 @@ class SemanticContextEngine:
                 break
         return diversified
 
-    def format_semantic_context(self, diff: str, top_k: int = 8, repo: Optional[str] = None) -> str:
+    def format_semantic_context(
+        self, diff: str, top_k: int = 8, repo: str | None = None
+    ) -> str:
         """Render retrieved context as a prompt-ready block for the crew agents."""
         results = self.retrieve(diff, top_k=top_k, repo=repo)
         if not results:
@@ -282,10 +314,10 @@ class SemanticContextEngine:
         numbers per file, the languages involved, and a query text built from the
         added lines (the code the reviewer is actually introducing).
         """
-        changed_files: Set[str] = set()
-        changed_line_map: Dict[str, Set[int]] = {}
-        languages: Set[str] = set()
-        added_text_parts: List[str] = []
+        changed_files: set[str] = set()
+        changed_line_map: dict[str, set[int]] = {}
+        languages: set[str] = set()
+        added_text_parts: list[str] = []
 
         try:
             parsed = DiffParser.parse_diff(diff)
@@ -313,7 +345,7 @@ class SemanticContextEngine:
         return changed_files, changed_line_map, languages, "\n".join(added_text_parts)
 
     @staticmethod
-    def _lexical_overlap(query_tokens: Set[str], chunk_text: str) -> float:
+    def _lexical_overlap(query_tokens: set[str], chunk_text: str) -> float:
         """Jaccard overlap between the query's identifiers and a chunk's identifiers."""
         if not query_tokens:
             return 0.0

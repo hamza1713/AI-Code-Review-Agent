@@ -11,10 +11,10 @@ suggestions the team saw but ignored.
 
 import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from code_review_agent.config import logger
-from code_review_agent.learning.team_memory import TeamMemoryStore, BestPractice
+from code_review_agent.learning.team_memory import BestPractice, TeamMemoryStore
 from code_review_agent.models import InlineComment
 
 _SUGGESTION_BLOCK = re.compile(r"```suggestion\s*\n(.*?)\n```", re.DOTALL)
@@ -23,7 +23,7 @@ _SUGGESTION_BLOCK = re.compile(r"```suggestion\s*\n(.*?)\n```", re.DOTALL)
 class SuggestionTracker:
     """Tracks suggestions posted on PRs and learns conventions when PRs are merged."""
 
-    def __init__(self, memory_store: Optional[TeamMemoryStore] = None):
+    def __init__(self, memory_store: TeamMemoryStore | None = None):
         self.memory_store = memory_store or TeamMemoryStore()
 
     def process_merged_pr(
@@ -31,12 +31,12 @@ class SuggestionTracker:
         owner: str,
         repo: str,
         pr_number: int,
-        review_comments: Optional[List[Dict[str, Any]]] = None,
-        applied_suggestions: Optional[List[InlineComment]] = None,
-        final_diff: Optional[str] = None,
-        client: Optional[Any] = None,
+        review_comments: list[dict[str, Any]] | None = None,
+        applied_suggestions: list[InlineComment] | None = None,
+        final_diff: str | None = None,
+        client: Any | None = None,
         platform: str = "github",
-    ) -> List[BestPractice]:
+    ) -> list[BestPractice]:
         """
         Learn accepted conventions from a merged PR.
 
@@ -51,7 +51,17 @@ class SuggestionTracker:
         the merged diff from GitHub and verifies acceptance before learning anything.
         """
         repo_id = f"{owner}/{repo}"
-        learned: List[BestPractice] = []
+        learned: list[BestPractice] = []
+
+        # 0. Transition any pending findings on this merged PR to IGNORED_MERGED
+        try:
+            from code_review_agent.calibration import FindingOutcomeStore
+
+            FindingOutcomeStore().mark_pr_pending_as_ignored(repo_id, str(pr_number))
+        except Exception as e:
+            logger.warning(
+                f"Could not transition pending findings to IGNORED_MERGED for {repo_id}#{pr_number}: {e}"
+            )
 
         # 1. Known-accepted InlineComment suggestions (caller-asserted).
         if applied_suggestions:
@@ -60,14 +70,16 @@ class SuggestionTracker:
                     continue
                 title = s.comment_body.split("\n")[0][:60].strip()
                 category = "security" if s.severity == "CRITICAL" else "idiom"
-                learned.append(self.memory_store.record_accepted_suggestion(
-                    repo_id=repo_id,
-                    title=title,
-                    description=s.why or s.comment_body,
-                    good_code=s.suggestion_code,
-                    category=category,
-                    source_pr=f"{repo_id}#{pr_number}",
-                ))
+                learned.append(
+                    self.memory_store.record_accepted_suggestion(
+                        repo_id=repo_id,
+                        title=title,
+                        description=s.why or s.comment_body,
+                        good_code=s.suggestion_code,
+                        category=category,
+                        source_pr=f"{repo_id}#{pr_number}",
+                    )
+                )
 
         # 2. Review comments. If the caller supplied them, trust them; if we fetch them
         #    ourselves, verify each suggestion actually landed in the merged diff.
@@ -83,7 +95,9 @@ class SuggestionTracker:
             # so acceptance learning attributes only the bot's own suggestions when set.
             bot_ids = {
                 u.strip().lower()
-                for u in f"{os.getenv('BOT_GITHUB_LOGIN', '')},{os.getenv('BOT_BOT_USERNAMES', '')}".split(",")
+                for u in f"{os.getenv('BOT_GITHUB_LOGIN', '')},{os.getenv('BOT_BOT_USERNAMES', '')}".split(
+                    ","
+                )
                 if u.strip()
             }
 
@@ -98,32 +112,40 @@ class SuggestionTracker:
                 # and (if configured) only the bot's own suggestions.
                 if must_verify:
                     if bot_ids:
-                        author = (comment.get("user", {}) or {}).get("login", "").lower()
+                        author = (
+                            (comment.get("user", {}) or {}).get("login", "").lower()
+                        )
                         if author and author not in bot_ids:
                             continue
                     if not self._suggestion_applied(suggested_code, added_text):
                         continue
 
                 first_line = body.split("\n")[0]
-                cleaned_title = re.sub(r"^[🚨⚠️💡\*]+\s*(\*\*[A-Z]+\*\*:?)?\s*", "", first_line).strip()[:60]
+                cleaned_title = re.sub(
+                    r"^[🚨⚠️💡\*]+\s*(\*\*[A-Z]+\*\*:?)?\s*", "", first_line
+                ).strip()[:60]
                 if not cleaned_title:
                     cleaned_title = f"Convention from PR #{pr_number}"
                 category = "security" if "CRITICAL" in body else "idiom"
-                learned.append(self.memory_store.record_accepted_suggestion(
-                    repo_id=repo_id,
-                    title=cleaned_title,
-                    description=cleaned_title,
-                    good_code=suggested_code,
-                    category=category,
-                    source_pr=f"{repo_id}#{pr_number}",
-                ))
+                learned.append(
+                    self.memory_store.record_accepted_suggestion(
+                        repo_id=repo_id,
+                        title=cleaned_title,
+                        description=cleaned_title,
+                        good_code=suggested_code,
+                        category=category,
+                        source_pr=f"{repo_id}#{pr_number}",
+                    )
+                )
 
         logger.info(
             f"🎓 Learned {len(learned)} accepted pattern(s) from merged PR #{pr_number} in {repo_id}"
         )
         return learned
 
-    def _fetch_candidates(self, owner, repo, pr_number, client, final_diff, platform="github"):
+    def _fetch_candidates(
+        self, owner, repo, pr_number, client, final_diff, platform="github"
+    ):
         """
         Fetch review comments and the merged diff via the correct platform client for
         acceptance verification. Returns (review_comments, final_diff, must_verify).
@@ -133,13 +155,16 @@ class SuggestionTracker:
         try:
             if client is None:
                 from code_review_agent.platform.factory import get_client_for_platform
+
                 client = get_client_for_platform(platform)
             comments = client.list_pull_request_review_comments(owner, repo, pr_number)
             if final_diff is None:
                 try:
                     final_diff = client.fetch_pull_request_diff(owner, repo, pr_number)
                 except Exception as e:
-                    logger.warning(f"Could not fetch merged diff for acceptance check: {e}")
+                    logger.warning(
+                        f"Could not fetch merged diff for acceptance check: {e}"
+                    )
                     final_diff = ""
             return comments, final_diff, True
         except Exception as e:
@@ -164,7 +189,9 @@ class SuggestionTracker:
         """
         if not added_text:
             return False
-        lines = [ln.strip() for ln in suggested_code.splitlines() if len(ln.strip()) > 3]
+        lines = [
+            ln.strip() for ln in suggested_code.splitlines() if len(ln.strip()) > 3
+        ]
         if not lines:
             return False
         present = sum(1 for ln in lines if ln in added_text)

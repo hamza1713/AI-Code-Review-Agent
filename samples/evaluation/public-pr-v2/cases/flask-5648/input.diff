@@ -1,0 +1,46 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index f6fa08455f..4e43e958a0 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -3,6 +3,8 @@ Version 3.2.0
+ 
+ Unreleased
+ 
++-   Remove previously deprecated code: ``__version__``. :pr:`5648`
++
+ 
+ Version 3.1.0
+ -------------
+diff --git a/src/flask/__init__.py b/src/flask/__init__.py
+index e86eb43ee9..30dce6fd7d 100644
+--- a/src/flask/__init__.py
++++ b/src/flask/__init__.py
+@@ -1,7 +1,3 @@
+-from __future__ import annotations
+-
+-import typing as t
+-
+ from . import json as json
+ from .app import Flask as Flask
+ from .blueprints import Blueprint as Blueprint
+@@ -41,20 +37,3 @@
+ from .templating import stream_template_string as stream_template_string
+ from .wrappers import Request as Request
+ from .wrappers import Response as Response
+-
+-
+-def __getattr__(name: str) -> t.Any:
+-    if name == "__version__":
+-        import importlib.metadata
+-        import warnings
+-
+-        warnings.warn(
+-            "The '__version__' attribute is deprecated and will be removed in"
+-            " Flask 3.1. Use feature detection or"
+-            " 'importlib.metadata.version(\"flask\")' instead.",
+-            DeprecationWarning,
+-            stacklevel=2,
+-        )
+-        return importlib.metadata.version("flask")
+-
+-    raise AttributeError(name)

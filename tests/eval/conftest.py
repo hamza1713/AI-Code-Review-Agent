@@ -3,15 +3,13 @@ Shared fixtures and test helpers for AI Evaluation test suites.
 """
 
 import pytest
-from pathlib import Path
+
 from code_review_agent.models import (
-    SummarizedFindingsJSON,
+    Fix,
+    InlineComment,
     ReviewSecurityJSON,
     SecurityVulnerability,
-    CodeQualityJSON,
-    InlineComment,
-    Fix,
-    ReviewState,
+    SummarizedFindingsJSON,
 )
 
 
@@ -36,7 +34,7 @@ def test_calculate_average_valid():
 def test_calculate_average_empty():
     with pytest.raises(ValueError):
         calculate_average([])
-"""
+""",
     )
 
 
@@ -54,12 +52,12 @@ def sample_vulnerable_summary() -> SummarizedFindingsJSON:
                 solutions="Use parameterized queries with cursor.execute()",
                 explanation="Unescaped user input in raw SQL enables arbitrary query execution.",
                 file_path="app/services/user_service.py",
-                line_number=10
+                line_number=10,
             )
         ],
         recommendations=[
             "Migrate from raw queries to an ORM or parameterized query layer.",
-            "Use bcrypt or argon2 for cryptographic password hashing."
+            "Use bcrypt or argon2 for cryptographic password hashing.",
         ],
         inline_comments=[
             InlineComment(
@@ -73,7 +71,7 @@ def sample_vulnerable_summary() -> SummarizedFindingsJSON:
 cursor = db_connection.cursor()
 cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
 return cursor.fetchone()
-"""
+""",
             )
         ],
         suggested_unit_tests="""
@@ -89,7 +87,7 @@ def test_get_user_profile_executes():
             return DummyCursor()
     res = get_user_profile(DummyDB(), "123")
     assert res["username"] == "alice"
-"""
+""",
     )
 
 
@@ -104,11 +102,11 @@ def sample_security_review() -> ReviewSecurityJSON:
                 evidence="query = f'SELECT * FROM users WHERE id = {user_id}'",
                 matched_by=["bandit-B608", "regex-sqli-001"],
                 line_number=10,
-                file_path="app/services/user_service.py"
+                file_path="app/services/user_service.py",
             )
         ],
         blocking=True,
         highest_risk="critical",
         security_recommendations=["Use parameterized SQL queries."],
-        inline_security_comments=[]
+        inline_security_comments=[],
     )

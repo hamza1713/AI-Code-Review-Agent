@@ -1,0 +1,35 @@
+diff --git a/httpx/_client.py b/httpx/_client.py
+index 8ba5f123a3..5f5b25f758 100644
+--- a/httpx/_client.py
++++ b/httpx/_client.py
+@@ -767,7 +767,7 @@ def request(
+                 "the expected behaviour on cookie persistence is ambiguous. Set "
+                 "cookies directly on the client instance instead."
+             )
+-            warnings.warn(message, DeprecationWarning)
++            warnings.warn(message, DeprecationWarning, stacklevel=2)
+ 
+         request = self.build_request(
+             method=method,
+@@ -1469,7 +1469,7 @@ async def request(
+                 "the expected behaviour on cookie persistence is ambiguous. Set "
+                 "cookies directly on the client instance instead."
+             )
+-            warnings.warn(message, DeprecationWarning)
++            warnings.warn(message, DeprecationWarning, stacklevel=2)
+ 
+         request = self.build_request(
+             method=method,
+diff --git a/httpx/_content.py b/httpx/_content.py
+index 786699f38f..6e8ad98d08 100644
+--- a/httpx/_content.py
++++ b/httpx/_content.py
+@@ -201,7 +201,7 @@ def encode_request(
+         # `data=<bytes...>` usages. We deal with that case here, treating it
+         # as if `content=<...>` had been supplied instead.
+         message = "Use 'content=<...>' to upload raw bytes/text content."
+-        warnings.warn(message, DeprecationWarning)
++        warnings.warn(message, DeprecationWarning, stacklevel=2)
+         return encode_content(data)
+ 
+     if content is not None:

@@ -3,13 +3,14 @@ Tests for Bot Slash Commands (/review suppress, /unsuppress, /explain, /rerun)
 and Bidirectional Comment Synchronization.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from code_review_agent.bot.command_router import CommandRouter
-from code_review_agent.suppression_store import SuppressionStore
-from code_review_agent.models import InlineComment, SastFinding
 from code_review_agent.comment_synchronizer import CommentSynchronizer
+from code_review_agent.models import InlineComment, SastFinding
+from code_review_agent.suppression_store import SuppressionStore
 
 
 @pytest.fixture
@@ -28,7 +29,8 @@ def test_bot_suppress_and_unsuppress_commands(clean_db):
     res = CommandRouter.dispatch(
         f"/review suppress {fp} Test false positive in fixtures",
         pr_url=f"https://github.com/{owner}/{repo}/pull/10",
-        auto_post=False
+        auto_post=False,
+        trusted_operator=True,
     )
     assert res.status == "SUCCESS"
     assert "Finding Suppressed" in res.response_markdown
@@ -42,7 +44,8 @@ def test_bot_suppress_and_unsuppress_commands(clean_db):
     res_unsuppress = CommandRouter.dispatch(
         f"/review unsuppress {fp}",
         pr_url=f"https://github.com/{owner}/{repo}/pull/10",
-        auto_post=False
+        auto_post=False,
+        trusted_operator=True,
     )
     assert res_unsuppress.status == "SUCCESS"
     assert "Finding Unsuppressed" in res_unsuppress.response_markdown
@@ -58,7 +61,8 @@ def test_bot_shorthand_suppress_and_unsuppress(clean_db):
     res = CommandRouter.dispatch(
         f"/suppress {fp} Shorthand suppress test",
         pr_url=f"https://github.com/{owner}/{repo}/pull/15",
-        auto_post=False
+        auto_post=False,
+        trusted_operator=True,
     )
     assert res.status == "SUCCESS"
     assert "Finding Suppressed" in res.response_markdown
@@ -70,7 +74,8 @@ def test_bot_shorthand_suppress_and_unsuppress(clean_db):
     res_un = CommandRouter.dispatch(
         f"/unsuppress {fp}",
         pr_url=f"https://github.com/{owner}/{repo}/pull/15",
-        auto_post=False
+        auto_post=False,
+        trusted_operator=True,
     )
     assert res_un.status == "SUCCESS"
     assert "Finding Unsuppressed" in res_un.response_markdown
@@ -87,6 +92,7 @@ def test_bot_explain_command(clean_db):
 """
     # First find the fingerprint generated on this diff
     from code_review_agent.tools.sast_scanner import SastEngine
+
     findings = SastEngine().scan_diff(sample_diff)
     assert len(findings) >= 1
     fp = findings[0].fingerprint
@@ -95,14 +101,15 @@ def test_bot_explain_command(clean_db):
     res = CommandRouter.dispatch(
         f"/review explain {fp}",
         raw_diff=sample_diff,
-        auto_post=False
+        auto_post=False,
+        trusted_operator=True,
     )
     assert res.status == "SUCCESS"
     assert "Deep Finding Explanation" in res.response_markdown
     assert findings[0].rule_id in res.response_markdown
 
 
-def test_comment_synchronizer_deduplication_and_resolution():
+def test_comment_synchronizer_deduplication_and_resolution(clean_db):
     mock_client = MagicMock()
     fp_existing = "aaaabbbbccccdddd"
     fp_new = "1111222233334444"
@@ -110,21 +117,19 @@ def test_comment_synchronizer_deduplication_and_resolution():
 
     # Existing comments already on PR carry fp_existing and fp_resolved
     mock_client.list_pull_request_review_comments.return_value = [
-        {"body": f"⚠️ **WARNING**: Old issue\n\n<!-- ai-code-review:fingerprint:{fp_existing} -->\n<sub>Fingerprint: `{fp_existing}`</sub>"},
-        {"body": f"🚨 **CRITICAL**: Fixed issue\n\n<!-- ai-code-review:fingerprint:{fp_resolved} -->\n<sub>Fingerprint: `{fp_resolved}`</sub>"}
+        {
+            "body": f"⚠️ **WARNING**: Old issue\n\n<!-- ai-code-review:fingerprint:{fp_existing} -->\n<sub>Fingerprint: `{fp_existing}`</sub>"
+        },
+        {
+            "body": f"🚨 **CRITICAL**: Fixed issue\n\n<!-- ai-code-review:fingerprint:{fp_resolved} -->\n<sub>Fingerprint: `{fp_resolved}`</sub>"
+        },
     ]
 
     c1 = InlineComment(
-        path="app/auth.py",
-        line=12,
-        comment_body="Old issue",
-        fingerprint=fp_existing
+        path="app/auth.py", line=12, comment_body="Old issue", fingerprint=fp_existing
     )
     c2 = InlineComment(
-        path="app/auth.py",
-        line=25,
-        comment_body="Brand new issue",
-        fingerprint=fp_new
+        path="app/auth.py", line=25, comment_body="Brand new issue", fingerprint=fp_new
     )
 
     f1 = SastFinding(
@@ -134,7 +139,7 @@ def test_comment_synchronizer_deduplication_and_resolution():
         file_path="app/auth.py",
         line_number=12,
         fix_recommendation="Fix",
-        fingerprint=fp_existing
+        fingerprint=fp_existing,
     )
     f2 = SastFinding(
         rule_id="RULE-2",
@@ -143,7 +148,7 @@ def test_comment_synchronizer_deduplication_and_resolution():
         file_path="app/auth.py",
         line_number=25,
         fix_recommendation="Fix",
-        fingerprint=fp_new
+        fingerprint=fp_new,
     )
 
     # Current revision has f1 and f2 (fp_resolved is no longer present!)
@@ -154,7 +159,7 @@ def test_comment_synchronizer_deduplication_and_resolution():
         pull_number=42,
         current_comments=[c1, c2],
         current_findings=[f1, f2],
-        head_sha="commit_sha_123"
+        head_sha="commit_sha_123",
     )
 
     # Only c2 should be posted (c1 was already posted previously and deduplicated!)
@@ -164,15 +169,13 @@ def test_comment_synchronizer_deduplication_and_resolution():
     # fp_resolved was detected as resolved
     assert fp_resolved in resolved_fps
 
-    # Verify auto-resolution comment was posted to the issue discussion
-    mock_client.post_issue_comment.assert_called_once()
-    args, kwargs = mock_client.post_issue_comment.call_args
-    assert "Verified Resolutions" in kwargs["body"]
-    assert fp_resolved in kwargs["body"]
+    # Synchronization produces observations; provider writes belong to queued jobs.
+    mock_client.post_issue_comment.assert_not_called()
 
 
 def test_api_suppressions_endpoints(clean_db):
     from fastapi.testclient import TestClient
+
     from code_review_agent.webhook_server import app
 
     client = TestClient(app)
@@ -183,12 +186,15 @@ def test_api_suppressions_endpoints(clean_db):
     assert res.json()["suppressions"] == []
 
     # 2. Add suppression
-    post_res = client.post("/api/suppressions", json={
-        "repo_id": "demo/app",
-        "fingerprint": "feedbeef12345678",
-        "reason": "Test endpoint suppression",
-        "author": "admin"
-    })
+    post_res = client.post(
+        "/api/suppressions",
+        json={
+            "repo_id": "demo/app",
+            "fingerprint": "feedbeef12345678",
+            "reason": "Test endpoint suppression",
+            "author": "admin",
+        },
+    )
     assert post_res.status_code == 200
     assert post_res.json()["status"] == "success"
 
@@ -206,3 +212,6 @@ def test_api_suppressions_endpoints(clean_db):
     # 5. Verify deleted
     res3 = client.get("/api/suppressions?repo=demo/app")
     assert res3.json()["suppressions"] == []
+
+
+pytestmark = pytest.mark.usefixtures("offline_repository_client")

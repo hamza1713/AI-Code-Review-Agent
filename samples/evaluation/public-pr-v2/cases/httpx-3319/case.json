@@ -1,0 +1,159 @@
+{
+  "id": "httpx-3319",
+  "file": "cases/httpx-3319/input.diff",
+  "sha256": "9894fd4d4e997d682f519c3f2621b0c4868ee91102f6491ff49f3cfcc186e022",
+  "source_repository": "encode/httpx",
+  "base_sha": "3f76571d3429497c4ee4ecf5d8bc034b6f765957",
+  "head_sha": "e83069830fa016b509377dcc4af713615fe44f4f",
+  "source_diff_url": "https://github.com/encode/httpx/compare/3f76571d3429497c4ee4ecf5d8bc034b6f765957...e83069830fa016b509377dcc4af713615fe44f4f.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3319",
+  "merged_at": "2024-10-28T14:30:08Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3319/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": ".github/CONTRIBUTING.md",
+      "file": "cases/httpx-3319/head/.github/CONTRIBUTING.md",
+      "sha256": "2383659585501eb2d12cb255e3269cbc47ae956284f57eaa1a253331adbb5943"
+    },
+    {
+      "path": ".github/workflows/test-suite.yml",
+      "file": "cases/httpx-3319/head/.github/workflows/test-suite.yml",
+      "sha256": "cd9c151f50a2a75ab2ef11863a5039b2c3e6fe63e12cab926269d6205a590565"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3319/head/CHANGELOG.md",
+      "sha256": "8103deb1cb0012ece7c93837e1fec436aed7cdbec9451ab4c751257ed9431e9b"
+    },
+    {
+      "path": "docs/advanced/ssl.md",
+      "file": "cases/httpx-3319/head/docs/advanced/ssl.md",
+      "sha256": "2c7db21faea93ede99e09d9477beddb73a982ce10319ccee10595650936a4d6e"
+    },
+    {
+      "path": "docs/compatibility.md",
+      "file": "cases/httpx-3319/head/docs/compatibility.md",
+      "sha256": "e30d0a254fc89e5a891739607e289432b48930ac68be285810dd4e540f304776"
+    },
+    {
+      "path": "docs/environment_variables.md",
+      "file": "cases/httpx-3319/head/docs/environment_variables.md",
+      "sha256": "d0cdf4d740dc3ed8b21c4ee45735551e05d4e57d0fda05a2f18c4684197a27eb"
+    },
+    {
+      "path": "docs/logging.md",
+      "file": "cases/httpx-3319/head/docs/logging.md",
+      "sha256": "cf128dd9d45561d57807fb34c00c2fff63071dbbfcb3990df00c7061bea88195"
+    },
+    {
+      "path": "httpx/__init__.py",
+      "file": "cases/httpx-3319/head/httpx/__init__.py",
+      "sha256": "8230c40ce95b64f6dca746bb6387f76a3aa72dac51ab3c6c2ab259d0961ff9f6"
+    },
+    {
+      "path": "httpx/__version__.py",
+      "file": "cases/httpx-3319/head/httpx/__version__.py",
+      "sha256": "6b20f300565123b7ad7e0721eb080d9c99a4263cddd732d11a64870bafc22d01"
+    },
+    {
+      "path": "httpx/_api.py",
+      "file": "cases/httpx-3319/head/httpx/_api.py",
+      "sha256": "2812e9e615243485352b25f8ba709cf31f955561e0f53a55b6c6017db76cc688"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3319/head/httpx/_client.py",
+      "sha256": "763ae09f3366e533e1b7a60ff162cb309c3c7a71aa57cd48ff5f58da7a272e1a"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3319/head/httpx/_config.py",
+      "sha256": "35062499fd8c36ea00c642737d3ea44fb6ee2423338cdcbc7a44b2859bebd629"
+    },
+    {
+      "path": "httpx/_content.py",
+      "file": "cases/httpx-3319/head/httpx/_content.py",
+      "sha256": "f2f61a0904772aceef0aeae33364b3796506c60ae7b3d5a7ffba34f3197784d6"
+    },
+    {
+      "path": "httpx/_decoders.py",
+      "file": "cases/httpx-3319/head/httpx/_decoders.py",
+      "sha256": "c68bd15c2831871cc6919a51c172e5ab6685c41904a90087cb3c5de1c782f8ce"
+    },
+    {
+      "path": "httpx/_main.py",
+      "file": "cases/httpx-3319/head/httpx/_main.py",
+      "sha256": "ed17f68beb9cbac83fae710ce806d00a4967e3d90fe7a7d71cc8d37c7cbf621e"
+    },
+    {
+      "path": "httpx/_transports/asgi.py",
+      "file": "cases/httpx-3319/head/httpx/_transports/asgi.py",
+      "sha256": "1d17e20d830fb78c101f6805807660e1cfa2dec6e5a3a6cbe464ea7044fec73f"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3319/head/httpx/_transports/default.py",
+      "sha256": "aa729f3a31244eb23f7ac9b3da3360c7915fa9f9d9c75143727abaa8c729781f"
+    },
+    {
+      "path": "httpx/_types.py",
+      "file": "cases/httpx-3319/head/httpx/_types.py",
+      "sha256": "6f45dfca29619ccf7d4a06f36642e6bff5161ca06830e06710adb0370903f13a"
+    },
+    {
+      "path": "httpx/_urls.py",
+      "file": "cases/httpx-3319/head/httpx/_urls.py",
+      "sha256": "94a03a28e5a8062565c72c0e5a050bd5c69335b79df1c19c4d35cc68d5d5b0f4"
+    },
+    {
+      "path": "httpx/_utils.py",
+      "file": "cases/httpx-3319/head/httpx/_utils.py",
+      "sha256": "021fcf7fd6bc4cfa9226397d1b927926e153f35ea5855e48740d708cfd12db2c"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/httpx-3319/head/pyproject.toml",
+      "sha256": "df6ead82c82909bacc1f54fa0de8edc52dab17742d548d41c284506e3c05706f"
+    },
+    {
+      "path": "tests/client/test_proxies.py",
+      "file": "cases/httpx-3319/head/tests/client/test_proxies.py",
+      "sha256": "065b081e43f10106b799ab23548e6333e8661d7db40a8dbe0845570b24e638ed"
+    },
+    {
+      "path": "tests/conftest.py",
+      "file": "cases/httpx-3319/head/tests/conftest.py",
+      "sha256": "9001cddd7b9166bfc2584b09fc3b838d7e004b012d094042584717640d42bc60"
+    },
+    {
+      "path": "tests/models/test_url.py",
+      "file": "cases/httpx-3319/head/tests/models/test_url.py",
+      "sha256": "de648ef4c929b72e57381d895f5c96781d7f710ed98de3dbefa20c8badb13e4f"
+    },
+    {
+      "path": "tests/test_asgi.py",
+      "file": "cases/httpx-3319/head/tests/test_asgi.py",
+      "sha256": "13531aa6bc84456b484270f52ad6d4422e5ecc15c22839eea8c8d5ad1dffa69c"
+    },
+    {
+      "path": "tests/test_config.py",
+      "file": "cases/httpx-3319/head/tests/test_config.py",
+      "sha256": "56595e32e85a7be1cbec1896dd834334ca4dc1536a874051b326832dd2267e57"
+    },
+    {
+      "path": "tests/test_utils.py",
+      "file": "cases/httpx-3319/head/tests/test_utils.py",
+      "sha256": "507e62205fe335d57612b880dfa5faf24d8c98b1bfe3bdc014e820b2b443a814"
+    },
+    {
+      "path": "tests/test_wsgi.py",
+      "file": "cases/httpx-3319/head/tests/test_wsgi.py",
+      "sha256": "2a5cf77658e31729e409e3fbcce2ee9ace601483e9c295d4fb62c0167096afba"
+    }
+  ],
+  "input_snapshot_hash": "9059e0eaacc496df6a6a3b3e5feec8e38921f9d21ccfdbc965f70722de70ea37",
+  "label_status": "UNREVIEWED"
+}

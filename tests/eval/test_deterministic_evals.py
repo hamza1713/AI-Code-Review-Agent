@@ -4,23 +4,20 @@ Guardrails, SARIF schema, and Line Scope).
 """
 
 import pytest
+
 from code_review_agent.eval.deterministic_evaluators import (
-    ConfidenceMathEvaluator,
     CodeCompilationEvaluator,
+    ConfidenceMathEvaluator,
     GuardrailConsistencyEvaluator,
     SarifComplianceEvaluator,
-    DiffLineScopeEvaluator,
 )
 from code_review_agent.eval.eval_runner import EvalRunner
 from code_review_agent.models import (
-    SummarizedFindingsJSON,
-    ReviewSecurityJSON,
-    SecurityVulnerability,
     InlineComment,
+    ReviewSecurityJSON,
     ReviewState,
-    ParsedPR,
-    FileDiff,
-    DiffHunk,
+    SecurityVulnerability,
+    SummarizedFindingsJSON,
 )
 
 
@@ -29,13 +26,17 @@ class TestConfidenceMathEvaluator:
     """Validate arithmetic evaluation of confidence score breakdowns."""
 
     def test_breakdown_arithmetic_valid(self, sample_vulnerable_summary):
-        res = ConfidenceMathEvaluator.evaluate_breakdown_arithmetic(sample_vulnerable_summary)
+        res = ConfidenceMathEvaluator.evaluate_breakdown_arithmetic(
+            sample_vulnerable_summary
+        )
         assert res.passed is True
         assert res.score == 1.0
         assert res.details["calculated_score"] == 35
 
     def test_breakdown_arithmetic_clean_100(self, sample_clean_summary):
-        res = ConfidenceMathEvaluator.evaluate_breakdown_arithmetic(sample_clean_summary)
+        res = ConfidenceMathEvaluator.evaluate_breakdown_arithmetic(
+            sample_clean_summary
+        )
         assert res.passed is True
         assert res.score == 1.0
 
@@ -46,7 +47,7 @@ class TestConfidenceMathEvaluator:
             findings="Vulnerable.",
             fix=[],
             recommendations=[],
-            inline_comments=[]
+            inline_comments=[],
         )
         res = ConfidenceMathEvaluator.evaluate_breakdown_arithmetic(mismatched_summary)
         assert res.passed is False
@@ -56,10 +57,7 @@ class TestConfidenceMathEvaluator:
     def test_ground_truth_score_formula(self):
         # 1 critical (30), 1 high (15), 1 critical issue (10), 2 minor (10) -> 35
         score = ConfidenceMathEvaluator.calculate_ground_truth_score(
-            critical_vulns=1,
-            high_vulns=1,
-            critical_issues=1,
-            minor_issues=2
+            critical_vulns=1, high_vulns=1, critical_issues=1, minor_issues=2
         )
         assert score == 35
 
@@ -69,7 +67,9 @@ class TestCodeCompilationEvaluator:
     """Validate AST syntax compilation checks for generated code."""
 
     def test_valid_inline_suggestions(self, sample_vulnerable_summary):
-        res = CodeCompilationEvaluator.evaluate_inline_suggestions(sample_vulnerable_summary.inline_comments)
+        res = CodeCompilationEvaluator.evaluate_inline_suggestions(
+            sample_vulnerable_summary.inline_comments
+        )
         assert res.passed is True
         assert res.score == 1.0
         assert res.details["valid_count"] == 1
@@ -80,7 +80,7 @@ class TestCodeCompilationEvaluator:
                 path="app/test.py",
                 line=5,
                 comment_body="Broken code suggestion",
-                suggestion_code="def broken_syntax(x: int\n    return x + 1"  # Missing colon
+                suggestion_code="def broken_syntax(x: int\n    return x + 1",  # Missing colon
             )
         ]
         res = CodeCompilationEvaluator.evaluate_inline_suggestions(broken_comments)
@@ -89,13 +89,17 @@ class TestCodeCompilationEvaluator:
         assert len(res.errors) == 1
 
     def test_valid_suggested_unit_tests(self, sample_clean_summary):
-        res = CodeCompilationEvaluator.evaluate_suggested_unit_tests(sample_clean_summary.suggested_unit_tests)
+        res = CodeCompilationEvaluator.evaluate_suggested_unit_tests(
+            sample_clean_summary.suggested_unit_tests
+        )
         assert res.passed is True
         assert res.score == 1.0
         assert "test_calculate_average_valid" in res.details["test_functions_found"]
 
     def test_invalid_syntax_unit_tests(self):
-        res = CodeCompilationEvaluator.evaluate_suggested_unit_tests("import pytest\ndef test_something(\n    assert True")
+        res = CodeCompilationEvaluator.evaluate_suggested_unit_tests(
+            "import pytest\ndef test_something(\n    assert True"
+        )
         assert res.passed is False
         assert res.score == 0.0
         assert "syntax error" in res.errors[0].lower()
@@ -106,7 +110,9 @@ class TestGuardrailConsistencyEvaluator:
     """Validate risk-level invariants and blocking flags."""
 
     def test_guardrail_consistency_valid(self, sample_security_review):
-        res = GuardrailConsistencyEvaluator.evaluate_security_output(sample_security_review)
+        res = GuardrailConsistencyEvaluator.evaluate_security_output(
+            sample_security_review
+        )
         assert res.passed is True
         assert res.score == 1.0
 
@@ -117,13 +123,13 @@ class TestGuardrailConsistencyEvaluator:
                     description="SQL Injection",
                     risk_level="critical",
                     evidence="SELECT...",
-                    matched_by=["B608"]
+                    matched_by=["B608"],
                 )
             ],
             blocking=True,
             highest_risk="low",  # Inconsistent with 'critical' vuln!
             security_recommendations=[],
-            inline_security_comments=[]
+            inline_security_comments=[],
         )
         res = GuardrailConsistencyEvaluator.evaluate_security_output(bad_sec)
         assert res.passed is False
@@ -136,13 +142,13 @@ class TestGuardrailConsistencyEvaluator:
                     description="SQL Injection",
                     risk_level="critical",
                     evidence="SELECT...",
-                    matched_by=["B608"]
+                    matched_by=["B608"],
                 )
             ],
             blocking=False,  # Should be True for critical!
             highest_risk="critical",
             security_recommendations=[],
-            inline_security_comments=[]
+            inline_security_comments=[],
         )
         res = GuardrailConsistencyEvaluator.evaluate_security_output(bad_sec)
         assert res.passed is False
@@ -162,7 +168,7 @@ class TestSarifComplianceEvaluator:
                     "tool": {
                         "driver": {
                             "name": "AICodeReviewAgent",
-                            "rules": [{"id": "CWE-89", "name": "SQLInjection"}]
+                            "rules": [{"id": "CWE-89", "name": "SQLInjection"}],
                         }
                     },
                     "results": [
@@ -174,24 +180,21 @@ class TestSarifComplianceEvaluator:
                                 {
                                     "physicalLocation": {
                                         "artifactLocation": {"uri": "app/user.py"},
-                                        "region": {"startLine": 15}
+                                        "region": {"startLine": 15},
                                     }
                                 }
-                            ]
+                            ],
                         }
-                    ]
+                    ],
                 }
-            ]
+            ],
         }
         res = SarifComplianceEvaluator.evaluate_sarif_dict(valid_sarif)
         assert res.passed is True
         assert res.score == 1.0
 
     def test_invalid_sarif_version(self):
-        invalid_sarif = {
-            "version": "1.0.0",
-            "runs": []
-        }
+        invalid_sarif = {"version": "1.0.0", "runs": []}
         res = SarifComplianceEvaluator.evaluate_sarif_dict(invalid_sarif)
         assert res.passed is False
         assert "Invalid SARIF version" in res.errors[0]
@@ -201,10 +204,12 @@ class TestSarifComplianceEvaluator:
 class TestEvalRunnerOrchestrator:
     """Validate overall EvalRunner report aggregation."""
 
-    def test_eval_runner_full_pass(self, sample_vulnerable_summary, sample_security_review):
+    def test_eval_runner_full_pass(
+        self, sample_vulnerable_summary, sample_security_review
+    ):
         state = ReviewState(
             summarized_findings=sample_vulnerable_summary,
-            security_review=sample_security_review
+            security_review=sample_security_review,
         )
         report = EvalRunner.evaluate_review(state, include_llm_judge=False)
 

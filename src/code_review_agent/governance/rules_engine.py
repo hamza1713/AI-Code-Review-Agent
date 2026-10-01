@@ -6,55 +6,80 @@ and AppSec policies defined in .code-review.yaml against PR diffs using PyYAML a
 
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Type, Tuple
+from typing import Any
+
 import yaml
 from pydantic import BaseModel, Field, ValidationError
-from crewai.tools import BaseTool
 
-from code_review_agent.models import RuleViolation
-from code_review_agent.diff_parser import DiffParser
 from code_review_agent.config import logger
+from code_review_agent.diff_parser import DiffParser
+from code_review_agent.models import RuleViolation
+from code_review_agent.native_tools import BaseTool
+from code_review_agent.tools.sast_scanner import (
+    is_comment_or_docstring_line,
+    strip_line_comment,
+)
 
 
 class GovernanceParsingError(Exception):
     """Raised when .code-review.yaml contains invalid YAML syntax or schema errors."""
-    pass
 
 
 class CustomRule(BaseModel):
     id: str = Field(..., description="Unique rule identifier (e.g. gov-no-raw-sql)")
     name: str = Field(..., description="Human-readable rule name")
-    severity: str = Field(default="WARNING", description="'BLOCKING', 'WARNING', or 'INFO'")
-    pattern: str = Field(..., description="Regex pattern to match against added code lines")
-    description: str = Field(..., description="Detailed explanation of the rule requirement")
-    suggested_fix: str = Field(..., description="Remediation steps or suggested replacement")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional custom metadata or tags")
+    severity: str = Field(
+        default="WARNING", description="'BLOCKING', 'WARNING', or 'INFO'"
+    )
+    pattern: str = Field(
+        ..., description="Regex pattern to match against added code lines"
+    )
+    description: str = Field(
+        ..., description="Detailed explanation of the rule requirement"
+    )
+    suggested_fix: str = Field(
+        ..., description="Remediation steps or suggested replacement"
+    )
+    metadata: dict[str, Any] | None = Field(
+        default=None, description="Optional custom metadata or tags"
+    )
 
 
 class RemediationPolicy(BaseModel):
     """Governance policy governing automated 1-click remediation commits."""
+
     model_config = {"extra": "allow"}
     allow_direct_commits: bool = Field(
         default=False,
-        description="Whether direct 1-click remediation commits to PR branches are allowed (default: False, opt-in)"
+        description="Whether direct 1-click remediation commits to PR branches are allowed (default: False, opt-in)",
     )
-    blocked_branches: List[str] = Field(
-        default_factory=lambda: ["main", "master", "release/*", "production/*", "prod/*"],
-        description="Branch patterns blocked from direct remediation commits"
+    blocked_branches: list[str] = Field(
+        default_factory=lambda: [
+            "main",
+            "master",
+            "release/*",
+            "production/*",
+            "prod/*",
+        ],
+        description="Branch patterns blocked from direct remediation commits",
     )
     require_stale_head_check: bool = Field(
         default=True,
-        description="Verify current head SHA matches reviewed head SHA before committing"
+        description="Verify current head SHA matches reviewed head SHA before committing",
     )
 
 
 class GovernanceConfigFile(BaseModel):
     model_config = {"extra": "allow"}
-    version: Optional[str] = Field(default="1.0", description="Schema version of configuration")
-    rules: List[CustomRule] = Field(default_factory=list, description="List of configured governance rules")
+    version: str | None = Field(
+        default="1.0", description="Schema version of configuration"
+    )
+    rules: list[CustomRule] = Field(
+        default_factory=list, description="List of configured governance rules"
+    )
     remediation: RemediationPolicy = Field(
         default_factory=RemediationPolicy,
-        description="Remediation safety and guardrails policy"
+        description="Remediation safety and guardrails policy",
     )
 
 
@@ -63,9 +88,9 @@ class RulesEngine:
 
     def __init__(
         self,
-        rules_file_path: Optional[str] = None,
-        repo_root: Optional[str] = None,
-        config: Optional[GovernanceConfigFile] = None
+        rules_file_path: str | None = None,
+        repo_root: str | None = None,
+        config: GovernanceConfigFile | None = None,
     ):
         if rules_file_path:
             self.rules_file = Path(rules_file_path)
@@ -73,7 +98,7 @@ class RulesEngine:
             self.rules_file = Path(repo_root) / ".code-review.yaml"
         else:
             self.rules_file = Path(".code-review.yaml")
-        self.rules: List[CustomRule] = []
+        self.rules: list[CustomRule] = []
         self.remediation_policy: RemediationPolicy = RemediationPolicy()
         if config is not None:
             self.remediation_policy = config.remediation
@@ -86,23 +111,31 @@ class RulesEngine:
         self.rules.clear()
         self.remediation_policy = RemediationPolicy()
         if not self.rules_file.exists():
-            logger.info(f"No custom rules file found at {self.rules_file}. Using default baseline governance.")
+            logger.info(
+                f"No custom rules file found at {self.rules_file}. Using default baseline governance."
+            )
             self._load_default_rules()
             return
 
         try:
-            with open(self.rules_file, "r", encoding="utf-8") as f:
+            with open(self.rules_file, encoding="utf-8") as f:
                 content = f.read()
         except Exception as e:
-            raise GovernanceParsingError(f"Failed to read rules file at {self.rules_file}: {e}") from e
+            raise GovernanceParsingError(
+                f"Failed to read rules file at {self.rules_file}: {e}"
+            ) from e
 
         self._parse_yaml_content(content)
-        logger.info(f"📋 Rules Engine: Loaded {len(self.rules)} custom governance rule(s) from {self.rules_file}.")
+        logger.info(
+            f"📋 Rules Engine: Loaded {len(self.rules)} custom governance rule(s) from {self.rules_file}."
+        )
 
     def _parse_yaml_content(self, content: str):
         """Parse and validate YAML content using PyYAML and Pydantic. Raises GovernanceParsingError on errors."""
         if not content.strip():
-            logger.warning(f"Rules file {self.rules_file} is empty. Using default baseline governance.")
+            logger.warning(
+                f"Rules file {self.rules_file} is empty. Using default baseline governance."
+            )
             self._load_default_rules()
             return
 
@@ -135,19 +168,25 @@ class RulesEngine:
                 f"Schema validation error in governance rules file '{self.rules_file}':\n{str(e)}"
             ) from e
 
-    def is_remediation_commit_allowed(self, branch: str) -> Tuple[bool, str]:
+    def is_remediation_commit_allowed(self, branch: str) -> tuple[bool, str]:
         """
         Evaluate if direct remediation commit is permitted for the given branch under governance policy.
         Returns (is_allowed, reason).
         """
         if not self.remediation_policy.allow_direct_commits:
-            return False, "Remediation policy (.code-review.yaml): remediation.allow_direct_commits is false (opt-in required)."
+            return (
+                False,
+                "Remediation policy (.code-review.yaml): remediation.allow_direct_commits is false (opt-in required).",
+            )
 
         clean_branch = (branch or "").strip()
         for pat in self.remediation_policy.blocked_branches:
             regex_pat = "^" + pat.replace("*", ".*") + "$"
             if re.match(regex_pat, clean_branch, re.IGNORECASE):
-                return False, f"Branch '{clean_branch}' is protected by governance policy (.code-review.yaml: blocked_branches)."
+                return (
+                    False,
+                    f"Branch '{clean_branch}' is protected by governance policy (.code-review.yaml: blocked_branches).",
+                )
         return True, "Allowed"
 
     def _load_default_rules(self):
@@ -159,7 +198,7 @@ class RulesEngine:
                 severity="WARNING",
                 pattern=r"(?<!#)\bprint\s*\(",
                 description="Direct stdout logging should be replaced with structured logger.",
-                suggested_fix="Use logger.info(...) or logger.debug(...)"
+                suggested_fix="Use logger.info(...) or logger.debug(...)",
             ),
             CustomRule(
                 id="default-no-raw-queries",
@@ -167,35 +206,73 @@ class RulesEngine:
                 severity="BLOCKING",
                 pattern=r"db\.(?:query|execute)\s*\(\s*f[\"']",
                 description="Raw queries with string interpolation risk SQL injection.",
-                suggested_fix="Use parameterized queries."
-            )
+                suggested_fix="Use parameterized queries.",
+            ),
         ]
 
-    def evaluate_diff(self, raw_diff: str) -> List[RuleViolation]:
-        """Scan PR diff added lines against loaded custom rules."""
+    def evaluate_diff(self, raw_diff: str) -> list[RuleViolation]:
+        """Scan PR diff added lines against loaded custom rules with comment and docstring filtering."""
         parsed_pr = DiffParser.parse_diff(raw_diff)
-        violations: List[RuleViolation] = []
+        violations: list[RuleViolation] = []
+
+        # Detect and audit changes to governance configuration without mutating active runtime rules
+        for file_diff in parsed_pr.files:
+            target_f = (file_diff.target_file or "").lower()
+            if target_f.endswith((".code-review.yaml", "code-review.yaml")):
+                violations.append(
+                    RuleViolation(
+                        rule_id="gov-policy-change",
+                        rule_name="Governance Configuration Modified",
+                        severity="WARNING",
+                        file_path=file_diff.target_file or ".code-review.yaml",
+                        line_number=1,
+                        description="This pull request modifies repository governance rules (.code-review.yaml). Requires explicit security/governance approval.",
+                        suggested_fix="Verify with security and engineering leads before merging policy changes.",
+                        snippet="Governance configuration modified in diff",
+                    )
+                )
 
         for file_diff in parsed_pr.files:
             file_path = file_diff.target_file or file_diff.source_file or ""
             norm_path = file_path.lower().replace("\\", "/")
             is_exempt_from_quality = any(
-                p in norm_path for p in [
-                    "test", "tests/", "/test_", "_test.py", "scripts/", "benchmarks/", "samples/", "conftest.py"
+                p in norm_path
+                for p in [
+                    "test",
+                    "tests/",
+                    "/test_",
+                    "_test.py",
+                    "scripts/",
+                    "benchmarks/",
+                    "samples/",
+                    "conftest.py",
                 ]
             )
             added_lines = DiffParser.extract_added_lines_with_numbers(file_diff)
 
+            in_docstring = False
             for line_no, line_content in added_lines:
+                is_comm, in_docstring = is_comment_or_docstring_line(
+                    line_content, in_docstring
+                )
+                if is_comm:
+                    continue
+
+                code_part = strip_line_comment(line_content)
+                if not code_part.strip():
+                    continue
+
                 for rule in self.rules:
                     # Exempt tests and scripts from non-blocking quality rules (e.g. print statements)
-                    if is_exempt_from_quality and ("print" in rule.id.lower() or "sleep" in rule.id.lower()):
+                    if is_exempt_from_quality and (
+                        "print" in rule.id.lower() or "sleep" in rule.id.lower()
+                    ):
                         continue
-                    if "__main__" in line_content and "print" in rule.id.lower():
+                    if "__main__" in code_part and "print" in rule.id.lower():
                         continue
 
                     try:
-                        if re.search(rule.pattern, line_content, re.IGNORECASE):
+                        if re.search(rule.pattern, code_part, re.IGNORECASE):
                             violations.append(
                                 RuleViolation(
                                     rule_id=rule.id,
@@ -204,7 +281,8 @@ class RulesEngine:
                                     file_path=file_path,
                                     line_number=line_no,
                                     description=rule.description,
-                                    suggested_fix=rule.suggested_fix
+                                    suggested_fix=rule.suggested_fix,
+                                    snippet=code_part.strip(),
                                 )
                             )
                     except Exception as e:
@@ -215,23 +293,28 @@ class RulesEngine:
 
 # --- CrewAI Tool Wrapper ---
 
+
 class CustomRulesInput(BaseModel):
     """Input for CustomRulesTool."""
-    diff_content: str = Field(..., description="The raw unified diff to validate against team rules")
+
+    diff_content: str = Field(
+        ..., description="The raw unified diff to validate against team rules"
+    )
 
 
 class CustomRulesTool(BaseTool):
     """CrewAI Tool for validating PR changes against team governance rules (.code-review.yaml)."""
+
     name: str = "Enterprise Governance Rules Validator"
     description: str = (
         "Validates PR code against team coding standards, architecture constraints, "
         "and governance policies defined in .code-review.yaml."
     )
-    args_schema: Type[BaseModel] = CustomRulesInput
+    args_schema: type[BaseModel] = CustomRulesInput
 
-    _engine: Optional[RulesEngine] = None
+    _engine: RulesEngine | None = None
 
-    def __init__(self, rules_path: Optional[str] = None, **kwargs):
+    def __init__(self, rules_path: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self._engine = RulesEngine(rules_file_path=rules_path)
 
@@ -256,4 +339,3 @@ class CustomRulesTool(BaseTool):
                 f"   - Fix Action: {v.suggested_fix}"
             )
         return "\n".join(lines)
-

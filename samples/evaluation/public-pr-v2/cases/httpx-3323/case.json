@@ -1,0 +1,39 @@
+{
+  "id": "httpx-3323",
+  "file": "cases/httpx-3323/input.diff",
+  "sha256": "efaa6f73c7a354bda24f7f6ee721ac768a640c3ba7e5322d7a578d666e0fa8cf",
+  "source_repository": "encode/httpx",
+  "base_sha": "5766bf58e20548f106e13e95d7064635a9b06941",
+  "head_sha": "4515254ffc0f955acfcf7d31b2a4b4515716e3cc",
+  "source_diff_url": "https://github.com/encode/httpx/compare/5766bf58e20548f106e13e95d7064635a9b06941...4515254ffc0f955acfcf7d31b2a4b4515716e3cc.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3323",
+  "merged_at": "2024-09-27T09:55:41Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3323/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3323/head/CHANGELOG.md",
+      "sha256": "d443b3ee38788213a325119fffacf039b6e60b3413860401b0090344ea9ea7db"
+    },
+    {
+      "path": "httpx/_transports/asgi.py",
+      "file": "cases/httpx-3323/head/httpx/_transports/asgi.py",
+      "sha256": "1d17e20d830fb78c101f6805807660e1cfa2dec6e5a3a6cbe464ea7044fec73f"
+    },
+    {
+      "path": "httpx/_utils.py",
+      "file": "cases/httpx-3323/head/httpx/_utils.py",
+      "sha256": "48615f426cd48e61bb093723e235dc807e514b39c292c015a72fc9f3b1fe29fc"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/httpx-3323/head/pyproject.toml",
+      "sha256": "a83152590accbb550197bc495be45ec870ac622d3124a20057138d9e0e426b51"
+    }
+  ],
+  "input_snapshot_hash": "664364eb48088c0aa27788fb5ce3b2070be757f340c4862c09c33c7d55b9a0a9",
+  "label_status": "UNREVIEWED"
+}

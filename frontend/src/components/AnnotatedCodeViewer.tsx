@@ -37,6 +37,27 @@ interface ParsedFile {
   lines: ParsedFileLine[];
 }
 
+const normalizeSeverity = (sev?: string): 'CRITICAL' | 'WARNING' | 'INFO' => {
+  const s = (sev || 'INFO').toUpperCase();
+  if (s === 'CRITICAL' || s === 'HIGH' || s === 'BLOCKING') return 'CRITICAL';
+  if (s === 'WARNING' || s === 'MEDIUM') return 'WARNING';
+  return 'INFO';
+};
+
+  const normalizePath = (path: string) =>
+    path.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^[ab]\//, '').toLowerCase();
+
+  const pathsMatch = (commentPath: string, filePath: string) => {
+    if (!commentPath || !filePath) return true;
+    const cNorm = normalizePath(commentPath);
+    const fNorm = normalizePath(filePath);
+    if (cNorm === fNorm) return true;
+    if (cNorm.endsWith('/' + fNorm) || fNorm.endsWith('/' + cNorm)) return true;
+    const cBase = cNorm.split('/').pop();
+    const fBase = fNorm.split('/').pop();
+    return !!cBase && !!fBase && cBase === fBase;
+  };
+
 export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   reviewedDiff,
   inlineComments = [],
@@ -57,15 +78,19 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     // Check if it is a unified git diff format
     if (raw.includes('diff --git') || raw.includes('--- ') || raw.includes('@@ ')) {
       const files: ParsedFile[] = [];
-      const diffSections = raw.split(/^diff --git /m);
+      const diffSections = raw.split(/(?=^diff --git |^--- (?:[ab]\/|\S+))/m);
 
       for (const section of diffSections) {
         if (!section.trim()) continue;
 
         let filename = 'modified_file.py';
-        const fileMatch = section.match(/(?:b\/|a\/)([^\s\n\r]+)/);
+        const fileMatch =
+          section.match(/\+\+\+\s+(?:[b/]|"b\/)?([^\s\n\r]+)/) ||
+          section.match(/---\s+(?:[a/]|"a\/)?([^\s\n\r]+)/) ||
+          section.match(/diff --git\s+a\/([^\s]+)\s+b\/([^\s]+)/) ||
+          section.match(/(?:b\/|a\/)([^\s\n\r]+)/);
         if (fileMatch) {
-          filename = fileMatch[1];
+          filename = (fileMatch[2] || fileMatch[1]).replace(/^["']|["']$/g, '');
         }
 
         const lines: ParsedFileLine[] = [];
@@ -131,26 +156,38 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     return [{ filename: 'source_file.py', lines: plainLines }];
   }, [reviewedDiff]);
 
+
+
+
+
   const currentFile = useMemo(() => {
     return parsedFiles.find(f => f.filename === selectedFile)
-      || parsedFiles.find(f => inlineComments.some(c => c.path === f.filename))
+      || parsedFiles.find(f => inlineComments.some(c => pathsMatch(c.path, f.filename)))
       || parsedFiles[0] || { filename: '', lines: [] };
   }, [parsedFiles, selectedFile, inlineComments]);
 
   // Map comments by line number for current file
   const commentsByLine = useMemo(() => {
     const map: Record<number, InlineComment[]> = {};
+    const validLines = new Set(currentFile.lines.map(l => l.lineNumber));
+
     for (const comment of inlineComments) {
-      const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/^[ab]\//, '');
-      if (normalizePath(comment.path) !== normalizePath(currentFile.filename) || comment.side === 'LEFT') continue;
-      const lineNo = comment.line;
+      if (comment.side === 'LEFT') continue;
+      if (!pathsMatch(comment.path, currentFile.filename)) continue;
+      let lineNo = comment.line;
+
+      // Fallback: If lineNo is not directly in rendered lines, but within hunk line index range:
+      if (!validLines.has(lineNo) && currentFile.lines[lineNo - 1]) {
+        lineNo = currentFile.lines[lineNo - 1].lineNumber;
+      }
+
       if (!map[lineNo]) {
         map[lineNo] = [];
       }
       map[lineNo].push(comment);
     }
     return map;
-  }, [inlineComments, currentFile.filename]);
+  }, [inlineComments, currentFile.filename, currentFile.lines]);
 
   // List of all flagged line numbers in the file
   const flaggedLineNumbers = useMemo(() => {
@@ -164,7 +201,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     let info = 0;
 
     for (const c of inlineComments) {
-      const sev = (c.severity || 'INFO').toUpperCase();
+      const sev = normalizeSeverity(c.severity);
       if (sev === 'CRITICAL') critical++;
       else if (sev === 'WARNING') warning++;
       else info++;
@@ -176,7 +213,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   const toggleComment = (key: string) => {
     setExpandedComments(prev => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: prev[key] === undefined ? false : !prev[key],
     }));
   };
 
@@ -201,7 +238,11 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   };
 
   const collapseAllComments = () => {
-    setExpandedComments({});
+    const all: Record<string, boolean> = {};
+    Object.entries(commentsByLine).forEach(([line, comments]) => {
+      comments.forEach((_, index) => { all[`${currentFile.filename}-${line}-${index}`] = false; });
+    });
+    setExpandedComments(all);
   };
 
   // Syntax highlighter helper
@@ -230,7 +271,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     const targetLines = new Set<number>();
     flaggedLineNumbers.forEach(lineNo => {
       const comments = commentsByLine[lineNo] || [];
-      const match = comments.some(c => (c.severity || '').toUpperCase() === activeFilter);
+      const match = comments.some(c => normalizeSeverity(c.severity) === activeFilter);
       if (match) {
         // Include lineNo ±2
         for (let i = lineNo - 2; i <= lineNo + 2; i++) {
@@ -400,16 +441,16 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
               const lineComments = commentsByLine[line.lineNumber] || [];
               const hasFlag = lineComments.length > 0;
               const topSeverity = hasFlag
-                ? lineComments.some(c => (c.severity || '').toUpperCase() === 'CRITICAL')
+                ? lineComments.some(c => normalizeSeverity(c.severity) === 'CRITICAL')
                   ? 'CRITICAL'
-                  : lineComments.some(c => (c.severity || '').toUpperCase() === 'WARNING')
+                  : lineComments.some(c => normalizeSeverity(c.severity) === 'WARNING')
                   ? 'WARNING'
                   : 'INFO'
                 : null;
 
               const markerIndex = hasFlag ? flaggedLineNumbers.indexOf(line.lineNumber) : 0;
               const isAnyCardOpen = lineComments.some((_, cIdx) =>
-                expandedComments[`${currentFile.filename}-${line.lineNumber}-${cIdx}`]
+                expandedComments[`${currentFile.filename}-${line.lineNumber}-${cIdx}`] ?? true
               );
 
               const wavyClass = topSeverity === 'CRITICAL'
@@ -422,26 +463,36 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
 
               const rowBgClass = hasFlag
                 ? topSeverity === 'CRITICAL'
-                  ? 'bg-rose-950/15 hover:bg-rose-950/25'
+                  ? 'bg-rose-950/20 hover:bg-rose-950/30'
                   : topSeverity === 'WARNING'
-                  ? 'bg-amber-950/15 hover:bg-amber-950/25'
-                  : 'bg-sky-950/15 hover:bg-sky-950/25'
+                  ? 'bg-amber-950/20 hover:bg-amber-950/30'
+                  : 'bg-sky-950/20 hover:bg-sky-950/30'
                 : line.type === 'added'
                 ? 'bg-emerald-950/20'
                 : line.type === 'deleted'
                 ? 'bg-rose-950/20 opacity-70'
                 : 'hover:bg-slate-900/40';
 
+              const borderLeftClass = hasFlag
+                ? topSeverity === 'CRITICAL'
+                  ? 'border-l-4 border-l-rose-500'
+                  : topSeverity === 'WARNING'
+                  ? 'border-l-4 border-l-amber-500'
+                  : 'border-l-4 border-l-sky-500'
+                : '';
+
               return (
                 <React.Fragment key={`line-${line.lineNumber}-${idx}`}>
                   <tr
                     onClick={() => {
                       if (hasFlag) {
-                        const key = `${currentFile.filename}-${line.lineNumber}-0`;
-                        toggleComment(key);
+                        lineComments.forEach((_, cIdx) => {
+                          const key = `${currentFile.filename}-${line.lineNumber}-${cIdx}`;
+                          toggleComment(key);
+                        });
                       }
                     }}
-                    className={`transition-colors border-b border-slate-900/40 group ${rowBgClass} ${
+                    className={`transition-colors border-b border-slate-900/40 group ${rowBgClass} ${borderLeftClass} ${
                       hasFlag ? 'cursor-pointer' : ''
                     }`}
                   >
@@ -493,10 +544,10 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                   {hasFlag &&
                     lineComments.map((comment, cIdx) => {
                       const cardKey = `${currentFile.filename}-${line.lineNumber}-${cIdx}`;
-                      const isOpen = expandedComments[cardKey];
+                      const isOpen = expandedComments[cardKey] ?? true;
                       if (!isOpen) return null;
 
-                      const sev = (comment.severity || 'INFO').toUpperCase();
+                      const sev = normalizeSeverity(comment.severity);
                       const sevBadgeClass =
                         sev === 'CRITICAL'
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'

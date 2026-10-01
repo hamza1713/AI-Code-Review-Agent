@@ -1,0 +1,26 @@
+diff --git a/src/requests/_types.py b/src/requests/_types.py
+index 52034a64a2..18b561ea42 100644
+--- a/src/requests/_types.py
++++ b/src/requests/_types.py
+@@ -150,7 +150,7 @@ class BaseRequestKwargs(TypedDict, total=False):
+         timeout: TimeoutType
+         allow_redirects: bool
+         proxies: dict[str, str] | None
+-        hooks: HooksType
++        hooks: HooksInputType | None
+         stream: bool | None
+         verify: VerifyType | None
+         cert: CertType
+diff --git a/src/requests/sessions.py b/src/requests/sessions.py
+index 74029c8f24..87c87a290a 100644
+--- a/src/requests/sessions.py
++++ b/src/requests/sessions.py
+@@ -567,7 +567,7 @@ def request(
+         timeout: _t.TimeoutType = None,
+         allow_redirects: bool = True,
+         proxies: dict[str, str] | None = None,
+-        hooks: _t.HooksType = None,
++        hooks: _t.HooksInputType | None = None,
+         stream: bool | None = None,
+         verify: _t.VerifyType | None = None,
+         cert: _t.CertType = None,

@@ -4,14 +4,18 @@ Supports GitHub issues, Jira tickets, and Linear identifiers.
 """
 
 import re
-from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class TicketReference(BaseModel):
     """Represents an extracted ticket or issue reference."""
+
     ticket_type: str = Field(..., description="'github', 'jira', or 'linear'")
-    ticket_id: str = Field(..., description="Canonical ticket identifier (e.g., '#42', 'PROJ-123', 'ENG-45')")
+    ticket_id: str = Field(
+        ...,
+        description="Canonical ticket identifier (e.g., '#42', 'PROJ-123', 'ENG-45')",
+    )
     raw_text: str = Field(..., description="Matched text substring in PR")
     source: str = Field(default="body", description="'title', 'body', or 'branch'")
 
@@ -22,7 +26,7 @@ class TicketParser:
     # GitHub issue patterns: Fixes #123, Closes #45, Resolves #67, #89
     GITHUB_KEYWORD_PATTERN = re.compile(
         r"(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)",
-        re.IGNORECASE
+        re.IGNORECASE,
     )
     GITHUB_SHORTHAND_PATTERN = re.compile(r"(?:^|\s)#(\d+)(?:\b|$)")
 
@@ -36,32 +40,61 @@ class TicketParser:
     # This is a code-review tool, so PR text is full of CWE-89, CVE-2023-1234, SHA-256,
     # AES-256, etc. — none of which are tickets. Matched case-insensitively.
     _NON_TICKET_PREFIXES = (
-        "UTF-", "ISO-", "SHA-", "PR-", "RFC-", "CWE-", "CVE-", "OWASP-", "AES-",
-        "RSA-", "DES-", "MD-", "EC-", "GB-", "KB-", "MB-", "TB-", "HTTP-", "OAUTH-",
-        "SSH-", "TLS-", "SSL-", "IPV-", "X-", "SOC-", "PEP-", "ES-", "CSS-", "HTML-",
+        "UTF-",
+        "ISO-",
+        "SHA-",
+        "PR-",
+        "RFC-",
+        "CWE-",
+        "CVE-",
+        "OWASP-",
+        "AES-",
+        "RSA-",
+        "DES-",
+        "MD-",
+        "EC-",
+        "GB-",
+        "KB-",
+        "MB-",
+        "TB-",
+        "HTTP-",
+        "OAUTH-",
+        "SSH-",
+        "TLS-",
+        "SSL-",
+        "IPV-",
+        "X-",
+        "SOC-",
+        "PEP-",
+        "ES-",
+        "CSS-",
+        "HTML-",
     )
 
     @classmethod
     def extract_ticket_references(
-        cls,
-        title: str = "",
-        body: str = "",
-        branch: Optional[str] = None
-    ) -> List[TicketReference]:
+        cls, title: str = "", body: str = "", branch: str | None = None
+    ) -> list[TicketReference]:
         """Extract all unique ticket references across title, body, and branch name."""
-        references: List[TicketReference] = []
+        references: list[TicketReference] = []
         seen_ids = set()
 
         def add_ref(ticket_type: str, ticket_id: str, raw_text: str, source: str):
-            canonical = ticket_id.upper() if ticket_type in ("jira", "linear") else f"#{ticket_id.lstrip('#')}"
+            canonical = (
+                ticket_id.upper()
+                if ticket_type in ("jira", "linear")
+                else f"#{ticket_id.lstrip('#')}"
+            )
             if canonical not in seen_ids:
                 seen_ids.add(canonical)
-                references.append(TicketReference(
-                    ticket_type=ticket_type,
-                    ticket_id=canonical,
-                    raw_text=raw_text,
-                    source=source
-                ))
+                references.append(
+                    TicketReference(
+                        ticket_type=ticket_type,
+                        ticket_id=canonical,
+                        raw_text=raw_text,
+                        source=source,
+                    )
+                )
 
         sources = [("title", title or ""), ("body", body or "")]
         if branch:

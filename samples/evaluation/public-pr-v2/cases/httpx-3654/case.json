@@ -1,0 +1,39 @@
+{
+  "id": "httpx-3654",
+  "file": "cases/httpx-3654/input.diff",
+  "sha256": "48a5cda79bea952442bea031f649b225faec1f5d8ad4223ec4ae7278e125d8bc",
+  "source_repository": "encode/httpx",
+  "base_sha": "15e9759e656654b44307fbee685e032c7bb4aede",
+  "head_sha": "c070473cda466f1f4cbbed2c23dcc8afc8b9ebbe",
+  "source_diff_url": "https://github.com/encode/httpx/compare/15e9759e656654b44307fbee685e032c7bb4aede...c070473cda466f1f4cbbed2c23dcc8afc8b9ebbe.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3654",
+  "merged_at": "2025-09-04T13:48:49Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3654/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "requirements.txt",
+      "file": "cases/httpx-3654/head/requirements.txt",
+      "sha256": "d782913baaa9d17512279ef35bbe9a08688cf9afb2b28300c818aa8fb311cffe"
+    },
+    {
+      "path": "tests/client/test_auth.py",
+      "file": "cases/httpx-3654/head/tests/client/test_auth.py",
+      "sha256": "428600a96647081d2e331d075bdeef93a6a2cf3fa02211e2b7c93d598764c390"
+    },
+    {
+      "path": "tests/client/test_properties.py",
+      "file": "cases/httpx-3654/head/tests/client/test_properties.py",
+      "sha256": "a79c710eefa0435f3dad3ffd8367b948aa3517047a8e3c8b8574f80adf5ba83f"
+    },
+    {
+      "path": "tests/client/test_queryparams.py",
+      "file": "cases/httpx-3654/head/tests/client/test_queryparams.py",
+      "sha256": "2bf5b34b367752750069016b1feccc9e59d1de20f5fd76cb4e0be31282ef3f79"
+    }
+  ],
+  "input_snapshot_hash": "b7bd434987514efa810593fb505d5b53c17bd8528deb14ae14f928b738c45aa9",
+  "label_status": "UNREVIEWED"
+}

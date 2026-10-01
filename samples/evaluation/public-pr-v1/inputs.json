@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "corpus_version": "public-pr-v1",
+  "status": "AWAITING_INDEPENDENT_LABELS",
+  "cases": [
+    {
+      "id": "flask-5344",
+      "file": "flask-5344.diff",
+      "sha256": "1e5411dae6d549a769b200fb413db8a7b22e6a11a69f059bae66049985d0ce92",
+      "source_url": "https://github.com/pallets/flask/pull/5344",
+      "source_repository": "pallets/flask",
+      "base_sha": "b97165db75c6f4e99c3307b4a5a1f3b0d9f4de25",
+      "head_sha": "1d5abfadd7132c9a78e14e5ba6c07aed47115280",
+      "source_diff_url": "https://api.github.com/repos/pallets/flask/compare/b97165db75c6f4e99c3307b4a5a1f3b0d9f4de25...1d5abfadd7132c9a78e14e5ba6c07aed47115280",
+      "license": "BSD-3-Clause",
+      "license_file": "flask-5344.LICENSE",
+      "cohort": "clean_candidate",
+      "label_status": "UNREVIEWED"
+    },
+    {
+      "id": "flask-5383",
+      "file": "flask-5383.diff",
+      "sha256": "4b118e84d593a54b72cd782e98f4626bf5e14b4f555edd99755757ba853d96bb",
+      "source_url": "https://github.com/pallets/flask/pull/5383",
+      "source_repository": "pallets/flask",
+      "base_sha": "5a48a0fe6b02f62f9a0d90257c6a14d280bc9d23",
+      "head_sha": "81b3c85f51834a06bc8fbecf350bc20d756d8026",
+      "source_diff_url": "https://api.github.com/repos/pallets/flask/compare/5a48a0fe6b02f62f9a0d90257c6a14d280bc9d23...81b3c85f51834a06bc8fbecf350bc20d756d8026",
+      "license": "BSD-3-Clause",
+      "license_file": "flask-5383.LICENSE",
+      "cohort": "clean_candidate",
+      "label_status": "UNREVIEWED"
+    },
+    {
+      "id": "flask-5270",
+      "file": "flask-5270.diff",
+      "sha256": "d35ad25b489ceb0e70856b4c23090afe3339925b1b5f29a7f9dc7d14655fade4",
+      "source_url": "https://github.com/pallets/flask/pull/5270",
+      "source_repository": "pallets/flask",
+      "base_sha": "adb7dd99c295a28726c8d818fba54c7b3f958ecc",
+      "head_sha": "5fdce4c331ac530280cc941179d364a07f4a1088",
+      "source_diff_url": "https://api.github.com/repos/pallets/flask/compare/adb7dd99c295a28726c8d818fba54c7b3f958ecc...5fdce4c331ac530280cc941179d364a07f4a1088",
+      "license": "BSD-3-Clause",
+      "license_file": "flask-5270.LICENSE",
+      "cohort": "hard_negative_candidate",
+      "label_status": "UNREVIEWED"
+    }
+  ]
+}

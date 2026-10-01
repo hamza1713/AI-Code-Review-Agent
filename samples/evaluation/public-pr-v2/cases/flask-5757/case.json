@@ -1,0 +1,49 @@
+{
+  "id": "flask-5757",
+  "file": "cases/flask-5757/input.diff",
+  "sha256": "d2770867372fa7203b32452dd9eef874505ffcd4def07fff2becd64d8645fda8",
+  "source_repository": "pallets/flask",
+  "base_sha": "f04c5e696400badaa52b3450ded53e9091c2078a",
+  "head_sha": "a758915893352f5986c6ee101cdf7e3b7a64fa28",
+  "source_diff_url": "https://github.com/pallets/flask/compare/f04c5e696400badaa52b3450ded53e9091c2078a...a758915893352f5986c6ee101cdf7e3b7a64fa28.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5757",
+  "merged_at": "2025-06-09T21:33:26Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5757/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "README.md",
+      "file": "cases/flask-5757/head/README.md",
+      "sha256": "56af86d15a19a749ab58d9d1c102290353f02913ad3097ca4322bff67b9647ee"
+    },
+    {
+      "path": "docs/_static/flask-horizontal.svg",
+      "file": "cases/flask-5757/head/docs/_static/flask-horizontal.svg",
+      "sha256": "d96251ed0140f627f63e96c6994f9438b7318b7c36a1e3f277ffd78b189f60a3"
+    },
+    {
+      "path": "docs/_static/flask-icon.svg",
+      "file": "cases/flask-5757/head/docs/_static/flask-icon.svg",
+      "sha256": "bc271d69384b15f77adaa1dde1ebaf5250684d8773fbe3fb27009adc03fc12f1"
+    },
+    {
+      "path": "docs/_static/flask-vertical.svg",
+      "file": "cases/flask-5757/head/docs/_static/flask-vertical.svg",
+      "sha256": "a42ba416a3891fb4bf8a90eb37924f6b7e6d65d9dd8a5f65e229b5db646c95d2"
+    },
+    {
+      "path": "docs/conf.py",
+      "file": "cases/flask-5757/head/docs/conf.py",
+      "sha256": "f3f31ed41859d3345ebfcf46c36c84ee84c7486f7a4a88f71d9039a449ef776c"
+    },
+    {
+      "path": "docs/index.rst",
+      "file": "cases/flask-5757/head/docs/index.rst",
+      "sha256": "d1d689e5b6eab0a76f8f408d172679ca13a949ecb6b56c2acbd1dcdedf16fd10"
+    }
+  ],
+  "input_snapshot_hash": "eaa325970c80f89267d55b60effb0a5f8a7f13b28c5317d8ee9319eee6c38b8c",
+  "label_status": "UNREVIEWED"
+}

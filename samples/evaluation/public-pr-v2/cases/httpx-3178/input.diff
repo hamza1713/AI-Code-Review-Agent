@@ -1,0 +1,94 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1d32e53dc6..460e315422 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -16,6 +16,7 @@ This release introduces an `httpx.SSLContext()` class and `ssl_context` paramete
+ * Ensure JSON request bodies are compact. (#3363)
+ * Review URL percent escape sets, based on WHATWG spec. (#3371, #3373)
+ * Ensure `certifi` and `httpcore` are only imported if required. (#3377)
++* Treat `socks5h` as a valid proxy scheme. (#3178)
+ 
+ ## 0.27.2 (27th August, 2024)
+ 
+diff --git a/httpx/_config.py b/httpx/_config.py
+index 5a1a98a024..3fd5e1ddce 100644
+--- a/httpx/_config.py
++++ b/httpx/_config.py
+@@ -262,7 +262,7 @@ def __init__(
+         url = URL(url)
+         headers = Headers(headers)
+ 
+-        if url.scheme not in ("http", "https", "socks5"):
++        if url.scheme not in ("http", "https", "socks5", "socks5h"):
+             raise ValueError(f"Unknown scheme for proxy URL {url!r}")
+ 
+         if url.username or url.password:
+diff --git a/httpx/_transports/default.py b/httpx/_transports/default.py
+index 50ff91055e..85d0f5f522 100644
+--- a/httpx/_transports/default.py
++++ b/httpx/_transports/default.py
+@@ -189,7 +189,7 @@ def __init__(
+                 http2=http2,
+                 socket_options=socket_options,
+             )
+-        elif proxy.url.scheme == "socks5":
++        elif proxy.url.scheme in ("socks5", "socks5h"):
+             try:
+                 import socksio  # noqa
+             except ImportError:  # pragma: no cover
+@@ -215,7 +215,7 @@ def __init__(
+             )
+         else:  # pragma: no cover
+             raise ValueError(
+-                "Proxy protocol must be either 'http', 'https', or 'socks5',"
++                "Proxy protocol must be either 'http', 'https', 'socks5', or 'socks5h',"
+                 f" but got {proxy.url.scheme!r}."
+             )
+ 
+@@ -338,7 +338,7 @@ def __init__(
+                 http2=http2,
+                 socket_options=socket_options,
+             )
+-        elif proxy.url.scheme == "socks5":
++        elif proxy.url.scheme in ("socks5", "socks5h"):
+             try:
+                 import socksio  # noqa
+             except ImportError:  # pragma: no cover
+@@ -364,7 +364,7 @@ def __init__(
+             )
+         else:  # pragma: no cover
+             raise ValueError(
+-                "Proxy protocol must be either 'http', 'https', or 'socks5',"
++                "Proxy protocol must be either 'http', 'https', 'socks5', or 'socks5h',"
+                 " but got {proxy.url.scheme!r}."
+             )
+ 
+diff --git a/tests/client/test_proxies.py b/tests/client/test_proxies.py
+index 90a92f56bb..3e4090dcec 100644
+--- a/tests/client/test_proxies.py
++++ b/tests/client/test_proxies.py
+@@ -16,15 +16,16 @@ def url_to_origin(url: str) -> httpcore.URL:
+ def test_socks_proxy():
+     url = httpx.URL("http://www.example.com")
+ 
+-    client = httpx.Client(proxy="socks5://localhost/")
+-    transport = client._transport_for_url(url)
+-    assert isinstance(transport, httpx.HTTPTransport)
+-    assert isinstance(transport._pool, httpcore.SOCKSProxy)
++    for proxy in ("socks5://localhost/", "socks5h://localhost/"):
++        client = httpx.Client(proxy=proxy)
++        transport = client._transport_for_url(url)
++        assert isinstance(transport, httpx.HTTPTransport)
++        assert isinstance(transport._pool, httpcore.SOCKSProxy)
+ 
+-    async_client = httpx.AsyncClient(proxy="socks5://localhost/")
+-    async_transport = async_client._transport_for_url(url)
+-    assert isinstance(async_transport, httpx.AsyncHTTPTransport)
+-    assert isinstance(async_transport._pool, httpcore.AsyncSOCKSProxy)
++        async_client = httpx.AsyncClient(proxy=proxy)
++        async_transport = async_client._transport_for_url(url)
++        assert isinstance(async_transport, httpx.AsyncHTTPTransport)
++        assert isinstance(async_transport._pool, httpcore.AsyncSOCKSProxy)
+ 
+ 
+ PROXY_URL = "http://[::1]"

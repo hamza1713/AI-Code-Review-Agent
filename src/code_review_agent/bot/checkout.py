@@ -17,8 +17,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, Optional
 
 from code_review_agent.config import get_github_token, logger
 
@@ -39,20 +39,32 @@ def _run_git(args: list, timeout: float = 120.0) -> bool:
 
 
 # Per-platform clone host and credential-user prefix for token auth in the clone URL.
-_PLATFORM_HOSTS = {"github": "github.com", "gitlab": "gitlab.com", "bitbucket": "bitbucket.org"}
-_PLATFORM_AUTH_USER = {"github": "x-access-token", "gitlab": "oauth2", "bitbucket": "x-token-auth"}
-_PLATFORM_TOKEN_ENV = {"github": "GITHUB_TOKEN", "gitlab": "GITLAB_TOKEN", "bitbucket": "BITBUCKET_TOKEN"}
+_PLATFORM_HOSTS = {
+    "github": "github.com",
+    "gitlab": "gitlab.com",
+    "bitbucket": "bitbucket.org",
+}
+_PLATFORM_AUTH_USER = {
+    "github": "x-access-token",
+    "gitlab": "oauth2",
+    "bitbucket": "x-token-auth",
+}
+_PLATFORM_TOKEN_ENV = {
+    "github": "GITHUB_TOKEN",
+    "gitlab": "GITLAB_TOKEN",
+    "bitbucket": "BITBUCKET_TOKEN",
+}
 
 
 @contextmanager
 def temporary_pr_checkout(
     owner: str,
     repo: str,
-    head_sha: Optional[str] = None,
-    head_ref: Optional[str] = None,
-    token: Optional[str] = None,
+    head_sha: str | None = None,
+    head_ref: str | None = None,
+    token: str | None = None,
     platform: str = "github",
-    host: Optional[str] = None,
+    host: str | None = None,
 ) -> Iterator[str]:
     """
     Yield a path to an isolated checkout of the PR/MR's repository, cleaned up on exit.
@@ -68,30 +80,33 @@ def temporary_pr_checkout(
     tmp = tempfile.mkdtemp(prefix="cr_pr_")
     try:
         if os.getenv("BOT_CLONE_REPO", "true").strip().lower() in ("0", "false", "no"):
-            logger.info("BOT_CLONE_REPO disabled; using empty isolated context for this command.")
+            logger.info(
+                "BOT_CLONE_REPO disabled; using empty isolated context for this command."
+            )
             yield tmp
             return
 
         if token is None:
-            token = os.getenv(_PLATFORM_TOKEN_ENV.get(platform, "GITHUB_TOKEN"), "") or (
-                get_github_token() if platform == "github" else ""
-            )
+            token = os.getenv(
+                _PLATFORM_TOKEN_ENV.get(platform, "GITHUB_TOKEN"), ""
+            ) or (get_github_token() if platform == "github" else "")
         clone_host = host or _PLATFORM_HOSTS.get(platform, "github.com")
         auth_user = _PLATFORM_AUTH_USER.get(platform, "x-access-token")
         # Token is embedded in the clone URL only; it is never logged.
         auth = f"{auth_user}:{token}@" if token else ""
         clone_url = f"https://{auth}{clone_host}/{owner}/{repo}.git"
 
-        if not _run_git(["clone", "--depth", "1", "--no-single-branch", clone_url, tmp]):
+        if not _run_git(
+            ["clone", "--depth", "1", "--no-single-branch", clone_url, tmp]
+        ):
             logger.warning(
                 f"Could not clone {owner}/{repo}; the command will run with empty repo context."
             )
             yield tmp
             return
 
-        # Best-effort: move the working tree to the exact PR head. If this fails
-        # (e.g. a fork's ref is not on origin), the default-branch clone is still a
-        # valid, relevant checkout for surrounding-code context.
+        # Move the working tree to the exact PR head; failed verification below
+        # withholds all surrounding source context.
         ref = head_sha or head_ref
         if ref:
             if _run_git(["-C", tmp, "fetch", "--depth", "1", "origin", ref]):
@@ -100,6 +115,21 @@ def temporary_pr_checkout(
                 if _run_git(["-C", tmp, "fetch", "--depth", "1", "origin", head_ref]):
                     _run_git(["-C", tmp, "checkout", "--force", "FETCH_HEAD"])
 
+        if head_sha:
+            result = subprocess.run(
+                ["git", "-C", tmp, "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode != 0 or result.stdout.strip() != head_sha:
+                # Never expose stale default-branch files as PR-head context.
+                shutil.rmtree(tmp)
+                os.mkdir(tmp)
+                logger.warning(
+                    "Exact PR head unavailable; repository context withheld."
+                )
         yield tmp
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

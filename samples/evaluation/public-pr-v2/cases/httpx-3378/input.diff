@@ -1,0 +1,38 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 460e315422..d3b109a8d3 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -17,6 +17,7 @@ This release introduces an `httpx.SSLContext()` class and `ssl_context` paramete
+ * Review URL percent escape sets, based on WHATWG spec. (#3371, #3373)
+ * Ensure `certifi` and `httpcore` are only imported if required. (#3377)
+ * Treat `socks5h` as a valid proxy scheme. (#3178)
++* Cleanup `Request()` method signature in line with `client.request()` and `httpx.request()`. (#3378)
+ 
+ ## 0.27.2 (27th August, 2024)
+ 
+diff --git a/httpx/_models.py b/httpx/_models.py
+index 2ff22b4876..c59f0196d3 100644
+--- a/httpx/_models.py
++++ b/httpx/_models.py
+@@ -310,7 +310,7 @@ def __repr__(self) -> str:
+ class Request:
+     def __init__(
+         self,
+-        method: str | bytes,
++        method: str,
+         url: URL | str,
+         *,
+         params: QueryParamTypes | None = None,
+@@ -323,11 +323,7 @@ def __init__(
+         stream: SyncByteStream | AsyncByteStream | None = None,
+         extensions: RequestExtensions | None = None,
+     ) -> None:
+-        self.method = (
+-            method.decode("ascii").upper()
+-            if isinstance(method, bytes)
+-            else method.upper()
+-        )
++        self.method = method.upper()
+         self.url = URL(url) if params is None else URL(url, params=params)
+         self.headers = Headers(headers)
+         self.extensions = {} if extensions is None else extensions

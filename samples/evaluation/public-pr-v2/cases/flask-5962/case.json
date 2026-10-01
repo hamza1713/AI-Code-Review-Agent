@@ -1,0 +1,24 @@
+{
+  "id": "flask-5962",
+  "file": "cases/flask-5962/input.diff",
+  "sha256": "0d4b0fcf699c16c1b201f44df16fbafde463abe59b69b3f3c83f91b247ba1650",
+  "source_repository": "pallets/flask",
+  "base_sha": "4cae5d8e411b1e69949d8fae669afeacbd3e5908",
+  "head_sha": "91c6b3fecf36b1f04554e57cc4060ccb737a445d",
+  "source_diff_url": "https://github.com/pallets/flask/compare/4cae5d8e411b1e69949d8fae669afeacbd3e5908...91c6b3fecf36b1f04554e57cc4060ccb737a445d.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5962",
+  "merged_at": "2026-03-24T13:55:57Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5962/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "tests/test_reqctx.py",
+      "file": "cases/flask-5962/head/tests/test_reqctx.py",
+      "sha256": "440bd24d06c6131c8f3fc5c7bcc1be8569bdea83ec810b9a808ae66156b78106"
+    }
+  ],
+  "input_snapshot_hash": "bfc96a312641fb0cf95580679726cb288ebd7e758b091fff7a02504fde3a7173",
+  "label_status": "UNREVIEWED"
+}

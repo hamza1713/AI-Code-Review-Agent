@@ -1,0 +1,43 @@
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 4142f2a4bb..57e114866d 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -596,9 +596,9 @@ def prepare_body(
+             if not isinstance(body, bytes):
+                 body = body.encode("utf-8")
+ 
+-        if isinstance(data, Iterable) and not isinstance(
+-            data, (str, bytes, list, tuple, Mapping)
+-        ):
++        # data that proxies attributes to underlying objects needs hasattr
++        is_iterable = isinstance(data, Iterable) or hasattr(data, "__iter__")
++        if is_iterable and not isinstance(data, (str, bytes, list, tuple, Mapping)):
+             try:
+                 length = super_len(data)
+             except (TypeError, AttributeError, UnsupportedOperation):
+diff --git a/tests/test_requests.py b/tests/test_requests.py
+index 09cd4a388a..571535fe79 100644
+--- a/tests/test_requests.py
++++ b/tests/test_requests.py
+@@ -2073,6 +2073,21 @@ def __iter__(self):
+ 
+         assert "Unable to rewind request body" in str(e)
+ 
++    def test_getattr_proxy_stream_follows_redirect(self, httpbin):
++        """Ensure stream wrappers that don't implement __iter__ directly are still detected."""
++
++        class AttrProxy:
++            def __init__(self):
++                self._file = io.BytesIO(b"data")
++
++            def __getattr__(self, name):
++                return getattr(self._file, name)
++
++        r = requests.post(
++            httpbin("redirect-to?url=/post&status_code=307"), data=AttrProxy()
++        )
++        assert r.json()["data"] == "data"
++
+     def _patch_adapter_gzipped_redirect(self, session, url):
+         adapter = session.get_adapter(url=url)
+         org_build_response = adapter.build_response

@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { apiFetch, responseError } from './api';
+import { apiFetch, responseError, setOperatorToken } from './api';
+import { OperatorConnection } from './components/OperatorConnection';
 import { Navbar } from './components/Navbar';
 import { ReviewInput } from './components/ReviewInput';
 import { PipelineProgress } from './components/PipelineProgress';
 import { ReviewDashboard } from './components/ReviewDashboard';
 import { JobsQueueMonitor } from './components/JobsQueueMonitor';
+import { CalibrationView } from './components/CalibrationView';
 import type { ReviewAPIResponse, HealthStatus } from './types/review';
 import { AlertTriangle, ShieldCheck, GitGraph, FileCheck2, ArrowUpRight } from 'lucide-react';
 
 export function App() {
+  const [connected, setConnected] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [activeView, setActiveView] = useState<'review' | 'jobs'>('review');
+  const [activeView, setActiveView] = useState<'review' | 'jobs' | 'calibration'>('review');
   const [isLoading, setIsLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState<ReviewAPIResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,7 +32,18 @@ export function App() {
         if (!controller.signal.aborted) setHealth(data);
       } catch { if (!controller.signal.aborted) setHealth(null); }
     };
+    const checkSession = async () => {
+      try {
+        const response = await apiFetch('/api/session', { signal: controller.signal });
+        if (response.ok && !controller.signal.aborted) {
+          setConnected(true);
+        }
+      } catch {
+        // Token required; stay on login screen
+      }
+    };
     void checkHealth();
+    void checkSession();
     const interval = setInterval(checkHealth, 10000);
     return () => { controller.abort(); clearInterval(interval); requestController.current?.abort(); };
   }, []);
@@ -53,7 +67,7 @@ export function App() {
         setActiveJobProgress(null);
         return job.result as ReviewAPIResponse;
       }
-      if (job.status === 'FAILED') {
+      if (job.status === 'FAILED' || job.status === 'RECONCILIATION_REQUIRED') {
         sessionStorage.removeItem('review-job-id');
         setActiveJobStage(null);
         setActiveJobProgress(null);
@@ -85,7 +99,14 @@ export function App() {
     finally { if (!controller.signal.aborted) setIsLoading(false); }
   };
 
-  useEffect(() => { void resumeReview(); }, []);
+  useEffect(() => {
+    const expired = () => {
+      requestController.current?.abort();
+      setOperatorToken(''); setConnected(false); setIsLoading(false);
+    };
+    window.addEventListener('operator-expired', expired);
+    return () => window.removeEventListener('operator-expired', expired);
+  }, []);
 
   const handleReviewSubmit = async (payload: {
     rawDiff?: string;
@@ -165,6 +186,10 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  if (!connected) return <OperatorConnection onConnected={() => {
+    setConnected(true); void resumeReview();
+  }} />;
+
   return (
     <div className="min-h-screen bg-[#0a0c10] flex flex-col text-slate-100 font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Top Navigation */}
@@ -174,6 +199,10 @@ export function App() {
         onViewChange={setActiveView}
       />
 
+      <button className="self-end px-6 py-2 text-sm" onClick={() => {
+        requestController.current?.abort(); setOperatorToken(''); setConnected(false);
+        setReviewResult(null); setIsLoading(false);
+      }}>Log out</button>
       {/* Main Container */}
       <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Global Error Banner */}
@@ -236,6 +265,9 @@ export function App() {
 
         {/* View 2: Durable Webhook Task Queue Monitor */}
         {activeView === 'jobs' && <JobsQueueMonitor />}
+
+        {/* View 3: Repository Calibration & Cried-Wolf Telemetry */}
+        {activeView === 'calibration' && <CalibrationView />}
       </main>
 
       {/* Footer */}

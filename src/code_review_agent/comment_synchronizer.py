@@ -4,9 +4,14 @@ Synchronizes finding fingerprints across PR revisions, eliminates comment duplic
 and automatically resolves fixed review threads.
 """
 
-from typing import List, Dict, Any, Set, Tuple, Optional
+from typing import Any
+
 from code_review_agent.config import logger
-from code_review_agent.models import InlineComment, SastFinding, extract_fingerprint_from_comment
+from code_review_agent.models import (
+    InlineComment,
+    SastFinding,
+    extract_fingerprint_from_comment,
+)
 from code_review_agent.platform.base import GitPlatformClient
 
 
@@ -22,11 +27,11 @@ class CommentSynchronizer:
         owner: str,
         repo: str,
         pull_number: int,
-        current_comments: List[InlineComment],
-        current_findings: List[SastFinding],
-        head_sha: Optional[str] = None,
-        suppressed_fingerprints: Optional[Set[str]] = None
-    ) -> Tuple[List[InlineComment], Set[str], Set[str]]:
+        current_comments: list[InlineComment],
+        current_findings: list[SastFinding],
+        head_sha: str | None = None,
+        suppressed_fingerprints: set[str] | None = None,
+    ) -> tuple[list[InlineComment], set[str], set[str]]:
         """
         Synchronize review comments against prior comments on the PR.
 
@@ -37,17 +42,21 @@ class CommentSynchronizer:
             - regressed_fps: Set of fingerprints that were re-introduced
         """
         suppressed = set(suppressed_fingerprints or [])
-        short_sha = head_sha[:7] if head_sha else "latest"
+        head_sha[:7] if head_sha else "latest"
 
         # 1. Fetch prior review comments from the platform
-        prior_comments: List[Dict[str, Any]] = []
+        prior_comments: list[dict[str, Any]] = []
         try:
-            prior_comments = client.list_pull_request_review_comments(owner, repo, pull_number)
+            prior_comments = client.list_pull_request_review_comments(
+                owner, repo, pull_number
+            )
         except Exception as e:
-            logger.warning(f"Could not fetch prior PR review comments for {owner}/{repo}#{pull_number}: {e}")
+            logger.warning(
+                f"Could not fetch prior PR review comments for {owner}/{repo}#{pull_number}: {e}"
+            )
 
         # 2. Extract prior fingerprints
-        prior_fps: Set[str] = set()
+        prior_fps: set[str] = set()
         for comment in prior_comments:
             body = comment.get("body", "")
             fp = extract_fingerprint_from_comment(body)
@@ -55,7 +64,7 @@ class CommentSynchronizer:
                 prior_fps.add(fp)
 
         # 3. Map current finding fingerprints
-        current_finding_fps: Set[str] = set()
+        current_finding_fps: set[str] = set()
         for f in current_findings:
             if f.fingerprint:
                 current_finding_fps.add(f.fingerprint.lower())
@@ -63,7 +72,7 @@ class CommentSynchronizer:
                     f.lifecycle_status = "SUPPRESSED"
 
         # 4. Deduplicate comments to post
-        deduped_comments: List[InlineComment] = []
+        deduped_comments: list[InlineComment] = []
         for c in current_comments:
             fp = (c.fingerprint or "").lower()
             if not fp:
@@ -84,30 +93,49 @@ class CommentSynchronizer:
             deduped_comments.append(c)
 
         # 5. Detect resolved findings (present in prior comments but absent in current findings)
-        resolved_fps: Set[str] = set()
+        candidate_resolved: set[str] = set()
         for pfp in prior_fps:
             if pfp not in current_finding_fps and pfp not in suppressed:
-                resolved_fps.add(pfp)
+                candidate_resolved.add(pfp)
 
-        # 6. Post auto-resolution summary if findings were fixed
-        if resolved_fps and pull_number > 0:
-            try:
-                res_lines = [
-                    f"### 🎯 AI Code Review — Verified Resolutions (`{short_sha}`)",
-                    f"Great progress! **{len(resolved_fps)}** previously flagged finding(s) have been resolved in commit `{short_sha}`:\n",
-                ]
-                for rfp in sorted(resolved_fps):
-                    res_lines.append(f"- ✅ Finding fingerprint `{rfp}` resolved.")
-                res_lines.append("\n<sub>Automatically verified and resolved by AI Code Review Agent</sub>")
+        # Filter out findings that were already marked FALSE_POSITIVE or already resolved in a prior commit
+        resolved_fps: set[str] = set()
+        repo_id = f"{owner}/{repo}"
+        try:
+            from code_review_agent.calibration import (
+                FALSE_POSITIVE,
+                FindingOutcomeStore,
+            )
 
-                client.post_issue_comment(
-                    owner=owner,
-                    repo=repo,
-                    issue_number=pull_number,
-                    body="\n".join(res_lines)
+            outcome_store = FindingOutcomeStore()
+            for rfp in candidate_resolved:
+                rec = outcome_store.get_finding(repo_id, rfp, pr_id=str(pull_number))
+                if rec:
+                    # Never claim an explicit false positive was resolved as a real defect
+                    if rec.get("outcome") == FALSE_POSITIVE:
+                        continue
+                    # If it was already resolved by comment_sync in an earlier commit on this PR, don't re-announce
+                    if rec.get("lifecycle_status") == "NOT_OBSERVED":
+                        continue
+                resolved_fps.add(rfp)
+        except Exception as filter_err:
+            logger.debug(
+                f"Could not filter resolved findings against outcome store: {filter_err}"
+            )
+            resolved_fps = candidate_resolved
+
+        # Scanner absence is an observation, never a verified defect or external write.
+        from code_review_agent.calibration import FindingOutcomeStore
+
+        store = FindingOutcomeStore()
+        for fingerprint in resolved_fps:
+            if store.get_finding(repo_id, fingerprint, pr_id=str(pull_number)):
+                store.update_outcome(
+                    repo_id,
+                    fingerprint,
+                    pr_id=str(pull_number),
+                    source="comment_sync_resolved",
+                    reason=f"Not observed at {head_sha}",
                 )
-                logger.info(f"🎉 Posted auto-resolution comment for {len(resolved_fps)} resolved findings to {owner}/{repo}#{pull_number}")
-            except Exception as post_err:
-                logger.warning(f"Could not post resolution summary for {owner}/{repo}#{pull_number}: {post_err}")
 
         return deduped_comments, resolved_fps, set()

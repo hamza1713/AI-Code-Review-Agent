@@ -10,8 +10,12 @@ from pathlib import Path
 # Force UTF-8 stdout/stderr on Windows to avoid charmap UnicodeEncodeErrors
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        getattr(sys.stdout, "reconfigure", lambda **kw: None)(
+            encoding="utf-8", errors="replace"
+        )
+        getattr(sys.stderr, "reconfigure", lambda **kw: None)(
+            encoding="utf-8", errors="replace"
+        )
     except Exception:
         pass
 

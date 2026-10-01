@@ -1,0 +1,29 @@
+{
+  "id": "httpx-3445",
+  "file": "cases/httpx-3445/input.diff",
+  "sha256": "8a9d95a1c0785eff20f0c16d583f96bb7f155ccb294c61cbf890bfe8a85f1bd9",
+  "source_repository": "encode/httpx",
+  "base_sha": "89599a9541af14bcf906fc4ed58ccbdf403802ba",
+  "head_sha": "c2a5f81ce5335211e3b765f00366e9023c642c2d",
+  "source_diff_url": "https://github.com/encode/httpx/compare/89599a9541af14bcf906fc4ed58ccbdf403802ba...c2a5f81ce5335211e3b765f00366e9023c642c2d.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3445",
+  "merged_at": "2024-12-06T15:35:42Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3445/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3445/head/CHANGELOG.md",
+      "sha256": "2cd04b965b20eff7a4d3b30cc020c63b125da9f731874513bad2e59ca9743258"
+    },
+    {
+      "path": "httpx/__version__.py",
+      "file": "cases/httpx-3445/head/httpx/__version__.py",
+      "sha256": "2e853261e3974e2786cee3ffeb850bd30c5db718eebbf41b3af13b34e83e22a5"
+    }
+  ],
+  "input_snapshot_hash": "251297b29c02a97f81721dd228133142522e4bb3e0dbaa0fcd83ee5deedf3aa9",
+  "label_status": "UNREVIEWED"
+}

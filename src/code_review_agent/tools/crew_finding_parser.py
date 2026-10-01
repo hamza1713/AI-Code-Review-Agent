@@ -5,15 +5,22 @@ to be formally promoted into the reconciled findings table with analyzer_source=
 """
 
 import re
-from typing import List, Any, Optional, Dict
-from code_review_agent.models import SastFinding, SummarizedFindingsJSON, Fix
+from typing import Any
+
+from code_review_agent.models import Fix, SastFinding, SummarizedFindingsJSON
 
 _SEV_RE = re.compile(r"\b(CRITICAL|HIGH|MEDIUM|LOW|INFO)\b", re.IGNORECASE)
 
 # Mapping common advisory keywords to CWE identifiers
 _KEYWORD_CWE_MAP = [
     (re.compile(r"sql\s*injection|sqli", re.I), "CWE-89"),
-    (re.compile(r"race\s*condition|concurrency|synchroniz|unsynchronized|thread\s*safe", re.I), "CWE-362"),
+    (
+        re.compile(
+            r"race\s*condition|concurrency|synchroniz|unsynchronized|thread\s*safe",
+            re.I,
+        ),
+        "CWE-362",
+    ),
     (re.compile(r"infinite\s*recursion|recursion\s*depth", re.I), "CWE-674"),
     (re.compile(r"timing\s*(?:side-channel|attack|comparison)", re.I), "CWE-208"),
     (re.compile(r"password\s*hash|md5.*password|insecure\s*hash", re.I), "CWE-916"),
@@ -31,9 +38,14 @@ def extract_crew_severity(text: str, default: str = "MEDIUM") -> str:
     if m:
         return m.group(1).upper()
     upper_text = (text or "").upper()
-    if any(k in upper_text for k in ("CRITICAL", "VULNERABILITY", "EXPLOIT", "CORRUPT", "DEADLOCK")):
+    if any(
+        k in upper_text
+        for k in ("CRITICAL", "VULNERABILITY", "EXPLOIT", "CORRUPT", "DEADLOCK")
+    ):
         return "HIGH"
-    if any(k in upper_text for k in ("BOTTLENECK", "RACE CONDITION", "RECURSION", "LEAK")):
+    if any(
+        k in upper_text for k in ("BOTTLENECK", "RACE CONDITION", "RECURSION", "LEAK")
+    ):
         return "MEDIUM"
     return default
 
@@ -52,19 +64,19 @@ def extract_crew_cwe(text: str) -> str:
 def parse_crew_advisory_findings(
     summarized: Any,
     file_hint: str = "unknown",
-) -> List[SastFinding]:
+) -> list[SastFinding]:
     """
     Convert the Tech Lead advisory fix items and blocking reasons into SastFinding objects.
     These findings are tagged with analyzer_source='llm-crew'.
     """
-    findings: List[SastFinding] = []
+    findings: list[SastFinding] = []
     seen_keys = set()
 
     if not summarized:
         return findings
 
-    fixes: List[Any] = []
-    blocking_reasons: List[str] = []
+    fixes: list[Any] = []
+    blocking_reasons: list[str] = []
 
     if isinstance(summarized, SummarizedFindingsJSON):
         fixes = summarized.fix or []
@@ -105,14 +117,18 @@ def parse_crew_advisory_findings(
             SastFinding(
                 rule_id="CREW-ADVISORY-001",
                 cwe=cwe,
-                category="SECURITY" if cwe in ("CWE-89", "CWE-78", "CWE-362", "CWE-916", "CWE-208", "CWE-502") else "QUALITY",
+                category="SECURITY"
+                if cwe
+                in ("CWE-89", "CWE-78", "CWE-362", "CWE-916", "CWE-208", "CWE-502")
+                else "QUALITY",
                 name=desc[:80].strip(),
                 description=expl or desc,
                 severity=sev,
                 file_path=fp,
                 line_number=line,
                 snippet="",
-                fix_recommendation=sol or "Review advisory recommendation from Tech Lead.",
+                fix_recommendation=sol
+                or "Review advisory recommendation from Tech Lead.",
                 analyzer_source="llm-crew",
             )
         )

@@ -2,8 +2,7 @@
 Unit tests for ExecutionTracer and decision tree trace node hierarchy.
 """
 
-import pytest
-from code_review_agent.observability.tracer import ExecutionTracer, TraceNode, get_tracer
+from code_review_agent.observability.tracer import ExecutionTracer, TraceNode
 
 
 class TestExecutionTracer:
@@ -21,7 +20,9 @@ class TestExecutionTracer:
         tracer = ExecutionTracer(trace_id="test_trace_123")
         parent = tracer.start_step(title="Crew Review", stage="AGENT_CREW")
         child1 = tracer.start_step(title="Senior Dev", stage="QUALITY", parent=parent)
-        child2 = tracer.start_step(title="Security Eng", stage="SECURITY", parent=parent)
+        child2 = tracer.start_step(
+            title="Security Eng", stage="SECURITY", parent=parent
+        )
 
         child1.complete({"status": "clean"})
         child2.complete({"status": "found_issue"})

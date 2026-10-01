@@ -1,0 +1,24 @@
+{
+  "id": "httpx-3364",
+  "file": "cases/httpx-3364/input.diff",
+  "sha256": "550015dc98e55a6575273b4482d2d7efe09c4f020983e939c83fc6cee21d2ff3",
+  "source_repository": "encode/httpx",
+  "base_sha": "6f9b50990dad9645a6f9dc0e1eb90af0a6474c3b",
+  "head_sha": "bf5758388619afdc957722ca8a9a4ff255df6866",
+  "source_diff_url": "https://github.com/encode/httpx/compare/6f9b50990dad9645a6f9dc0e1eb90af0a6474c3b...bf5758388619afdc957722ca8a9a4ff255df6866.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3364",
+  "merged_at": "2024-10-25T13:27:54Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3364/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "httpx/_models.py",
+      "file": "cases/httpx-3364/head/httpx/_models.py",
+      "sha256": "904896a3819e65836e2a7771f85cf97467e28c6e0b331d0e89dc08430259c3f1"
+    }
+  ],
+  "input_snapshot_hash": "f9467e7d755710029b07cbbbabca5540b5f5a0591c4555ff9d1e2e864c994bf6",
+  "label_status": "UNREVIEWED"
+}

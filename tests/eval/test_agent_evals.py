@@ -4,16 +4,29 @@ Evaluation tests for LLM-as-a-Judge and G-Eval custom metrics
 """
 
 import pytest
+
 from code_review_agent.eval.custom_metrics import (
+    MetricScore,
     ProvenanceGroundingEvaluator,
     SecurityDeduplicationEvaluator,
-    MetricScore,
 )
 
 
 @pytest.mark.eval
 class TestCustomGEvalMetrics:
     """Validate G-Eval custom metrics with representative scenarios."""
+
+    @pytest.fixture(autouse=True)
+    def offline_judge(self, monkeypatch):
+        from unittest.mock import Mock
+
+        judge = Mock()
+        judge.call.return_value = (
+            '{"score":0.9,"reasoning":"Offline judge contract fixture."}'
+        )
+        monkeypatch.setattr(
+            "code_review_agent.eval.custom_metrics.LLMFactory.create_llm", lambda: judge
+        )
 
     def test_provenance_grounding_evaluator_interface(self):
         context = """
@@ -42,9 +55,7 @@ Security Engineer Output:
 }
 """
         result = ProvenanceGroundingEvaluator.evaluate(
-            context=context,
-            actual_output=grounded_output,
-            threshold=0.75
+            context=context, actual_output=grounded_output, threshold=0.75
         )
         assert isinstance(result, MetricScore)
         assert result.metric_name == "ProvenanceGrounding"
@@ -74,7 +85,7 @@ Finding 2: [Regex-SQLI] SQL injection pattern hit at app/services/user.py line 1
         result = SecurityDeduplicationEvaluator.evaluate(
             raw_sast_context=raw_sast,
             security_output=deduplicated_sec_output,
-            threshold=0.75
+            threshold=0.75,
         )
         assert isinstance(result, MetricScore)
         assert result.metric_name == "SecurityDeduplication"

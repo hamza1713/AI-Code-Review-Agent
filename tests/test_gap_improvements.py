@@ -11,11 +11,10 @@ Unit tests for the AST and pipeline gap improvements:
 - Crew Advisory Findings Promotion in Reconciler
 """
 
-import pytest
-from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
+from code_review_agent.models import Fix, SummarizedFindingsJSON
 from code_review_agent.synthesis.reconciler import SynthesisReconciler
+from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
 from code_review_agent.tools.crew_finding_parser import parse_crew_advisory_findings
-from code_review_agent.models import SummarizedFindingsJSON, Fix, SastFinding
 
 
 def test_unused_lock_detected():

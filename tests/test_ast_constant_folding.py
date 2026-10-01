@@ -15,8 +15,11 @@ from pathlib import Path
 # Add src to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from code_review_agent.tools.sast_scanner import QuickPatternScanner, UnifiedSecurityScanner
 from code_review_agent.tools.ast_security_scanner import ASTSecurityScanner
+from code_review_agent.tools.sast_scanner import (
+    QuickPatternScanner,
+    UnifiedSecurityScanner,
+)
 
 
 def test_constant_folded_chmod_permissions():
@@ -39,7 +42,9 @@ def test_constant_folded_chmod_permissions():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     perm_findings = [f for f in findings if f.rule_id == "SEC-PERM-001"]
-    assert len(perm_findings) >= 2, f"Expected at least 2 SEC-PERM-001 findings, got: {findings}"
+    assert len(perm_findings) >= 2, (
+        f"Expected at least 2 SEC-PERM-001 findings, got: {findings}"
+    )
     assert all(f.cwe == "CWE-732" for f in perm_findings)
 
 
@@ -56,7 +61,9 @@ def test_safe_chmod_not_flagged():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     perm_findings = [f for f in findings if f.rule_id == "SEC-PERM-001"]
-    assert len(perm_findings) == 0, f"Expected 0 findings on safe chmod, got: {perm_findings}"
+    assert len(perm_findings) == 0, (
+        f"Expected 0 findings on safe chmod, got: {perm_findings}"
+    )
 
 
 def test_variable_indirection_tls():
@@ -131,7 +138,9 @@ def test_path_traversal_via_abspath_wrapper():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     path_findings = [f for f in findings if f.rule_id == "SEC-PATH-001"]
-    assert len(path_findings) >= 1, f"Expected SEC-PATH-001 for abspath-wrapped join, got: {findings}"
+    assert len(path_findings) >= 1, (
+        f"Expected SEC-PATH-001 for abspath-wrapped join, got: {findings}"
+    )
     assert path_findings[0].cwe == "CWE-22"
 
 
@@ -149,7 +158,9 @@ def test_world_writable_os_open_with_variable_mode():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     perm_findings = [f for f in findings if f.rule_id == "SEC-PERM-001"]
-    assert len(perm_findings) >= 1, f"Expected SEC-PERM-001 for os.open 0o777, got: {findings}"
+    assert len(perm_findings) >= 1, (
+        f"Expected SEC-PERM-001 for os.open 0o777, got: {findings}"
+    )
     assert perm_findings[0].cwe == "CWE-732"
 
 
@@ -166,7 +177,9 @@ def test_safe_os_open_mode_not_flagged():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     perm_findings = [f for f in findings if f.rule_id == "SEC-PERM-001"]
-    assert len(perm_findings) == 0, f"Expected 0 SEC-PERM-001 for safe os.open, got: {perm_findings}"
+    assert len(perm_findings) == 0, (
+        f"Expected 0 SEC-PERM-001 for safe os.open, got: {perm_findings}"
+    )
 
 
 def test_broad_except_baseexception_with_pass():
@@ -183,7 +196,9 @@ def test_broad_except_baseexception_with_pass():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     except_findings = [f for f in findings if f.rule_id == "SEC-EXCEPT-001"]
-    assert len(except_findings) >= 1, f"Expected SEC-EXCEPT-001 for except BaseException, got: {findings}"
+    assert len(except_findings) >= 1, (
+        f"Expected SEC-EXCEPT-001 for except BaseException, got: {findings}"
+    )
     assert "BaseException" in except_findings[0].description
 
 
@@ -201,7 +216,9 @@ def test_meaningful_except_not_flagged():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     except_findings = [f for f in findings if f.rule_id == "SEC-EXCEPT-001"]
-    assert len(except_findings) == 0, f"Expected 0 SEC-EXCEPT-001 for handled except, got: {except_findings}"
+    assert len(except_findings) == 0, (
+        f"Expected 0 SEC-EXCEPT-001 for handled except, got: {except_findings}"
+    )
 
 
 def test_obfuscated_hex_secret_detected():
@@ -215,7 +232,9 @@ def test_obfuscated_hex_secret_detected():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     secret_findings = [f for f in findings if f.rule_id == "SEC-SECRET-002"]
-    assert len(secret_findings) >= 1, f"Expected SEC-SECRET-002 for hex secret, got: {findings}"
+    assert len(secret_findings) >= 1, (
+        f"Expected SEC-SECRET-002 for hex secret, got: {findings}"
+    )
     assert secret_findings[0].cwe == "CWE-798"
 
 
@@ -231,7 +250,9 @@ def test_split_concatenated_secret_detected():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     secret_findings = [f for f in findings if f.rule_id == "SEC-SECRET-002"]
-    assert len(secret_findings) >= 1, f"Expected SEC-SECRET-002 for split secret, got: {findings}"
+    assert len(secret_findings) >= 1, (
+        f"Expected SEC-SECRET-002 for split secret, got: {findings}"
+    )
 
 
 def test_non_secret_computed_value_not_flagged():
@@ -245,7 +266,9 @@ def test_non_secret_computed_value_not_flagged():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     secret_findings = [f for f in findings if f.rule_id == "SEC-SECRET-002"]
-    assert len(secret_findings) == 0, f"Expected 0 SEC-SECRET-002 for non-secret value, got: {secret_findings}"
+    assert len(secret_findings) == 0, (
+        f"Expected 0 SEC-SECRET-002 for non-secret value, got: {secret_findings}"
+    )
 
 
 def test_getattr_alias_pickle_loads():
@@ -291,7 +314,9 @@ def test_safe_getattr_not_flagged():
 +    return getattr("hello", "upper")()
 """
     findings = ASTSecurityScanner.scan_diff(diff)
-    assert len(findings) == 0, f"Expected no findings for benign getattr, got: {findings}"
+    assert len(findings) == 0, (
+        f"Expected no findings for benign getattr, got: {findings}"
+    )
 
 
 def test_weak_hash_hashlib_new_variable_algo():
@@ -308,7 +333,9 @@ def test_weak_hash_hashlib_new_variable_algo():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     crypto = [f for f in findings if f.rule_id == "SEC-CRYPTO-001"]
-    assert len(crypto) >= 1, f"Expected SEC-CRYPTO-001 for hashlib.new('sha1'), got: {findings}"
+    assert len(crypto) >= 1, (
+        f"Expected SEC-CRYPTO-001 for hashlib.new('sha1'), got: {findings}"
+    )
 
 
 def test_safe_hashlib_new_sha256_not_flagged():
@@ -336,11 +363,13 @@ def test_slice_reversed_encoded_secret():
 +API_KEY_ENC = "NDMyMTA5ODc2NTQzMjEwOTg3NjU0MzIx"
 +API_KEY = base64.b64decode(API_KEY_ENC[::-1]).decode()
 """
-    findings = ASTSecurityScanner.scan_diff(diff)
+    ASTSecurityScanner.scan_diff(diff)
     # Either the value folds cleanly (SEC-SECRET-002) or it doesn't — but the
     # reversal itself must at least be attempted; assert folding of the reverse.
-    from code_review_agent.tools.ast_security_scanner import evaluate_ast_constant
     import ast as _ast
+
+    from code_review_agent.tools.ast_security_scanner import evaluate_ast_constant
+
     node = _ast.parse('"abc"[::-1]', mode="eval").body
     assert evaluate_ast_constant(node, {}) == "cba", "Slice reversal folding must work"
 
@@ -357,7 +386,9 @@ def test_split_reversed_secret_detected():
 """
     findings = ASTSecurityScanner.scan_diff(diff)
     secret = [f for f in findings if f.rule_id == "SEC-SECRET-002"]
-    assert len(secret) >= 1, f"Expected SEC-SECRET-002 for reversed split secret, got: {findings}"
+    assert len(secret) >= 1, (
+        f"Expected SEC-SECRET-002 for reversed split secret, got: {findings}"
+    )
 
 
 def test_function_scope_isolation_no_path_leak():
@@ -379,7 +410,9 @@ def test_function_scope_isolation_no_path_leak():
     findings = ASTSecurityScanner.scan_diff(diff)
     path_findings = [f for f in findings if f.rule_id == "SEC-PATH-001"]
     # Exactly one: the real read_file open, not the save_public parameter reuse.
-    assert len(path_findings) == 1, f"Expected exactly 1 SEC-PATH-001 (no cross-function leak), got: {path_findings}"
+    assert len(path_findings) == 1, (
+        f"Expected exactly 1 SEC-PATH-001 (no cross-function leak), got: {path_findings}"
+    )
 
 
 def test_comment_and_docstring_filtering():
@@ -408,8 +441,12 @@ def test_comment_and_docstring_filtering():
     )
     # QuickPatternScanner line & multiline check
     pattern_findings = QuickPatternScanner.scan_diff(diff)
-    assert len(pattern_findings) == 0, f"Expected 0 findings in comments/docstrings, got: {pattern_findings}"
+    assert len(pattern_findings) == 0, (
+        f"Expected 0 findings in comments/docstrings, got: {pattern_findings}"
+    )
 
     # Unified scanner check
     unified_findings = UnifiedSecurityScanner.scan_diff(diff)
-    assert len(unified_findings) == 0, f"Expected 0 findings in unified scan for commented code, got: {unified_findings}"
+    assert len(unified_findings) == 0, (
+        f"Expected 0 findings in unified scan for commented code, got: {unified_findings}"
+    )

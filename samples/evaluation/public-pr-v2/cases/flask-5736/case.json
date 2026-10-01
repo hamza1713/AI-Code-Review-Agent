@@ -1,0 +1,49 @@
+{
+  "id": "flask-5736",
+  "file": "cases/flask-5736/input.diff",
+  "sha256": "2d8e255d7393086b4fba445c22ed23641b837bfec8285d8100d92e4f2cf48705",
+  "source_repository": "pallets/flask",
+  "base_sha": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+  "head_sha": "edebd3704437f19b5b137eaffe97130fe817d144",
+  "source_diff_url": "https://github.com/pallets/flask/compare/85c5d93cbd049c4bd0679c36fd1ddcae8c37b642...edebd3704437f19b5b137eaffe97130fe817d144.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5736",
+  "merged_at": "2025-08-19T19:36:01Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5736/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5736/head/CHANGES.rst",
+      "sha256": "5189f6b966ccaf5be696dd8678aefb7fd56eb5c3a8c4e01404f80c2182c1408b"
+    },
+    {
+      "path": "docs/templating.rst",
+      "file": "cases/flask-5736/head/docs/templating.rst",
+      "sha256": "a0b8ea33b76270388bc7608f3105f7b38d1840d28f207a8a1d4db9a7e414e9aa"
+    },
+    {
+      "path": "src/flask/sansio/app.py",
+      "file": "cases/flask-5736/head/src/flask/sansio/app.py",
+      "sha256": "dda276c09ddede4d80801fa7e37e56395747d1c82e8fd40c5c74e46a0ebad15d"
+    },
+    {
+      "path": "src/flask/sansio/blueprints.py",
+      "file": "cases/flask-5736/head/src/flask/sansio/blueprints.py",
+      "sha256": "66ecdbadad59bf73c5eeeca2be830290ffb1a7ac9a4ad4ef55121deedcd1e2e8"
+    },
+    {
+      "path": "tests/test_blueprints.py",
+      "file": "cases/flask-5736/head/tests/test_blueprints.py",
+      "sha256": "766616869d95f07e94895b4f9b5a12b4b94ed603b8531cf8e65421c01d5fa76a"
+    },
+    {
+      "path": "tests/test_templating.py",
+      "file": "cases/flask-5736/head/tests/test_templating.py",
+      "sha256": "fe9037d2bc5c67c031e9a78df9686ce84f919e973498a3e9706c40fddb360f4e"
+    }
+  ],
+  "input_snapshot_hash": "a63bf4442ebf11b810fea1d3ef0bd853a6571f02c12e7afe8088984b3b71a703",
+  "label_status": "UNREVIEWED"
+}

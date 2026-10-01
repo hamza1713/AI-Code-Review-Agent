@@ -1,0 +1,44 @@
+diff --git a/httpx/_client.py b/httpx/_client.py
+index 2249231f8c..13cd933673 100644
+--- a/httpx/_client.py
++++ b/httpx/_client.py
+@@ -1723,7 +1723,7 @@ async def _send_single_request(self, request: Request) -> Response:
+ 
+         if not isinstance(request.stream, AsyncByteStream):
+             raise RuntimeError(
+-                "Attempted to send an sync request with an AsyncClient instance."
++                "Attempted to send a sync request with an AsyncClient instance."
+             )
+ 
+         with request_context(request=request):
+diff --git a/httpx/_models.py b/httpx/_models.py
+index 67d74bf86b..2cc86321a4 100644
+--- a/httpx/_models.py
++++ b/httpx/_models.py
+@@ -964,7 +964,7 @@ def close(self) -> None:
+         Automatically called if the response body is read to completion.
+         """
+         if not isinstance(self.stream, SyncByteStream):
+-            raise RuntimeError("Attempted to call an sync close on an async stream.")
++            raise RuntimeError("Attempted to call a sync close on an async stream.")
+ 
+         if not self.is_closed:
+             self.is_closed = True
+@@ -1045,7 +1045,7 @@ async def aiter_raw(
+         if self.is_closed:
+             raise StreamClosed()
+         if not isinstance(self.stream, AsyncByteStream):
+-            raise RuntimeError("Attempted to call an async iterator on an sync stream.")
++            raise RuntimeError("Attempted to call an async iterator on a sync stream.")
+ 
+         self.is_stream_consumed = True
+         self._num_bytes_downloaded = 0
+@@ -1068,7 +1068,7 @@ async def aclose(self) -> None:
+         Automatically called if the response body is read to completion.
+         """
+         if not isinstance(self.stream, AsyncByteStream):
+-            raise RuntimeError("Attempted to call an async close on an sync stream.")
++            raise RuntimeError("Attempted to call an async close on a sync stream.")
+ 
+         if not self.is_closed:
+             self.is_closed = True

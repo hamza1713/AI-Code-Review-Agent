@@ -4,28 +4,34 @@ Measures end-to-end review latency, token usage breakdown, accurate USD cost est
 and optionally streams evaluation traces and quality scores to Langfuse.
 """
 
+import json
+import math
 import os
 import time
-import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
+
+from code_review_agent.config import get_model_name, logger
 from code_review_agent.models import TelemetryMetrics
-from code_review_agent.config import logger, get_model_name
 
 
 # Pricing Table (USD per 1M tokens)
-MODEL_PRICING: Dict[str, Dict[str, float]] = {
-    "gemini/gemini-3.1-flash-lite-preview": {"prompt": 0.0375, "completion": 0.15},
-    "gemini/gemini-2.5-flash": {"prompt": 0.075, "completion": 0.30},
-    "gemini/gemini-2.5-pro": {"prompt": 1.25, "completion": 5.00},
-    "default": {"prompt": 0.0375, "completion": 0.15}
-}
+def configured_price(model: str):
+    """Operator-supplied USD/1M rates with attribution; unknown prices stay unknown."""
+    try:
+        entry = json.loads(os.getenv("REVIEW_MODEL_PRICING_JSON", "{}"))[model]
+        rates = [float(entry[key]) for key in ("prompt", "completion")]
+        if not entry.get("as_of") or any(not math.isfinite(v) or v < 0 for v in rates):
+            return None
+        return entry
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 class TelemetryTracker:
     """Tracks performance, latency, cost, and production evaluation telemetry."""
 
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self, model_name: str | None = None):
         self.model_name = model_name or get_model_name()
         self.start_time: float = 0.0
         self.end_time: float = 0.0
@@ -34,61 +40,83 @@ class TelemetryTracker:
 
     def _init_langfuse(self):
         """Initialize Langfuse observability client if credentials are configured."""
+        from code_review_agent.data_policy import production
+
+        if production():
+            return  # Production traces remain on the protected host.
         public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
         secret_key = os.getenv("LANGFUSE_SECRET_KEY")
         host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
         if public_key and secret_key:
             try:
-                from langfuse import Langfuse
+                from langfuse import Langfuse  # type: ignore[import-not-found]
+
                 self._langfuse_client = Langfuse(
-                    public_key=public_key,
-                    secret_key=secret_key,
-                    host=host
+                    public_key=public_key, secret_key=secret_key, host=host
                 )
                 logger.info("📡 Langfuse production observability client initialized.")
             except ImportError:
-                logger.debug("Langfuse library not installed. Install via pip install langfuse to enable cloud tracing.")
+                logger.debug(
+                    "Langfuse library not installed. Install via pip install langfuse to enable cloud tracing."
+                )
             except Exception as e:
                 logger.warning(f"Failed to initialize Langfuse client: {e}")
 
     def start(self):
         """Start execution timer."""
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
 
     def stop(
         self,
-        token_usage: Optional[Dict[str, Any]] = None,
+        token_usage: dict[str, Any] | None = None,
         sast_count: int = 0,
         rules_count: int = 0,
         inline_comments_count: int = 0,
         final_verdict: str = "",
-        eval_score: Optional[float] = None
+        eval_score: float | None = None,
     ) -> TelemetryMetrics:
         """Stop execution timer, compute cost metrics, and emit production traces."""
-        self.end_time = time.time()
+        self.end_time = time.monotonic()
         duration = round(self.end_time - self.start_time, 3)
 
         token_usage = token_usage or {}
-        prompt_tokens = int(token_usage.get("prompt_tokens", 0) or token_usage.get("promptTokens", 0) or 0)
-        completion_tokens = int(token_usage.get("completion_tokens", 0) or token_usage.get("completionTokens", 0) or 0)
+        prompt_tokens = int(
+            token_usage.get("prompt_tokens", 0)
+            or token_usage.get("promptTokens", 0)
+            or 0
+        )
+        completion_tokens = int(
+            token_usage.get("completion_tokens", 0)
+            or token_usage.get("completionTokens", 0)
+            or 0
+        )
         total_tokens = prompt_tokens + completion_tokens
 
         # Calculate estimated cost
-        rates = MODEL_PRICING.get(self.model_name, MODEL_PRICING["default"])
-        cost = (prompt_tokens / 1_000_000 * rates["prompt"]) + (completion_tokens / 1_000_000 * rates["completion"])
+        rates = configured_price(self.model_name)
+        source = token_usage.get("source", "UNAVAILABLE")
+        cost = None
+        if rates and source != "UNAVAILABLE":
+            cost = (
+                prompt_tokens * float(rates["prompt"])
+                + completion_tokens * float(rates["completion"])
+            ) / 1_000_000
 
         metrics = TelemetryMetrics(
             duration_seconds=duration,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
-            estimated_cost_usd=round(cost, 6),
+            estimated_cost_usd=round(cost, 6) if cost is not None else None,
+            token_usage_source=source,
+            cost_source="ESTIMATED" if cost is not None else "UNAVAILABLE",
+            pricing_as_of=rates["as_of"] if rates else None,
             model_used=self.model_name,
             sast_findings_count=sast_count,
             rule_violations_count=rules_count,
             inline_comments_count=inline_comments_count,
-            final_verdict=final_verdict[:30] if final_verdict else "COMPLETED"
+            final_verdict=final_verdict[:30] if final_verdict else "COMPLETED",
         )
 
         # Log trace and quality score to Langfuse if available
@@ -102,7 +130,7 @@ class TelemetryTracker:
                         "total_tokens": total_tokens,
                         "estimated_cost_usd": cost,
                         "final_verdict": metrics.final_verdict,
-                    }
+                    },
                 )
                 if eval_score is not None:
                     trace.score(name="deterministic_eval_score", value=eval_score)
@@ -112,7 +140,9 @@ class TelemetryTracker:
         return metrics
 
     @staticmethod
-    def save_metrics_to_file(metrics: TelemetryMetrics, output_file: str = "telemetry_metrics.json"):
+    def save_metrics_to_file(
+        metrics: TelemetryMetrics, output_file: str = "telemetry_metrics.json"
+    ):
         """Save metrics JSON file."""
         target = Path(output_file)
         try:
@@ -134,7 +164,8 @@ class TelemetryTracker:
             f"• Prompt Tokens       : {metrics.prompt_tokens:,}\n"
             f"• Completion Tokens   : {metrics.completion_tokens:,}\n"
             f"• Total Tokens        : {metrics.total_tokens:,}\n"
-            f"• Estimated Cost      : ${metrics.estimated_cost_usd:.6f} USD\n"
+            f"• Usage Source        : {metrics.token_usage_source}\n"
+            f"• Estimated Cost      : {('$' + format(metrics.estimated_cost_usd, '.6f') + ' USD') if metrics.estimated_cost_usd is not None else 'Unavailable'}\n"
             f"• SAST Findings       : {metrics.sast_findings_count}\n"
             f"• Governance Flags    : {metrics.rule_violations_count}\n"
             f"• Inline Comments     : {metrics.inline_comments_count}\n"

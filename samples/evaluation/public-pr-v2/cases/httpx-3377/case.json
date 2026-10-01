@@ -1,0 +1,54 @@
+{
+  "id": "httpx-3377",
+  "file": "cases/httpx-3377/input.diff",
+  "sha256": "a6ab5d659373d164e7ff5949a56463bc0d8a7c7ad00c62dd55885cd8e1af5056",
+  "source_repository": "encode/httpx",
+  "base_sha": "eeb5e3c2a3ff2403ec47b5926715ecd61143d92d",
+  "head_sha": "4169d10ccca7cb458873dea29fc2114d5284d0ca",
+  "source_diff_url": "https://github.com/encode/httpx/compare/eeb5e3c2a3ff2403ec47b5926715ecd61143d92d...4169d10ccca7cb458873dea29fc2114d5284d0ca.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3377",
+  "merged_at": "2024-10-29T13:18:39Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3377/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3377/head/CHANGELOG.md",
+      "sha256": "2e80e6fc195d67174c7f8f3990ff321b4cd91f57b6c606f0563ae841cd075e9c"
+    },
+    {
+      "path": "httpx/__version__.py",
+      "file": "cases/httpx-3377/head/httpx/__version__.py",
+      "sha256": "8e6bd229c4c827db170dd0c1dd7a89fd88182450aa1287c41e09b949e799de19"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3377/head/httpx/_config.py",
+      "sha256": "ec55ce10c6ed02984f1bb6158badd6591bfc39e9fff5c1520c3f6e573bd6b795"
+    },
+    {
+      "path": "httpx/_main.py",
+      "file": "cases/httpx-3377/head/httpx/_main.py",
+      "sha256": "ec853bbbe0fcfd6786a47bdfc3f94cc09df2d1457a4e8f59aa04bf93f7a4ede9"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3377/head/httpx/_transports/default.py",
+      "sha256": "6c9692828e7570cbb3b38b8d8ed24988210e9ca46396fa8bf1f73f9f3661826b"
+    },
+    {
+      "path": "tests/test_api.py",
+      "file": "cases/httpx-3377/head/tests/test_api.py",
+      "sha256": "785f0650f616312f22a1573fbe383647c68b2282deaa18ad64da650331e1e90f"
+    },
+    {
+      "path": "tests/test_config.py",
+      "file": "cases/httpx-3377/head/tests/test_config.py",
+      "sha256": "f147eb86c47fcf9b1064cc7668f1971cf3d5f5a135cfc6317744b372627479d0"
+    }
+  ],
+  "input_snapshot_hash": "fbb25355ce875902d2e1f1efed5ae503c708866ba868e23ee56415ccc30a7757",
+  "label_status": "UNREVIEWED"
+}

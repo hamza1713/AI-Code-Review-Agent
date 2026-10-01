@@ -1,0 +1,49 @@
+{
+  "id": "httpx-3419",
+  "file": "cases/httpx-3419/input.diff",
+  "sha256": "b3a12902013baed1b53d066f4f61dfc327fd8a767b9ccc56066e796efc557be3",
+  "source_repository": "encode/httpx",
+  "base_sha": "a33c87852b8a0dddc65e5f739af1e0a6fca4b91f",
+  "head_sha": "5f8107b3d78305a35e3a409722f82ef9c76a77f9",
+  "source_diff_url": "https://github.com/encode/httpx/compare/a33c87852b8a0dddc65e5f739af1e0a6fca4b91f...5f8107b3d78305a35e3a409722f82ef9c76a77f9.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3419",
+  "merged_at": "2024-11-28T14:50:04Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3419/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3419/head/CHANGELOG.md",
+      "sha256": "0aaaa998d2a0b1b67555480ea367d266d10a114b6ce34e90b68865c082e4bbf3"
+    },
+    {
+      "path": "httpx/_api.py",
+      "file": "cases/httpx-3419/head/httpx/_api.py",
+      "sha256": "aff660b388c8a5c3c92ea2b975b6d26b2aa8fe254c2856b164277ea0e1f12c4b"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3419/head/httpx/_client.py",
+      "sha256": "1f10a23a5e049f4ee3c025b1cf09ec6473b3c296766b3a37b03f365fda102836"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3419/head/httpx/_config.py",
+      "sha256": "49a62ffacb385e164e37bb296325020f1023e9c75538a9722fa93b1262b4d3d8"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3419/head/httpx/_transports/default.py",
+      "sha256": "03379a454c95c0271c4f2c8d25ec437f49f57457f3cf2769748420bf0ecf2e79"
+    },
+    {
+      "path": "httpx/_types.py",
+      "file": "cases/httpx-3419/head/httpx/_types.py",
+      "sha256": "272878d4642aec039ebfc20e58a0c083bcc26ef1c07ee7e65b983f3e24ed12b6"
+    }
+  ],
+  "input_snapshot_hash": "9831c53d2da0468dac7f77907499217073448896e6e5c8eab0b0aa1bbe740cda",
+  "label_status": "UNREVIEWED"
+}

@@ -23,6 +23,8 @@ flow_state.json
 telemetry_metrics.json
 *.sarif
 *.html
+!frontend/index.html
+!src/code_review_agent/static/index.html
 
 # Secrets & local env
 .env
@@ -39,3 +41,14 @@ skills.md
 .idea/
 .DS_Store
 *Zone.Identifier
+
+.uv-cache/
+production_test_tmp*/
+review_pytest_tmp*/
+.agents/
+production-tests.log
+
+.cache/
+.release-tools/
+.mypy_cache/
+release-evidence/

@@ -6,25 +6,26 @@ into an interactive hierarchical decision tree for DIY LangSmith-style trace vis
 
 import time
 import uuid
-from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 
 class TraceNode(BaseModel):
     """Represents a single step or decision node in the execution trace tree."""
+
     id: str = Field(default_factory=lambda: f"node_{uuid.uuid4().hex[:8]}")
     title: str
     stage: str  # e.g., "INGESTION", "ROUTING", "SECURITY_SCAN", "AGENT_CREW", "GOVERNANCE", "SYNTHESIS"
-    agent_name: Optional[str] = None
+    agent_name: str | None = None
     status: str = "RUNNING"  # "RUNNING", "COMPLETED", "FAILED", "SKIPPED"
     started_at: float = Field(default_factory=time.time)
-    ended_at: Optional[float] = None
-    duration_ms: Optional[float] = None
-    details: Dict[str, Any] = Field(default_factory=dict)
-    children: List["TraceNode"] = Field(default_factory=list)
+    ended_at: float | None = None
+    duration_ms: float | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    children: list["TraceNode"] = Field(default_factory=list)
 
-    def complete(self, details: Optional[Dict[str, Any]] = None):
+    def complete(self, details: dict[str, Any] | None = None):
         """Mark node as completed and calculate duration."""
         self.ended_at = time.time()
         self.duration_ms = round((self.ended_at - self.started_at) * 1000, 2)
@@ -45,26 +46,23 @@ class ExecutionTracer:
     Thread-safe execution tracer that records hierarchical agent execution graphs.
     """
 
-    def __init__(self, trace_id: Optional[str] = None):
+    def __init__(self, trace_id: str | None = None):
         self.trace_id = trace_id or f"trace_{uuid.uuid4().hex[:10]}"
-        self.root_nodes: List[TraceNode] = []
+        self.root_nodes: list[TraceNode] = []
         self.started_at = time.time()
-        self.ended_at: Optional[float] = None
+        self.ended_at: float | None = None
 
     def start_step(
         self,
         title: str,
         stage: str,
-        agent_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-        parent: Optional[TraceNode] = None
+        agent_name: str | None = None,
+        details: dict[str, Any] | None = None,
+        parent: TraceNode | None = None,
     ) -> TraceNode:
         """Create and start a new trace node."""
         node = TraceNode(
-            title=title,
-            stage=stage,
-            agent_name=agent_name,
-            details=details or {}
+            title=title, stage=stage, agent_name=agent_name, details=details or {}
         )
         if parent:
             parent.children.append(node)
@@ -72,19 +70,23 @@ class ExecutionTracer:
             self.root_nodes.append(node)
         return node
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export trace graph to dictionary for frontend visualization or API response."""
-        total_duration = round((time.time() - self.started_at) * 1000, 2) if not self.ended_at else round((self.ended_at - self.started_at) * 1000, 2)
+        total_duration = (
+            round((time.time() - self.started_at) * 1000, 2)
+            if not self.ended_at
+            else round((self.ended_at - self.started_at) * 1000, 2)
+        )
         return {
             "trace_id": self.trace_id,
             "started_at": self.started_at,
             "duration_ms": total_duration,
-            "nodes": [node.model_dump() for node in self.root_nodes]
+            "nodes": [node.model_dump() for node in self.root_nodes],
         }
 
 
 # Global active tracer registry
-_active_tracers: Dict[str, ExecutionTracer] = {}
+_active_tracers: dict[str, ExecutionTracer] = {}
 
 
 def get_tracer(trace_id: str) -> ExecutionTracer:

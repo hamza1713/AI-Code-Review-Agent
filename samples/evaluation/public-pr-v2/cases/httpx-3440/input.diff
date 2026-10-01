@@ -1,0 +1,33 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index bc3fa411f8..060013b0f3 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -28,6 +28,7 @@ Our revised [SSL documentation](docs/advanced/ssl.md) covers how to implement th
+ * Ensure `certifi` and `httpcore` are only imported if required. (#3377)
+ * Treat `socks5h` as a valid proxy scheme. (#3178)
+ * Cleanup `Request()` method signature in line with `client.request()` and `httpx.request()`. (#3378)
++* Bugfix: When passing `params={}`, always strictly update rather than merge with an existing querystring. (#3364)
+ 
+ ## 0.27.2 (27th August, 2024)
+ 
+diff --git a/tests/models/test_requests.py b/tests/models/test_requests.py
+index d2a458d57e..b31fe007be 100644
+--- a/tests/models/test_requests.py
++++ b/tests/models/test_requests.py
+@@ -226,3 +226,16 @@ def content() -> typing.Iterator[bytes]:
+     request.read()
+     pickle_request = pickle.loads(pickle.dumps(request))
+     assert pickle_request.content == b"test 123"
++
++
++def test_request_params():
++    request = httpx.Request("GET", "http://example.com", params={})
++    assert str(request.url) == "http://example.com"
++
++    request = httpx.Request(
++        "GET", "http://example.com?c=3", params={"a": "1", "b": "2"}
++    )
++    assert str(request.url) == "http://example.com?a=1&b=2"
++
++    request = httpx.Request("GET", "http://example.com?a=1", params={})
++    assert str(request.url) == "http://example.com"

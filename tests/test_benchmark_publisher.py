@@ -3,9 +3,10 @@ Unit tests for benchmark reporting, publishing, CLI integration, and API endpoin
 """
 
 from unittest.mock import patch
+
 from starlette.testclient import TestClient
 
-from code_review_agent.benchmarks import BenchmarkRunner, BenchmarkMetric
+from code_review_agent.benchmarks import BenchmarkMetric, BenchmarkRunner
 from code_review_agent.bot.command_router import CommandRouter
 from code_review_agent.webhook_server import app
 
@@ -67,8 +68,9 @@ def _create_sample_metric() -> BenchmarkMetric:
                 "fp": 0,
                 "fn": 0,
                 "verdict_correct": True,
+                "derived_verdict": "REQUEST CHANGES",
             }
-        ]
+        ],
     )
 
 
@@ -79,23 +81,20 @@ class TestBenchmarkPublisher:
         metric = _create_sample_metric()
         report_md = BenchmarkRunner.generate_markdown_report(metric)
 
-        # Badges
-        assert "https://img.shields.io/badge/Benchmark_F1-84.2%25-brightgreen" in report_md
-        assert "https://img.shields.io/badge/Verdict_Accuracy-100.0%25-success" in report_md
-        assert "https://img.shields.io/badge/Deterministic_Grounding-Compiler--Grade-blue" in report_md
+        assert "img.shields.io" not in report_md
+        assert "Scorer version: 2" in report_md
 
         # Headings
-        assert "Code Review Ground-Truth Benchmark Report" in report_md
+        assert "Deterministic scanner regression report" in report_md
 
         # Confusion matrix
-        assert "True Positive (TP)" in report_md
-        assert "False Positive (FP)" in report_md
+        assert "True Positives (TP)" in report_md
+        assert "False Positives (FP)" in report_md
 
         # Positioning section — honestly scoped, NOT a head-to-head advantage claim.
-        assert "Positioning vs Qodo Merge" in report_md
-        assert "60.1%" in report_md  # Qodo reference F1, cited for context
+        assert "Qodo" not in report_md
         assert "84.2%" in report_md  # Our agent F1 on our own suite
-        assert "not directly comparable" in report_md
+        assert "not a product quality study" in report_md
         # The misleading subtracted-advantage claim must be gone.
         assert "+24.1%" not in report_md
 
@@ -107,11 +106,13 @@ class TestBenchmarkPublisher:
         metric = _create_sample_metric()
         target_path = tmp_path / "SUBDIR" / "BENCHMARK_REPORT.md"
 
-        report_md, published_metric = BenchmarkRunner.publish_report(metrics=metric, output_path=target_path)
+        report_md, published_metric = BenchmarkRunner.publish_report(
+            metrics=metric, output_path=target_path
+        )
         assert target_path.exists()
         assert published_metric.f1_score == metric.f1_score
         content = target_path.read_text(encoding="utf-8")
-        assert "Code Review Ground-Truth Benchmark Report" in content
+        assert "Deterministic scanner regression report" in content
         assert "84.2%" in content
 
 
@@ -125,7 +126,7 @@ class TestBotBenchmarkCommand:
         result = CommandRouter.dispatch("/benchmark --fast", auto_post=False)
         assert result.command == "benchmark"
         assert result.status == "SUCCESS"
-        assert "Ground-Truth Benchmark Results" in result.response_markdown
+        assert "Scanner Regression Results" in result.response_markdown
         assert "84.2%" in result.response_markdown
         assert "100.0%" in result.response_markdown
         assert "16" in result.response_markdown

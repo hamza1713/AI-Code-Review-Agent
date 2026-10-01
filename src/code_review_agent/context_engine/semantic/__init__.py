@@ -23,10 +23,10 @@ Public surface:
   VectorStore             — cosine-similarity store with disk persistence
 """
 
-from .embeddings import get_embedder, Embedder, HashingEmbedder
-from .vector_store import VectorStore, ChunkRecord
-from .engine import SemanticContextEngine, ScoredChunk
+from .embeddings import Embedder, HashingEmbedder, get_embedder
+from .engine import ScoredChunk, SemanticContextEngine
 from .semantic_tool import SemanticContextTool
+from .vector_store import ChunkRecord, VectorStore
 
 __all__ = [
     "SemanticContextEngine",

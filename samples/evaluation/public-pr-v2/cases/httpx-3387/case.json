@@ -1,0 +1,44 @@
+{
+  "id": "httpx-3387",
+  "file": "cases/httpx-3387/input.diff",
+  "sha256": "ef34f060dccce2d86b8d7044044b1d62236bc7a37d3f314e60a5d92241537e74",
+  "source_repository": "encode/httpx",
+  "base_sha": "6212e8fa3bf90154b891c7721f6d29737caac861",
+  "head_sha": "81bb8d117a80ae88bf8061c9f58877b83774f13d",
+  "source_diff_url": "https://github.com/encode/httpx/compare/6212e8fa3bf90154b891c7721f6d29737caac861...81bb8d117a80ae88bf8061c9f58877b83774f13d.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3387",
+  "merged_at": "2024-11-01T19:20:18Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3387/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "httpx/_models.py",
+      "file": "cases/httpx-3387/head/httpx/_models.py",
+      "sha256": "f22f1fd32b60e5c842d5bd6c042497f43b8c5ed00a62ba8be365bed3afe23396"
+    },
+    {
+      "path": "httpx/_utils.py",
+      "file": "cases/httpx-3387/head/httpx/_utils.py",
+      "sha256": "6e6014464c0870dcd4a9f6e72777616c2bf1eb134a052ba068bc264a96ffdf5a"
+    },
+    {
+      "path": "scripts/lint",
+      "file": "cases/httpx-3387/head/scripts/lint",
+      "sha256": "988e67024c27b87e7a81eaeb6b0605bee913708e7f6eac168862aac6b4aa0bba"
+    },
+    {
+      "path": "tests/models/test_headers.py",
+      "file": "cases/httpx-3387/head/tests/models/test_headers.py",
+      "sha256": "fcff57a1a7e2dffe061737a4cf3759a40a6af150d5819e176b8f00f9fed0424a"
+    },
+    {
+      "path": "tests/test_utils.py",
+      "file": "cases/httpx-3387/head/tests/test_utils.py",
+      "sha256": "7c5d78e3e02362fd8523d3169e665aa5b158c036053dd3658477e5e2b801d10a"
+    }
+  ],
+  "input_snapshot_hash": "a6684241a2fa5b0c9f1c06260ff032fcb84f11ab3d9f925426922d9c8d8d0650",
+  "label_status": "UNREVIEWED"
+}

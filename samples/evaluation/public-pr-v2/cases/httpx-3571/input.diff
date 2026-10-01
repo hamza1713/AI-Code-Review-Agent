@@ -1,0 +1,13 @@
+diff --git a/httpx/_transports/default.py b/httpx/_transports/default.py
+index d5aa05ff23..fc8c70970a 100644
+--- a/httpx/_transports/default.py
++++ b/httpx/_transports/default.py
+@@ -355,7 +355,7 @@ def __init__(
+         else:  # pragma: no cover
+             raise ValueError(
+                 "Proxy protocol must be either 'http', 'https', 'socks5', or 'socks5h',"
+-                " but got {proxy.url.scheme!r}."
++                f" but got {proxy.url.scheme!r}."
+             )
+ 
+     async def __aenter__(self: A) -> A:  # Use generics for subclass support.

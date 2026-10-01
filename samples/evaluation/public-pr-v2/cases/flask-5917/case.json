@@ -1,0 +1,54 @@
+{
+  "id": "flask-5917",
+  "file": "cases/flask-5917/input.diff",
+  "sha256": "2eb4cdf320e923b7b2dc166af22ed329179d07c938ea413242c23c1444661675",
+  "source_repository": "pallets/flask",
+  "base_sha": "d3b78fd18a8d9e224cb9ef58a23cec9b1ffc9ce9",
+  "head_sha": "e82db2ca3a22c9614c1987392c9cfaa8c6ce99ad",
+  "source_diff_url": "https://github.com/pallets/flask/compare/d3b78fd18a8d9e224cb9ef58a23cec9b1ffc9ce9...e82db2ca3a22c9614c1987392c9cfaa8c6ce99ad.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5917",
+  "merged_at": "2026-02-12T21:07:51Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5917/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5917/head/CHANGES.rst",
+      "sha256": "02587db32c5dcd4d3fd4bb83c68aeabf5ca01d7925268b5f0a808857e8a4c67e"
+    },
+    {
+      "path": "docs/config.rst",
+      "file": "cases/flask-5917/head/docs/config.rst",
+      "sha256": "fbc1e1352b020de75e63fd4cd46b668f0046bad1f49970ab523315c88ee9a0f3"
+    },
+    {
+      "path": "src/flask/sansio/app.py",
+      "file": "cases/flask-5917/head/src/flask/sansio/app.py",
+      "sha256": "565465c0c322a03cd773093de3f1f6caad8a94113a8278bf0b081b5e19282f02"
+    },
+    {
+      "path": "tests/test_basic.py",
+      "file": "cases/flask-5917/head/tests/test_basic.py",
+      "sha256": "5e5338781123ba745e36c598b151d04eba785e694d34c451c490e4f626768de2"
+    },
+    {
+      "path": "tests/test_blueprints.py",
+      "file": "cases/flask-5917/head/tests/test_blueprints.py",
+      "sha256": "ecc8e1512aab79cae1a4fb7a338ca693523000f21617d6433e2d07f5c8ebdc5e"
+    },
+    {
+      "path": "tests/test_cli.py",
+      "file": "cases/flask-5917/head/tests/test_cli.py",
+      "sha256": "99e63082b4f18d0ee6a4b865145cc39902022c070f33d8f7a8acf5d5868e658f"
+    },
+    {
+      "path": "tests/test_views.py",
+      "file": "cases/flask-5917/head/tests/test_views.py",
+      "sha256": "2e9caf6ac46d818ebd76f856bc586a3188dbc3b094f7a200f2bf2a1875f6a58b"
+    }
+  ],
+  "input_snapshot_hash": "4f5987b2024479324e18f65f0220400c3464b7676f028979dd7531f691348bf0",
+  "label_status": "UNREVIEWED"
+}

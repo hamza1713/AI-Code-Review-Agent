@@ -14,15 +14,17 @@ Tests cover:
 import io
 import os
 import zipfile
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 from fastapi.testclient import TestClient
 
-from code_review_agent.webhook_server import app
-from code_review_agent.review_service import rate_limiter, ReviewService, InputValidationError
 from code_review_agent.models import SummarizedFindingsJSON
-
+from code_review_agent.review_service import (
+    InputValidationError,
+    rate_limiter,
+)
+from code_review_agent.webhook_server import app
 
 TOKEN = "test-operator-token-with-32-characters-minimum"
 client = TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
@@ -35,13 +37,15 @@ def reset_rate_limiter(monkeypatch):
     monkeypatch.setenv("REVIEW_API_TOKEN", TOKEN)
     monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
     monkeypatch.delenv("REVIEW_SANDBOX_IMAGE", raising=False)
-    from code_review_agent.review_worker import execute
     from code_review_agent.review_executor import ReviewWorkerError
+    from code_review_agent.review_worker import execute
+
     async def in_process(operation, payload):
         try:
             return execute(operation, payload)
         except InputValidationError as error:
-            raise ReviewWorkerError(str(error), 400)
+            raise ReviewWorkerError(str(error), 400) from error
+
     monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)
 
 
@@ -54,7 +58,7 @@ def mock_llm_flow():
         fix=[],
         recommendations=["Use parameterized SQL queries", "Hash passwords with bcrypt"],
         inline_comments=[],
-        suggested_unit_tests="def test_auth():\n    assert True"
+        suggested_unit_tests="def test_auth():\n    assert True",
     )
 
     with patch("code_review_agent.main.PRCodeReviewFlow._get_llm") as mock_get_llm:
@@ -87,10 +91,7 @@ class TestSynchronousReviewAPI:
 +        print("Authenticated")
 +        return True
 """
-        response = client.post(
-            "/api/review",
-            json={"raw_diff": sample_diff}
-        )
+        response = client.post("/api/review", json={"raw_diff": sample_diff})
 
         assert response.status_code == 200
         data = response.json()
@@ -98,7 +99,12 @@ class TestSynchronousReviewAPI:
         # Verify structured schema
         assert data["verdict"] in ["ESCALATE", "REQUEST CHANGES"]
         assert isinstance(data["confidence_score"], int)
-        assert data["pattern_findings_label"] == "Quick Pattern Scanner (heuristic)"
+        assert (
+            data["pattern_findings_label"]
+            == "Static scanner candidates (heuristic evidence; see analyzer_status)"
+        )
+        assert "ruff" in data["analyzer_status"]
+        assert data["analyzer_status"]["sandbox"] == "SKIPPED_DISABLED"
         assert len(data["pattern_findings"]) >= 2  # SQLi and Plaintext password
 
         # Verify pattern findings details
@@ -127,7 +133,7 @@ class TestSynchronousReviewAPI:
                 "auth_service.py",
                 """def authenticate_user(username, password):
     return db.query(f"SELECT * FROM users WHERE username = '{username}'")
-"""
+""",
             )
             zf.writestr(
                 "routes.py",
@@ -135,13 +141,15 @@ class TestSynchronousReviewAPI:
 
 def login_route(req):
     return authenticate_user(req.user, req.pw)
-"""
+""",
             )
 
         zip_buffer.seek(0)
         response = client.post(
             "/api/review",
-            files={"zip_file": ("test_repo.zip", zip_buffer.getvalue(), "application/zip")}
+            files={
+                "zip_file": ("test_repo.zip", zip_buffer.getvalue(), "application/zip")
+            },
         )
 
         assert response.status_code == 200
@@ -161,7 +169,13 @@ def login_route(req):
         zip_buffer.seek(0)
         response = client.post(
             "/api/review",
-            files={"zip_file": ("too_many_files.zip", zip_buffer.getvalue(), "application/zip")}
+            files={
+                "zip_file": (
+                    "too_many_files.zip",
+                    zip_buffer.getvalue(),
+                    "application/zip",
+                )
+            },
         )
 
         assert response.status_code == 400
@@ -173,7 +187,7 @@ def login_route(req):
         large_bytes = b"PK\x03\x04" + b"0" * (3 * 1024 * 1024)  # 3MB > 2MB limit
         response = client.post(
             "/api/review",
-            files={"zip_file": ("too_large.zip", large_bytes, "application/zip")}
+            files={"zip_file": ("too_large.zip", large_bytes, "application/zip")},
         )
 
         assert response.status_code == 413
@@ -190,7 +204,9 @@ function login(user, pass) {
 """
         response = client.post(
             "/api/review",
-            files={"file": ("login.js", js_code.encode("utf-8"), "application/javascript")}
+            files={
+                "file": ("login.js", js_code.encode("utf-8"), "application/javascript")
+            },
         )
 
         assert response.status_code == 200
@@ -199,7 +215,10 @@ function login(user, pass) {
         # Non-Python check
         assert data["cross_file_impact"]["is_python"] is False
         assert data["cross_file_impact"]["available"] is False
-        assert "cross-file impact analysis unavailable: Python only" in data["cross_file_impact"]["message"]
+        assert (
+            "cross-file impact analysis unavailable: Python only"
+            in data["cross_file_impact"]["message"]
+        )
 
         # Pattern scanner should still detect hardcoded secret
         rule_ids = [f["rule_id"] for f in data["pattern_findings"]]
@@ -213,10 +232,14 @@ function login(user, pass) {
             raise asyncio.TimeoutError()
 
         from code_review_agent.review_executor import ReviewDeadlineError
-        with patch("code_review_agent.webhook_server.run_job_async", side_effect=ReviewDeadlineError):
+
+        with patch(
+            "code_review_agent.webhook_server.run_job_async",
+            side_effect=ReviewDeadlineError,
+        ):
             response = client.post(
                 "/api/review",
-                json={"raw_diff": "diff --git a/test.py b/test.py\n+x = 1"}
+                json={"raw_diff": "diff --git a/test.py b/test.py\n+x = 1"},
             )
             assert response.status_code == 504
             assert "timed out after 180 seconds" in response.json()["detail"]
@@ -250,20 +273,34 @@ def dangerous_function(cmd):
 """
         response = client.post(
             "/api/review",
-            files={"file": ("malicious_test.py", malicious_code.encode("utf-8"), "text/x-python")}
+            files={
+                "file": (
+                    "malicious_test.py",
+                    malicious_code.encode("utf-8"),
+                    "text/x-python",
+                )
+            },
         )
 
         assert response.status_code == 200
 
         # Verify side effects were NEVER triggered
-        assert os.environ.get(malicious_env_var) is None, "Security Violation: Uploaded code was dynamically executed!"
-        assert not marker_file.exists(), "Security Violation: Uploaded code created a file on disk!"
+        assert os.environ.get(malicious_env_var) is None, (
+            "Security Violation: Uploaded code was dynamically executed!"
+        )
+        assert not marker_file.exists(), (
+            "Security Violation: Uploaded code created a file on disk!"
+        )
 
         # Verify scanner caught the command injection pattern safely (os.system via Bandit)
         data = response.json()
         rule_ids = [f["rule_id"] for f in data["pattern_findings"]]
-        assert any(rule_id in rule_ids for rule_id in ["BANDIT-B605", "BANDIT-B110", "BANDIT-B108"]), \
+        assert any(
+            rule_id in rule_ids
+            for rule_id in ["BANDIT-B605", "BANDIT-B110", "BANDIT-B108"]
+        ), (
             f"Expected Bandit rules for command injection/os module usage, got: {rule_ids}"
+        )
 
     def test_rate_limiter_blocks_excessive_requests(self):
         """Verify that exceeding the 30 requests/minute IP rate limit returns HTTP 429."""
@@ -275,7 +312,7 @@ def dangerous_function(cmd):
         response = client.post(
             "/api/review",
             json={"raw_diff": "diff --git a/a.py b/a.py\n+x=1"},
-            headers={"X-Forwarded-For": "192.168.1.50"}
+            headers={"X-Forwarded-For": "192.168.1.50"},
         )
         assert response.status_code == 429
         assert "Rate limit exceeded" in response.json()["detail"]
@@ -293,20 +330,30 @@ def dangerous_function(cmd):
         with patch("code_review_agent.review_service.GitHubClient") as mock_gh_class:
             mock_gh_inst = MagicMock()
             mock_gh_inst.fetch_pull_request_diff.return_value = sample_diff
+            mock_gh_inst.fetch_pull_request_metadata.return_value = {"head_sha": "a" * 40, "head_repository": "test-owner/test-repo"}
+            mock_gh_inst.fetch_source_file.return_value = b"def add(a, b):\n    return a + b\n"
             mock_gh_class.return_value = mock_gh_inst
-            mock_gh_class.parse_pr_identifier.return_value = ("test-owner", "test-repo", 42)
+            mock_gh_class.parse_pr_identifier.return_value = (
+                "test-owner",
+                "test-repo",
+                42,
+            )
 
             response = client.post(
                 "/api/review",
-                json={"pr_url": "https://github.com/test-owner/test-repo/pull/42"}
+                json={"pr_url": "https://github.com/test-owner/test-repo/pull/42"},
             )
 
             assert response.status_code == 200
             data = response.json()
             assert "verdict" in data
             assert isinstance(data["confidence_score"], int)
-            mock_gh_class.parse_pr_identifier.assert_called_once_with("https://github.com/test-owner/test-repo/pull/42")
-            mock_gh_inst.fetch_pull_request_diff.assert_called_once_with("test-owner", "test-repo", 42)
+            mock_gh_class.parse_pr_identifier.assert_called_once_with(
+                "https://github.com/test-owner/test-repo/pull/42"
+            )
+            mock_gh_inst.fetch_pull_request_diff.assert_called_once_with(
+                "test-owner", "test-repo", 42
+            )
 
     def test_ui_static_endpoints(self):
         """Verify that GET / and GET /ui serve the single-page HTML interface."""

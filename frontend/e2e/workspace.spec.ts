@@ -9,17 +9,44 @@ const result = {
   test_execution: { executed: false, status: 'SKIPPED', evidence_badge: 'UNVERIFIED', summary_message: 'Execution disabled.' },
 };
 async function connect(page: Page) {
+  await page.route('**/jobs/metrics', route => route.fulfill({ json: { queued: 0, processing: 0, failed: 0, completed: 0 } }));
   await page.route('**/health', route => route.fulfill({ json: { status: 'healthy', queue: { queued: 0, processing: 0 } } }));
+  await page.route('**/api/session', route => {
+    if (!route.request().headers()['authorization']) {
+      return route.fulfill({status:401,json:{detail:'Operator token required'}});
+    }
+    expect(route.request().headers()['authorization']).toBe('Bearer test-operator');
+    return route.fulfill({json:{authenticated:true}});
+  });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Start a new review' })).toBeVisible();
+  await page.getByLabel('Operator access token').fill('test-operator');
+  await page.getByRole('button',{name:'Connect',exact:true}).click();
+  await expect(page.getByLabel('Operator access token')).not.toBeVisible();
 }
 
-test('workspace opens without an operator token', async ({ page }) => {
+test('coverage and unavailable usage remain explicit', async ({ page }) => {
+  await connect(page);
+  const response = { ...result, analysis_complete: false, verdict: 'ESCALATE', reviewer_profile_id: 'a'.repeat(64),
+    reviewer_profile: { model: 'ollama/pinned-model', application_commit: 'b'.repeat(40) },
+    input_snapshot_hash: 'c'.repeat(64), file_coverage: [{ path: 'api/utils.py', status: 'MISSING', reason: 'Full source unavailable' }],
+    telemetry: { duration_seconds: 0.25, total_tokens: 0, prompt_tokens: 0, completion_tokens: 0, token_usage_source: 'UNAVAILABLE', estimated_cost_usd: null, model_used: 'ollama/pinned-model' } };
+  await page.route('**/api/review', route => route.fulfill({ status: 202, json: { job_id: 'job_coverage', status: 'QUEUED' } }));
+  await page.route('**/jobs/job_coverage', route => route.fulfill({ json: { status: 'COMPLETED', result: response } }));
+  await page.getByRole('button', { name: 'Clean Refactor' }).click();
+  await page.getByRole('button', { name: 'Review code', exact: true }).click();
+  const coverage = page.getByRole('region', { name: 'Review coverage' });
+  await expect(coverage).toContainText('Incomplete analysis');
+  await expect(coverage).toContainText('api/utils.py');
+  await expect(coverage).toContainText('a'.repeat(64));
+  await expect(page.getByText('Unavailable', { exact: true }).first()).toBeVisible();
+});
+
+test('login is required and credentials stay in memory', async ({ page }) => {
   await connect(page);
   const stored = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
   expect(stored).not.toContain('operator');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Start a new review' })).toBeVisible();
+  await expect(page.getByLabel('Operator access token')).toBeVisible();
 });
 
 test('failed submission preserves the draft and navigation stays usable', async ({ page }) => {
@@ -82,7 +109,7 @@ test('refresh reconnects to the saved review without resubmitting', async ({ pag
   await page.addInitScript(() => sessionStorage.setItem('review-job-id', 'job_resume'));
   await page.route('**/jobs/job_resume', route => route.fulfill({ json: { status: 'COMPLETED', result } }));
   await page.route('**/api/review', () => { throw new Error('Must not resubmit a saved review'); });
-  await page.goto('/');
+  await connect(page);
   await expect(page.getByRole('button', { name: /Security findings/ })).toBeVisible();
 });
 

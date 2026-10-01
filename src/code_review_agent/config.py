@@ -2,10 +2,22 @@
 Configuration and Environment Management for AI Code Review Agent.
 """
 
-import os
 import logging
+import os
+import sys
 from pathlib import Path
-from dotenv import load_dotenv, find_dotenv
+
+from dotenv import find_dotenv, load_dotenv
+
+# Ensure UTF-8 stdout/stderr on Windows to avoid 'charmap' encoding errors in CLI/CrewAI event bus
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # ── 0. Silence noisy third-party loggers before anything else ─────────────────
 # Disable the OpenTelemetry OTLP exporter (no collector running locally)
@@ -31,7 +43,7 @@ else:
 # LiteLLM can find it without duplication.  Never overwrite an explicitly
 # set GOOGLE_API_KEY so we don't shadow a GCP service-account credential.
 _gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-_google_key  = os.getenv("GOOGLE_API_KEY", "").strip()
+_google_key = os.getenv("GOOGLE_API_KEY", "").strip()
 
 if _gemini_key and not _google_key:
     # Only GEMINI_API_KEY supplied → mirror it for LiteLLM
@@ -43,17 +55,17 @@ elif _google_key and not _gemini_key:
 # If both are set and different, keep them as-is (user knows what they're doing).
 
 # ── 2. Model / token defaults ─────────────────────────────────────────────────
-LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini/gemini-3.1-flash-lite-preview").strip()
+LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini/gemini-3.6-flash").strip()
 DEFAULT_MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "4096"))
 
 
 def setup_logging(level=logging.INFO):
     """Configure structured logging for the application."""
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    from code_review_agent.structured_logging import RedactedJSONFormatter
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(RedactedJSONFormatter())
+    logging.basicConfig(level=level, handlers=[handler])
     # Quiet down noisy third-party loggers
     logging.getLogger("opentelemetry").setLevel(logging.ERROR)
     logging.getLogger("opentelemetry.exporter").setLevel(logging.CRITICAL)
@@ -110,10 +122,9 @@ def get_ollama_base_url() -> str:
 
 def get_model_name() -> str:
     """Retrieve configured LLM model identifier."""
-    return os.getenv("LLM_MODEL", "gemini/gemini-3.1-flash-lite-preview").strip()
+    return os.getenv("LLM_MODEL", "gemini/gemini-3.6-flash").strip()
 
 
 def get_max_tokens() -> int:
     """Retrieve max_tokens setting for LLM calls (default: 4096)."""
     return int(os.getenv("MAX_TOKENS", "4096"))
-

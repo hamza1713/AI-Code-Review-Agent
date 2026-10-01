@@ -1,0 +1,39 @@
+{
+  "id": "flask-5844",
+  "file": "cases/flask-5844/input.diff",
+  "sha256": "894fe8dd8aa710621fe4dc4e5299f6169b8f9d66b4d2eece7da21dbf22cdb321",
+  "source_repository": "pallets/flask",
+  "base_sha": "30da640ffe23b6e461fa91d387ffea6b9d9fa847",
+  "head_sha": "3709c4a9a87e6ce8c26dc4a951e1df52ac9ecad0",
+  "source_diff_url": "https://github.com/pallets/flask/compare/30da640ffe23b6e461fa91d387ffea6b9d9fa847...3709c4a9a87e6ce8c26dc4a951e1df52ac9ecad0.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5844",
+  "merged_at": "2026-01-25T03:00:24Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5844/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "file": "cases/flask-5844/head/.pre-commit-config.yaml",
+      "sha256": "90a3c5e22657b4b77b74eb0cd73e370b1b3a4e6f23ef98cefeef94d8a46bcd1d"
+    },
+    {
+      "path": "pyproject.toml",
+      "file": "cases/flask-5844/head/pyproject.toml",
+      "sha256": "befcedcc5d74d00db4e19f8cb28e6bc266b21d53034a677621416dac9f3fa4ed"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5844/head/src/flask/app.py",
+      "sha256": "918700bfbf01c366232a3afb4853600acfe6d4db2e63ead655e9cf9c65abcbd9"
+    },
+    {
+      "path": "src/flask/sessions.py",
+      "file": "cases/flask-5844/head/src/flask/sessions.py",
+      "sha256": "040a7061700c6752b9e72124195ad7b6f90e5c9ffd439d05ec7eccc8d5d5657b"
+    }
+  ],
+  "input_snapshot_hash": "270db8196e2bde5a6211f5c3019ede282e2d0c752b45a139de0271f2992ad1a7",
+  "label_status": "UNREVIEWED"
+}

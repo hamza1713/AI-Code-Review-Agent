@@ -1,0 +1,1475 @@
+{
+  "schema_version": 1,
+  "manifest_sha256": "4a5bfdf0c41b0ab469d93077bc07e4592c61412e2d143ef202924cae099c573a",
+  "selected_cases": 120,
+  "ordering": "merged_at descending, case ID descending for ties; closed update-date window",
+  "selected_ids": [
+    "flask-6133",
+    "flask-6096",
+    "flask-6095",
+    "flask-6013",
+    "flask-5962",
+    "flask-5928",
+    "flask-5917",
+    "flask-5903",
+    "flask-5899",
+    "flask-5844",
+    "flask-5808",
+    "flask-5898",
+    "flask-5818",
+    "flask-5812",
+    "flask-5736",
+    "flask-5799",
+    "flask-5777",
+    "flask-5797",
+    "flask-5757",
+    "flask-5731",
+    "flask-5727",
+    "flask-5659",
+    "flask-5702",
+    "flask-5700",
+    "flask-5674",
+    "flask-5647",
+    "flask-5649",
+    "flask-5648",
+    "flask-5638",
+    "flask-5637",
+    "flask-5634",
+    "flask-5630",
+    "flask-5599",
+    "flask-5499",
+    "flask-5626",
+    "flask-5623",
+    "flask-5620",
+    "flask-5526",
+    "flask-5496",
+    "flask-5485",
+    "httpx-3773",
+    "httpx-3699",
+    "httpx-3654",
+    "httpx-3651",
+    "httpx-3571",
+    "httpx-3519",
+    "httpx-3445",
+    "httpx-3442",
+    "httpx-3440",
+    "httpx-3426",
+    "httpx-3419",
+    "httpx-3380",
+    "httpx-3418",
+    "httpx-3412",
+    "httpx-3389",
+    "httpx-3403",
+    "httpx-3401",
+    "httpx-3394",
+    "httpx-3387",
+    "httpx-3388",
+    "httpx-3382",
+    "httpx-3378",
+    "httpx-3178",
+    "httpx-3377",
+    "httpx-3375",
+    "httpx-3376",
+    "httpx-3373",
+    "httpx-3371",
+    "httpx-3367",
+    "httpx-3319",
+    "httpx-3370",
+    "httpx-3366",
+    "httpx-3364",
+    "httpx-3136",
+    "httpx-3345",
+    "httpx-3343",
+    "httpx-3335",
+    "httpx-3022",
+    "httpx-3323",
+    "httpx-3312",
+    "requests-7505",
+    "requests-7502",
+    "requests-7497",
+    "requests-7498",
+    "requests-7496",
+    "requests-7460",
+    "requests-7445",
+    "requests-7441",
+    "requests-7440",
+    "requests-7431",
+    "requests-7436",
+    "requests-7437",
+    "requests-7433",
+    "requests-7428",
+    "requests-7429",
+    "requests-7427",
+    "requests-7426",
+    "requests-7425",
+    "requests-7423",
+    "requests-7315",
+    "requests-7408",
+    "requests-7272",
+    "requests-7401",
+    "requests-7395",
+    "requests-7376",
+    "requests-7371",
+    "requests-7365",
+    "requests-7310",
+    "requests-7354",
+    "requests-7328",
+    "requests-7311",
+    "requests-7309",
+    "requests-7308",
+    "requests-7305",
+    "requests-7294",
+    "requests-7292",
+    "requests-7239",
+    "requests-7220",
+    "requests-7206",
+    "requests-6865"
+  ],
+  "captured_not_selected": [
+    {
+      "id": "flask-2635",
+      "repository": "pallets/flask",
+      "merged_at": "2018-02-23T16:47:20Z"
+    },
+    {
+      "id": "flask-5270",
+      "repository": "pallets/flask",
+      "merged_at": "2024-04-07T19:16:22Z"
+    },
+    {
+      "id": "flask-5460",
+      "repository": "pallets/flask",
+      "merged_at": "2024-04-07T18:42:24Z"
+    },
+    {
+      "id": "flask-5476",
+      "repository": "pallets/flask",
+      "merged_at": "2024-05-06T17:24:44Z"
+    },
+    {
+      "id": "httpx-1",
+      "repository": "encode/httpx",
+      "merged_at": "2019-04-06T12:21:04Z"
+    },
+    {
+      "id": "httpx-2026",
+      "repository": "encode/httpx",
+      "merged_at": "2022-01-13T10:37:37Z"
+    },
+    {
+      "id": "httpx-2252",
+      "repository": "encode/httpx",
+      "merged_at": "2023-01-10T10:36:15Z"
+    },
+    {
+      "id": "httpx-2278",
+      "repository": "encode/httpx",
+      "merged_at": "2022-08-15T15:20:07Z"
+    },
+    {
+      "id": "httpx-2911",
+      "repository": "encode/httpx",
+      "merged_at": "2023-10-31T10:10:16Z"
+    },
+    {
+      "id": "httpx-3050",
+      "repository": "encode/httpx",
+      "merged_at": "2024-02-02T13:29:41Z"
+    },
+    {
+      "id": "httpx-307",
+      "repository": "encode/httpx",
+      "merged_at": "2019-09-23T15:24:54Z"
+    },
+    {
+      "id": "httpx-3314",
+      "repository": "encode/httpx",
+      "merged_at": "2024-09-26T11:01:22Z"
+    },
+    {
+      "id": "httpx-3315",
+      "repository": "encode/httpx",
+      "merged_at": "2024-09-24T20:52:34Z"
+    },
+    {
+      "id": "httpx-3317",
+      "repository": "encode/httpx",
+      "merged_at": "2024-09-24T16:53:13Z"
+    },
+    {
+      "id": "requests-6529",
+      "repository": "psf/requests",
+      "merged_at": "2025-02-13T16:49:50Z"
+    },
+    {
+      "id": "requests-6806",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-10T02:54:25Z"
+    },
+    {
+      "id": "requests-6936",
+      "repository": "psf/requests",
+      "merged_at": "2025-05-03T16:39:14Z"
+    },
+    {
+      "id": "requests-6951",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-01T18:07:18Z"
+    },
+    {
+      "id": "requests-6962",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-05T11:21:47Z"
+    },
+    {
+      "id": "requests-6963",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-05T14:55:33Z"
+    },
+    {
+      "id": "requests-6965",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-04T15:39:25Z"
+    },
+    {
+      "id": "requests-6966",
+      "repository": "psf/requests",
+      "merged_at": "2025-06-09T16:39:48Z"
+    },
+    {
+      "id": "requests-6993",
+      "repository": "psf/requests",
+      "merged_at": "2025-07-25T20:42:15Z"
+    },
+    {
+      "id": "requests-6994",
+      "repository": "psf/requests",
+      "merged_at": "2025-07-18T02:09:20Z"
+    },
+    {
+      "id": "requests-7011",
+      "repository": "psf/requests",
+      "merged_at": "2025-08-18T20:23:20Z"
+    },
+    {
+      "id": "requests-7012",
+      "repository": "psf/requests",
+      "merged_at": "2026-01-31T02:25:56Z"
+    },
+    {
+      "id": "requests-7190",
+      "repository": "psf/requests",
+      "merged_at": "2026-01-30T21:10:28Z"
+    },
+    {
+      "id": "requests-7196",
+      "repository": "psf/requests",
+      "merged_at": "2026-02-06T15:02:46Z"
+    },
+    {
+      "id": "requests-7205",
+      "repository": "psf/requests",
+      "merged_at": "2026-02-13T02:07:05Z"
+    }
+  ],
+  "final_exclusions": [
+    {
+      "repository": "encode/httpx",
+      "pr": 3318,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3325,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3326,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3327,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3329,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3359,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3361,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3372,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3374,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3434,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3448,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3460,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3478,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3499,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3512,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3552,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3579,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3589,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3592,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3620,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3629,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3649,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3658,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3665,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3667,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3668,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3670,
+      "reason": "Captured revision has no approved license"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3672,
+      "reason": "Captured revision has no approved license"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3673,
+      "reason": "Captured revision has no approved license"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3677,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3690,
+      "reason": "Captured revision has no approved license"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3692,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3703,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "encode/httpx",
+      "pr": 3730,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 4477,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-4477\\\\head\\\\src\\\\flask\\\\scaffold.py' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5077,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5081,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5081\\\\head\\\\.github\\\\workflows\\\\tests.yaml' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5082,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5082\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5083,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5083\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5085,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5085\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5086,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5086\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5101,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5101\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5102,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5102\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5104,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5105,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5106,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5108,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5108\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5109,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5109\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5110,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5110\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5111,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5111\\\\head\\\\src\\\\flask\\\\scaffold.py' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5126,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5126\\\\head\\\\src\\\\flask\\\\config.py' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5127,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5127\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5136,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5140,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5148,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5149,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5150,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5154,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5157,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5157\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5161,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5161\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5171,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5177,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5180,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5182,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5183,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5184,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5185,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5186,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5187,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5211,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5212,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5213,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5215,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5215\\\\head\\\\src\\\\flask\\\\cli.py' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5217,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5223,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5223\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5231,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5231\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5232,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5232\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5238,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5238\\\\head\\\\src\\\\flask\\\\app.py' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5242,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5242\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5246,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5247,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5248,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5257,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5262,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5264,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5264\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5287,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5291,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5303,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5313,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5329,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5330,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5331,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5331\\\\head\\\\.gitignore' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5336,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5336\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5344,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5344\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5351,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5351\\\\head\\\\requirements\\\\dev.txt' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5352,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5354,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5355,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5374,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5377,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5377\\\\head\\\\.pre-commit-config.yaml' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5382,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5382\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5383,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5383\\\\head\\\\.pre-commit-config.yaml' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5386,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5389,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5389\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5393,
+      "reason": "'C:\\\\Users\\\\Hamza Ali\\\\Desktop\\\\Code Review\\\\samples\\\\evaluation\\\\public-pr-v2.building\\\\cases\\\\flask-5393\\\\head\\\\CHANGES.rst' is not in the subpath of 'samples\\\\evaluation\\\\public-pr-v2.building'"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5400,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5401,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5403,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5404,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5423,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5457,
+      "reason": "Full head acquisition incomplete: AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,DELETED,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,MISMATCH,AVAILABLE,DELETED,AVAILABLE,AVAILABLE,AVAILABLE,MISMATCH,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5459,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5461,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5464,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5468,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5470,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5473,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5475,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5477,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5481,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5487,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5492,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5493,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5495,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5514,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5516,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5517,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5522,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5539,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5541,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5609,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5615,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5618,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5624,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5627,
+      "reason": "Full head acquisition incomplete: AVAILABLE,AVAILABLE,MISMATCH,AVAILABLE,AVAILABLE,MISMATCH,AVAILABLE,AVAILABLE"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5632,
+      "reason": "Full head acquisition incomplete: AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,AVAILABLE,MISMATCH,MISMATCH,MISMATCH"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5633,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5640,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5650,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5671,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5695,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5701,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5723,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5730,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5737,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5742,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5754,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5795,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5798,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5800,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5827,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5829,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5865,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5900,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5924,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "pallets/flask",
+      "pr": 5945,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6553,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6773,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6875,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6876,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6880,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6883,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6897,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6899,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6924,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6925,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6926,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6937,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6939,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6960,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6968,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6973,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6996,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 6999,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7005,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7010,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7019,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7025,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7026,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7071,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7073,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7092,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7100,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7101,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7189,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7191,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7195,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7199,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7200,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7207,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7208,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7227,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7237,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7238,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7244,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7270,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7277,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7290,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7293,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7306,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7312,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7314,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7348,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7360,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7364,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7366,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7378,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7386,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7387,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7390,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7393,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7411,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7416,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7419,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7421,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7422,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7490,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7492,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7493,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7503,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7515,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7536,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7539,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7540,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7551,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7561,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7562,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7576,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7590,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7591,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7596,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7597,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7598,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7603,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7606,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7608,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7609,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7616,
+      "reason": "No changed Python source"
+    },
+    {
+      "repository": "psf/requests",
+      "pr": 7628,
+      "reason": "No changed Python source"
+    }
+  ],
+  "resolved_acquisition_errors": 44,
+  "raw_acquisition_error_count": 333,
+  "retained_acquisition_archive": ".cache/production-m9-m13/corpus-acquisition"
+}

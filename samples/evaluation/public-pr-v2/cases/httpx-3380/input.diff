@@ -1,0 +1,52 @@
+diff --git a/httpx/_models.py b/httpx/_models.py
+index e7c992f77e..67d74bf86b 100644
+--- a/httpx/_models.py
++++ b/httpx/_models.py
+@@ -398,7 +398,7 @@ def __init__(
+         self.method = method.upper()
+         self.url = URL(url) if params is None else URL(url, params=params)
+         self.headers = Headers(headers)
+-        self.extensions = {} if extensions is None else extensions
++        self.extensions = {} if extensions is None else dict(extensions)
+ 
+         if cookies:
+             Cookies(cookies).set_cookie_header(self)
+@@ -537,7 +537,7 @@ def __init__(
+         # the client will set `response.next_request`.
+         self.next_request: Request | None = None
+ 
+-        self.extensions: ResponseExtensions = {} if extensions is None else extensions
++        self.extensions = {} if extensions is None else dict(extensions)
+         self.history = [] if history is None else list(history)
+ 
+         self.is_closed = False
+diff --git a/httpx/_types.py b/httpx/_types.py
+index edd00da1bc..4f0eab96a2 100644
+--- a/httpx/_types.py
++++ b/httpx/_types.py
+@@ -15,7 +15,6 @@
+     Iterator,
+     List,
+     Mapping,
+-    MutableMapping,
+     Optional,
+     Sequence,
+     Tuple,
+@@ -67,7 +66,7 @@
+ 
+ RequestContent = Union[str, bytes, Iterable[bytes], AsyncIterable[bytes]]
+ ResponseContent = Union[str, bytes, Iterable[bytes], AsyncIterable[bytes]]
+-ResponseExtensions = MutableMapping[str, Any]
++ResponseExtensions = Mapping[str, Any]
+ 
+ RequestData = Mapping[str, Any]
+ 
+@@ -84,7 +83,7 @@
+ ]
+ RequestFiles = Union[Mapping[str, FileTypes], Sequence[Tuple[str, FileTypes]]]
+ 
+-RequestExtensions = MutableMapping[str, Any]
++RequestExtensions = Mapping[str, Any]
+ 
+ __all__ = ["AsyncByteStream", "SyncByteStream"]
+ 

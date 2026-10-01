@@ -1,0 +1,29 @@
+{
+  "id": "requests-7206",
+  "file": "cases/requests-7206/input.diff",
+  "sha256": "4aee2216826a3de3e8ab4abc0b4cdacf77fdde099cc21b1cd3f5d42f132d40a1",
+  "source_repository": "psf/requests",
+  "base_sha": "5f338446f9eabd956e7e132668f330d9de4fc368",
+  "head_sha": "cb293698d788ae7a75799c95ed0fccf1d961eed3",
+  "source_diff_url": "https://github.com/psf/requests/compare/5f338446f9eabd956e7e132668f330d9de4fc368...cb293698d788ae7a75799c95ed0fccf1d961eed3.diff",
+  "source_url": "https://github.com/psf/requests/pull/7206",
+  "merged_at": "2026-02-13T20:23:44Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7206/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": ".github/workflows/publish.yml",
+      "file": "cases/requests-7206/head/.github/workflows/publish.yml",
+      "sha256": "0ae2de4d17f2cb51bbe2a6648ce75a12c87ebe6d0ae2ef482b66af7f95a5ade2"
+    },
+    {
+      "path": "src/requests/__version__.py",
+      "file": "cases/requests-7206/head/src/requests/__version__.py",
+      "sha256": "a97068e69d7773b404ee10016e8267b3d045cb37788bdea2da9d30ef210ed5e9"
+    }
+  ],
+  "input_snapshot_hash": "d65af6ebb891c7960058d25460f5026c265d96396f78623177101997e707f416",
+  "label_status": "UNREVIEWED"
+}

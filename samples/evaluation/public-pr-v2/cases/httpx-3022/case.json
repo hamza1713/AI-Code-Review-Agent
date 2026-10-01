@@ -1,0 +1,104 @@
+{
+  "id": "httpx-3022",
+  "file": "cases/httpx-3022/input.diff",
+  "sha256": "9bf4230bdb8ca98a86434bbc240bdce7d0ce9b4d8b8d7595e8a6490a633ada85",
+  "source_repository": "encode/httpx",
+  "base_sha": "5766bf58e20548f106e13e95d7064635a9b06941",
+  "head_sha": "cb71af3c28f30e08e874de367921091d5b4ba66d",
+  "source_diff_url": "https://github.com/encode/httpx/compare/5766bf58e20548f106e13e95d7064635a9b06941...cb71af3c28f30e08e874de367921091d5b4ba66d.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3022",
+  "merged_at": "2024-10-08T10:00:21Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3022/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": ".github/CONTRIBUTING.md",
+      "file": "cases/httpx-3022/head/.github/CONTRIBUTING.md",
+      "sha256": "36e418b4e52980c45a30c48272920e3f9d954a07553e70bc487fa14802a9911e"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "file": "cases/httpx-3022/head/CHANGELOG.md",
+      "sha256": "d461884222485a0e18b5b06cb3d9c0a46e7497aa8d719647e8bf83d19b3f4a9e"
+    },
+    {
+      "path": "docs/advanced/ssl.md",
+      "file": "cases/httpx-3022/head/docs/advanced/ssl.md",
+      "sha256": "a23c0dce01c35216ffecf7d4e9cc1172c1cec344f6c833e281152917391300b0"
+    },
+    {
+      "path": "docs/compatibility.md",
+      "file": "cases/httpx-3022/head/docs/compatibility.md",
+      "sha256": "20d431210156d1a6e193542a7c290331e610e92b47279a3947cfe8e1acefdc75"
+    },
+    {
+      "path": "docs/environment_variables.md",
+      "file": "cases/httpx-3022/head/docs/environment_variables.md",
+      "sha256": "d0cdf4d740dc3ed8b21c4ee45735551e05d4e57d0fda05a2f18c4684197a27eb"
+    },
+    {
+      "path": "docs/logging.md",
+      "file": "cases/httpx-3022/head/docs/logging.md",
+      "sha256": "cf128dd9d45561d57807fb34c00c2fff63071dbbfcb3990df00c7061bea88195"
+    },
+    {
+      "path": "httpx/__init__.py",
+      "file": "cases/httpx-3022/head/httpx/__init__.py",
+      "sha256": "522c7e842ce287ecd4d14ba113f691dc8e12c3230afedf6096cb977d9f552f99"
+    },
+    {
+      "path": "httpx/_api.py",
+      "file": "cases/httpx-3022/head/httpx/_api.py",
+      "sha256": "ccf0d720cb632eeb4babeb9ef256fb80db39df192c28f26f2831daa2d8cef890"
+    },
+    {
+      "path": "httpx/_client.py",
+      "file": "cases/httpx-3022/head/httpx/_client.py",
+      "sha256": "56e0c9a32344d0cc86b1047f83cb1f1d9f36d94ce9a7873f64eae5a9f92a8c99"
+    },
+    {
+      "path": "httpx/_config.py",
+      "file": "cases/httpx-3022/head/httpx/_config.py",
+      "sha256": "380ca0e1d54feeb0f174696727f3ab94b92866f2761acd2c727929364860e455"
+    },
+    {
+      "path": "httpx/_main.py",
+      "file": "cases/httpx-3022/head/httpx/_main.py",
+      "sha256": "ed17f68beb9cbac83fae710ce806d00a4967e3d90fe7a7d71cc8d37c7cbf621e"
+    },
+    {
+      "path": "httpx/_transports/default.py",
+      "file": "cases/httpx-3022/head/httpx/_transports/default.py",
+      "sha256": "34b16f7b962fb6c7c2c8f24e23a24f1d50e0d9528bf8ebebf02fda4ce1055751"
+    },
+    {
+      "path": "httpx/_types.py",
+      "file": "cases/httpx-3022/head/httpx/_types.py",
+      "sha256": "3ce99f938fb98bb124fa2730e20fcbf12dd301510a561305425f95aa7a5e0a37"
+    },
+    {
+      "path": "httpx/_utils.py",
+      "file": "cases/httpx-3022/head/httpx/_utils.py",
+      "sha256": "f29210c2240bba62c8bec0c283b7aaf11b0d124cdb22cd9c84a3dc4d30cf19ba"
+    },
+    {
+      "path": "tests/conftest.py",
+      "file": "cases/httpx-3022/head/tests/conftest.py",
+      "sha256": "9001cddd7b9166bfc2584b09fc3b838d7e004b012d094042584717640d42bc60"
+    },
+    {
+      "path": "tests/test_config.py",
+      "file": "cases/httpx-3022/head/tests/test_config.py",
+      "sha256": "a198dcaa64ea685a7efb452fb04b6f202c42d1243eb935e89629978758a993e8"
+    },
+    {
+      "path": "tests/test_utils.py",
+      "file": "cases/httpx-3022/head/tests/test_utils.py",
+      "sha256": "8011df62f99aa0ecbe00618482f76ab99a211e6acfaac9255ad44f2fbf651a55"
+    }
+  ],
+  "input_snapshot_hash": "3b96302a8191f9978c77b1feb2ea57ddb40c89762f3317261d35270168f3ffa8",
+  "label_status": "UNREVIEWED"
+}

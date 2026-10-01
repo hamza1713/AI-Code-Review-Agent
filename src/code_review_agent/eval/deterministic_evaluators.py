@@ -7,25 +7,28 @@ and diff line scope precision.
 
 import ast
 import re
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from code_review_agent.models import (
-    SummarizedFindingsJSON,
-    ReviewSecurityJSON,
     InlineComment,
     ParsedPR,
+    ReviewSecurityJSON,
+    SummarizedFindingsJSON,
 )
-
 
 
 class EvaluationResult(BaseModel):
     """Result of an evaluation check."""
+
     passed: bool
     evaluator_name: str
-    score: float = Field(default=1.0, description="Normalized score between 0.0 and 1.0")
-    details: Dict[str, Any] = Field(default_factory=dict)
-    errors: List[str] = Field(default_factory=list)
+    score: float = Field(
+        default=1.0, description="Normalized score between 0.0 and 1.0"
+    )
+    details: dict[str, Any] = Field(default_factory=dict)
+    errors: list[str] = Field(default_factory=list)
 
 
 class ConfidenceMathEvaluator:
@@ -35,7 +38,9 @@ class ConfidenceMathEvaluator:
     """
 
     @staticmethod
-    def evaluate_breakdown_arithmetic(summary: SummarizedFindingsJSON) -> EvaluationResult:
+    def evaluate_breakdown_arithmetic(
+        summary: SummarizedFindingsJSON,
+    ) -> EvaluationResult:
         """
         Verify that the arithmetic in 'confidence_breakdown' correctly evaluates
         to the reported 'confidence' score.
@@ -50,8 +55,11 @@ class ConfidenceMathEvaluator:
                 passed=False,
                 evaluator_name="ConfidenceMathEvaluator.breakdown_arithmetic",
                 score=0.0,
-                details={"reported_confidence": reported_confidence, "breakdown_present": False},
-                errors=["No 'confidence_breakdown' string provided in summary."]
+                details={
+                    "reported_confidence": reported_confidence,
+                    "breakdown_present": False,
+                },
+                errors=["No 'confidence_breakdown' string provided in summary."],
             )
 
         # Extract all numbers preceded by a minus sign (deductions)
@@ -64,7 +72,11 @@ class ConfidenceMathEvaluator:
                     passed=True,
                     evaluator_name="ConfidenceMathEvaluator.breakdown_arithmetic",
                     score=1.0,
-                    details={"reported_confidence": 100, "calculated_score": 100, "deductions": []}
+                    details={
+                        "reported_confidence": 100,
+                        "calculated_score": 100,
+                        "deductions": [],
+                    },
                 )
 
         deductions = [int(d) for d in deduction_matches]
@@ -85,9 +97,9 @@ class ConfidenceMathEvaluator:
                 "reported_confidence": reported_confidence,
                 "calculated_score": calculated_score,
                 "deductions": deductions,
-                "breakdown_string": breakdown
+                "breakdown_string": breakdown,
             },
-            errors=errors
+            errors=errors,
         )
 
     @staticmethod
@@ -115,7 +127,9 @@ class CodeCompilationEvaluator:
     """
 
     @staticmethod
-    def evaluate_inline_suggestions(inline_comments: List[InlineComment]) -> EvaluationResult:
+    def evaluate_inline_suggestions(
+        inline_comments: list[InlineComment],
+    ) -> EvaluationResult:
         """Ensure all Python suggestion_code blocks parse via ast.parse()."""
         errors = []
         valid_count = 0
@@ -135,7 +149,7 @@ class CodeCompilationEvaluator:
 
             # Remove markdown backticks if accidentally enclosed
             if clean_code.startswith("```python"):
-                clean_code = clean_code[len("```python"):].strip()
+                clean_code = clean_code[len("```python") :].strip()
             elif clean_code.startswith("```"):
                 clean_code = clean_code[3:].strip()
             if clean_code.endswith("```"):
@@ -157,33 +171,39 @@ class CodeCompilationEvaluator:
                 try:
                     ast.parse(clean_code)
                 except SyntaxError as e:
-                    errors.append(f"Inline comment #{idx} ({comment.path}:L{comment.line}) syntax error: {e.msg} at line {e.lineno}")
+                    errors.append(
+                        f"Inline comment #{idx} ({comment.path}:L{comment.line}) syntax error: {e.msg} at line {e.lineno}"
+                    )
 
         score = (valid_count / tested_count) if tested_count > 0 else 1.0
-        passed = (score == 1.0)
+        passed = score == 1.0
 
         return EvaluationResult(
             passed=passed,
             evaluator_name="CodeCompilationEvaluator.inline_suggestions",
             score=round(score, 4),
-            details={"tested_count": tested_count, "valid_count": valid_count, "errors_count": len(errors)},
-            errors=errors
+            details={
+                "tested_count": tested_count,
+                "valid_count": valid_count,
+                "errors_count": len(errors),
+            },
+            errors=errors,
         )
 
     @staticmethod
-    def evaluate_suggested_unit_tests(tests_code: Optional[str]) -> EvaluationResult:
+    def evaluate_suggested_unit_tests(tests_code: str | None) -> EvaluationResult:
         """Validate that the suggested pytest unit test suite compiles via ast.parse()."""
         if not tests_code or not tests_code.strip():
             return EvaluationResult(
                 passed=True,
                 evaluator_name="CodeCompilationEvaluator.suggested_unit_tests",
                 score=1.0,
-                details={"present": False, "note": "No test suite generated."}
+                details={"present": False, "note": "No test suite generated."},
             )
 
         clean_code = tests_code.strip()
         if clean_code.startswith("```python"):
-            clean_code = clean_code[len("```python"):].strip()
+            clean_code = clean_code[len("```python") :].strip()
         elif clean_code.startswith("```"):
             clean_code = clean_code[3:].strip()
         if clean_code.endswith("```"):
@@ -192,12 +212,20 @@ class CodeCompilationEvaluator:
         try:
             tree = ast.parse(clean_code)
             # Verify basic pytest structure: look for test functions
-            test_funcs = [node.name for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")]
+            test_funcs = [
+                node.name
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name.startswith("test_")
+            ]
             return EvaluationResult(
                 passed=True,
                 evaluator_name="CodeCompilationEvaluator.suggested_unit_tests",
                 score=1.0,
-                details={"test_functions_found": test_funcs, "test_count": len(test_funcs)}
+                details={
+                    "test_functions_found": test_funcs,
+                    "test_count": len(test_funcs),
+                },
             )
         except SyntaxError as e:
             return EvaluationResult(
@@ -205,7 +233,7 @@ class CodeCompilationEvaluator:
                 evaluator_name="CodeCompilationEvaluator.suggested_unit_tests",
                 score=0.0,
                 details={"syntax_error": str(e)},
-                errors=[f"Unit test suite syntax error: {e.msg} at line {e.lineno}"]
+                errors=[f"Unit test suite syntax error: {e.msg} at line {e.lineno}"],
             )
 
 
@@ -237,13 +265,19 @@ class GuardrailConsistencyEvaluator:
         else:
             expected_highest = "none"
 
-        if reported_highest != expected_highest and not (expected_highest == "none" and reported_highest == "low"):
-            errors.append(f"highest_risk mismatch: Reported '{reported_highest}' but vulnerabilities contain '{expected_highest}'.")
+        if reported_highest != expected_highest and not (
+            expected_highest == "none" and reported_highest == "low"
+        ):
+            errors.append(
+                f"highest_risk mismatch: Reported '{reported_highest}' but vulnerabilities contain '{expected_highest}'."
+            )
 
         # 2. Blocking consistency: critical/high must be blocking
         has_severe = any(r in ("critical", "high") for r in risk_levels)
         if has_severe and not is_blocking:
-            errors.append("blocking is False, but critical or high vulnerabilities are present.")
+            errors.append(
+                "blocking is False, but critical or high vulnerabilities are present."
+            )
 
         passed = len(errors) == 0
         return EvaluationResult(
@@ -256,7 +290,7 @@ class GuardrailConsistencyEvaluator:
                 "is_blocking": is_blocking,
                 "vulnerabilities_count": len(vulns),
             },
-            errors=errors
+            errors=errors,
         )
 
 
@@ -266,13 +300,15 @@ class SarifComplianceEvaluator:
     """
 
     @staticmethod
-    def evaluate_sarif_dict(sarif: Dict[str, Any]) -> EvaluationResult:
+    def evaluate_sarif_dict(sarif: dict[str, Any]) -> EvaluationResult:
         """Validate essential SARIF v2.1.0 properties."""
         errors = []
 
         # 1. Root structure
         if sarif.get("version") != "2.1.0":
-            errors.append(f"Invalid SARIF version: expected '2.1.0', got '{sarif.get('version')}'.")
+            errors.append(
+                f"Invalid SARIF version: expected '2.1.0', got '{sarif.get('version')}'."
+            )
 
         if not sarif.get("$schema"):
             errors.append("Missing '$schema' property in SARIF root.")
@@ -284,7 +320,7 @@ class SarifComplianceEvaluator:
                 passed=False,
                 evaluator_name="SarifComplianceEvaluator.structure",
                 score=0.0,
-                errors=errors
+                errors=errors,
             )
 
         run = runs[0]
@@ -309,8 +345,11 @@ class SarifComplianceEvaluator:
             passed=passed,
             evaluator_name="SarifComplianceEvaluator.structure",
             score=1.0 if passed else max(0.0, 1.0 - (len(errors) * 0.2)),
-            details={"results_count": len(results), "rules_count": len(driver.get("rules", []))},
-            errors=errors
+            details={
+                "results_count": len(results),
+                "rules_count": len(driver.get("rules", [])),
+            },
+            errors=errors,
         )
 
 
@@ -320,7 +359,9 @@ class DiffLineScopeEvaluator:
     """
 
     @staticmethod
-    def evaluate_line_scope(inline_comments: List[InlineComment], parsed_pr: Optional[ParsedPR]) -> EvaluationResult:
+    def evaluate_line_scope(
+        inline_comments: list[InlineComment], parsed_pr: ParsedPR | None
+    ) -> EvaluationResult:
         """Ensure inline comments map to files and positive line numbers."""
         errors = []
         if not parsed_pr:
@@ -328,17 +369,28 @@ class DiffLineScopeEvaluator:
                 passed=True,
                 evaluator_name="DiffLineScopeEvaluator.line_scope",
                 score=1.0,
-                details={"parsed_pr_provided": False}
+                details={"parsed_pr_provided": False},
             )
 
-        known_files = {f.target_file for f in parsed_pr.files}
+        from code_review_agent.diff_parser import DiffParser
+
+        changed_lines = {
+            (f.target_file, line)
+            for f in parsed_pr.files
+            for line, _ in DiffParser.extract_added_lines_with_numbers(f)
+        }
         for idx, comment in enumerate(inline_comments):
             if comment.line <= 0:
-                errors.append(f"Inline comment #{idx} has invalid non-positive line number: {comment.line}")
-            if known_files and comment.path not in known_files:
-                # Allow relative match
-                if not any(f.endswith(comment.path) or comment.path.endswith(f) for f in known_files):
-                    errors.append(f"Inline comment #{idx} references unknown file '{comment.path}' not in PR files {known_files}.")
+                errors.append(
+                    f"Inline comment #{idx} has invalid non-positive line number: {comment.line}"
+                )
+            if (
+                comment.path,
+                comment.line,
+            ) not in changed_lines or comment.side != "RIGHT":
+                errors.append(
+                    f"Inline comment #{idx} is outside changed target lines: {comment.path}:{comment.line}."
+                )
 
         passed = len(errors) == 0
         return EvaluationResult(
@@ -346,5 +398,5 @@ class DiffLineScopeEvaluator:
             evaluator_name="DiffLineScopeEvaluator.line_scope",
             score=1.0 if passed else max(0.0, 1.0 - (len(errors) * 0.25)),
             details={"comments_evaluated": len(inline_comments)},
-            errors=errors
+            errors=errors,
         )

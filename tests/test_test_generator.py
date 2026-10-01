@@ -4,7 +4,6 @@ Verifies that test generation is dynamic: different function signatures produce
 completely distinct test bodies, function names, parameter fixtures, and mock setups.
 """
 
-import pytest
 from code_review_agent.tools.test_generator import TestGeneratorTool
 
 
@@ -52,13 +51,68 @@ class TestTestGeneratorScaffolding:
         assert "mock_db" in test_code
         assert "mock_session" in test_code
         assert "@pytest.fixture" in test_code
-        assert "test_fetch_user_orders_happy_path(self, mock_db, mock_session):" in test_code
+        assert (
+            "test_fetch_user_orders_happy_path(self, mock_db, mock_session):"
+            in test_code
+        )
 
     def test_async_function_support(self):
         """Confirm async functions generate async test methods with pytest.mark.asyncio."""
         tool = TestGeneratorTool()
-        sig = "async def fetch_remote_metrics(endpoint: str, timeout_seconds: int = 10):"
+        sig = (
+            "async def fetch_remote_metrics(endpoint: str, timeout_seconds: int = 10):"
+        )
         test_code = tool._run(function_signature=sig, module_path="infra.metrics")
 
         assert "@pytest.mark.asyncio" in test_code
         assert "await fetch_remote_metrics(" in test_code
+
+    def test_generate_tests_for_diff_syntax_validity(self):
+        """Confirm that generate_tests_for_diff produces 100% syntactically valid Python code."""
+        import ast
+
+        diff = """diff --git a/src/services/billing.py b/src/services/billing.py
+--- a/src/services/billing.py
++++ b/src/services/billing.py
+@@ -10,4 +10,6 @@
++def process_invoice(invoice_id: str, amount: float, auto_pay: bool = False) -> bool:
++    return True
+"""
+        suite_code = TestGeneratorTool.generate_tests_for_diff(diff)
+        assert "import pytest" in suite_code
+        assert "TestProcessInvoice" in suite_code
+        # Verify generated code parses cleanly with ast.parse
+        tree = ast.parse(suite_code)
+        assert tree is not None
+
+    def test_generate_tests_for_plain_code_snippet(self):
+        """Confirm plain code snippet without git diff headers is handled gracefully."""
+        import ast
+
+        code_snippet = """def calculate_total(subtotal: float, discount: float = 0.0) -> float:
+    return subtotal - discount
+"""
+        suite_code = TestGeneratorTool.generate_tests_for_diff(code_snippet)
+        assert "import pytest" in suite_code
+        assert "TestCalculateTotal" in suite_code
+        tree = ast.parse(suite_code)
+        assert tree is not None
+
+    def test_generate_tests_for_diff_with_modified_function_body(self):
+        """Confirm that modifying only the body of an existing function captures the function."""
+        import ast
+
+        diff = """diff --git a/src/services/billing.py b/src/services/billing.py
+--- a/src/services/billing.py
++++ b/src/services/billing.py
+@@ -10,5 +10,5 @@ def update_discount(user_id: int, discount_pct: float) -> bool:
+     if discount_pct < 0:
+         return False
+-    return apply_discount(user_id, discount_pct)
++    return apply_discount_v2(user_id, discount_pct)
+"""
+        suite_code = TestGeneratorTool.generate_tests_for_diff(diff)
+        assert "import pytest" in suite_code
+        assert "UpdateDiscount" in suite_code
+        tree = ast.parse(suite_code)
+        assert tree is not None

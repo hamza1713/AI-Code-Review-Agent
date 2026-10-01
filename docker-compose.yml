@@ -1,47 +1,66 @@
-version: '3.8'
-
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: code-review-web
+  proxy:
+    image: caddy:2-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    ports: ["80:80", "443:443"]
     environment:
-      - APP_ENV=${APP_ENV:-production}
-      - QUEUE_DB_PATH=/app/data/webhook_jobs.db
-      - MAX_CONCURRENT_REVIEWS=${MAX_CONCURRENT_REVIEWS:-4}
-      - REVIEW_API_TOKEN=${REVIEW_API_TOKEN:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
-      - LLM_MODEL=${LLM_MODEL:-gemini/gemini-2.5-flash}
-      - LLM_REQUEST_TIMEOUT=60.0
+      REVIEW_DOMAIN: ${REVIEW_DOMAIN:?Set the public TLS domain}
     volumes:
-      - ./data:/app/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["python", "-m", "code_review_agent.worker", "--concurrency", "4", "--db-path", "/app/data/webhook_jobs.db"]
-    restart: unless-stopped
-    environment:
-      - APP_ENV=${APP_ENV:-production}
-      - QUEUE_DB_PATH=/app/data/webhook_jobs.db
-      - MAX_CONCURRENT_REVIEWS=${MAX_CONCURRENT_REVIEWS:-4}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - LLM_MODEL=${LLM_MODEL:-gemini/gemini-2.5-flash}
-      - LLM_REQUEST_TIMEOUT=60.0
-    volumes:
-      - ./data:/app/data
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy_data:/data
+      - proxy_config:/config
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+  web:
+    image: ${REVIEW_IMAGE:?Set the approved image reference with its sha256 digest}
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    init: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=2g,mode=1777
+    environment:
+      APP_ENV: production
+      REVIEW_REQUIRE_AUTH: "true"
+      REVIEW_API_TOKEN: ${REVIEW_API_TOKEN:?Set a random operator credential of at least 32 characters}
+      REVIEW_ALLOWED_REPOSITORIES: ${REVIEW_ALLOWED_REPOSITORIES:?Set provider:host/owner/repo allowlist}
+      REVIEW_ALLOWED_HOSTS: github.com
+      REVIEW_ENABLE_POSTING: ${REVIEW_ENABLE_POSTING:-false}
+      REVIEW_ENABLE_REMEDIATION: "false"
+      REVIEW_ENABLE_EXPERIMENTAL_TESTS: "false"
+      QUEUE_DB_PATH: /data/review.db
+      MAX_CONCURRENT_REVIEWS: "2"
+      MAX_QUEUE_CAPACITY: "100"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://127.0.0.1:11434}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?Configure the GitHub bot credential}
+      BOT_GITHUB_LOGIN: ${BOT_GITHUB_LOGIN:?Set the GitHub identity owning review comments}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?Set a webhook signing secret}
+      LLM_MODEL: ${LLM_MODEL:?Set the approved model identifier}
+      LLM_REQUEST_TIMEOUT: "60"
+      REVIEW_PROVIDER_MODEL_ID: ${REVIEW_PROVIDER_MODEL_ID:-}
+      REVIEW_OLLAMA_MODEL_DIGEST: ${REVIEW_OLLAMA_MODEL_DIGEST:-}
+      REVIEW_DATA_POLICY: /run/review/data-policy.json
+      REVIEW_RELEASE_EVIDENCE_DIR: /run/review/release-evidence
+      REVIEW_MODEL_PRICING_JSON: ${REVIEW_MODEL_PRICING_JSON:-{}}
+      REVIEW_DEPLOYED_COMMIT: ${REVIEW_DEPLOYED_COMMIT:?Set the approved release commit}
+      REVIEW_IMAGE_DIGEST: ${REVIEW_IMAGE_DIGEST:?Set the approved release image digest}
+    volumes:
+      - review_data:/data
+      - ${REVIEW_DATA_POLICY_FILE:?Set the operator-approved data policy path}:/run/review/data-policy.json:ro
+      - ${REVIEW_RELEASE_EVIDENCE_PATH:-./release-evidence}:/run/review/release-evidence:ro
+    stop_grace_period: 30s
+    mem_limit: 6g
+    cpus: 4
+    pids_limit: 256
+volumes:
+  review_data:
+  proxy_data:
+  proxy_config:

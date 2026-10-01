@@ -1,0 +1,161 @@
+diff --git a/httpx/_urlparse.py b/httpx/_urlparse.py
+index 25bf7f9052..bf190fd560 100644
+--- a/httpx/_urlparse.py
++++ b/httpx/_urlparse.py
+@@ -97,6 +97,7 @@
+     ]
+ )
+ 
++
+ # {scheme}:      (optional)
+ # //{authority}  (optional)
+ # {path}
+@@ -478,7 +479,7 @@ def PERCENT(string: str) -> str:
+     return "".join([f"%{byte:02X}" for byte in string.encode("utf-8")])
+ 
+ 
+-def percent_encoded(string: str, safe: str = "/") -> str:
++def percent_encoded(string: str, safe: str) -> str:
+     """
+     Use percent-encoding to quote a string.
+     """
+@@ -493,7 +494,7 @@ def percent_encoded(string: str, safe: str = "/") -> str:
+     )
+ 
+ 
+-def quote(string: str, safe: str = "/") -> str:
++def quote(string: str, safe: str) -> str:
+     """
+     Use percent-encoding to quote a string, omitting existing '%xx' escape sequences.
+ 
+@@ -524,26 +525,3 @@ def quote(string: str, safe: str = "/") -> str:
+         parts.append(percent_encoded(trailing_text, safe=safe))
+ 
+     return "".join(parts)
+-
+-
+-def urlencode(items: list[tuple[str, str]]) -> str:
+-    """
+-    We can use a much simpler version of the stdlib urlencode here because
+-    we don't need to handle a bunch of different typing cases, such as bytes vs str.
+-
+-    https://github.com/python/cpython/blob/b2f7b2ef0b5421e01efb8c7bee2ef95d3bab77eb/Lib/urllib/parse.py#L926
+-
+-    Note that we use '%20' encoding for spaces. and '%2F  for '/'.
+-    This is slightly different than `requests`, but is the behaviour that browsers use.
+-
+-    See
+-    - https://github.com/encode/httpx/issues/2536
+-    - https://github.com/encode/httpx/issues/2721
+-    - https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlencode
+-    """
+-    return "&".join(
+-        [
+-            percent_encoded(k, safe="") + "=" + percent_encoded(v, safe="")
+-            for k, v in items
+-        ]
+-    )
+diff --git a/httpx/_urls.py b/httpx/_urls.py
+index a8752f013f..bfc0e9e698 100644
+--- a/httpx/_urls.py
++++ b/httpx/_urls.py
+@@ -1,17 +1,31 @@
+ from __future__ import annotations
+ 
+ import typing
+-from urllib.parse import parse_qs, unquote
++from urllib.parse import parse_qs, unquote, urlencode
+ 
+ import idna
+ 
+ from ._types import QueryParamTypes
+-from ._urlparse import urlencode, urlparse
++from ._urlparse import urlparse
+ from ._utils import primitive_value_to_str
+ 
+ __all__ = ["URL", "QueryParams"]
+ 
+ 
++# To urlencode query parameters, we use the whatwg query percent-encode set
++# and additionally escape U+0025 (%), U+0026 (&), U+002B (+) and U+003D (=).
++
++# https://url.spec.whatwg.org/#percent-encoded-bytes
++
++URLENCODE_SAFE = "".join(
++    [
++        chr(i)
++        for i in range(0x20, 0x7F)
++        if i not in (0x20, 0x22, 0x23, 0x25, 0x26, 0x2B, 0x3C, 0x3D, 0x3E)
++    ]
++)
++
++
+ class URL:
+     """
+     url = httpx.URL("HTTPS://jo%40email.com:a%20secret@müller.de:1234/pa%20th?search=ab#anchorlink")
+@@ -605,14 +619,7 @@ def __eq__(self, other: typing.Any) -> bool:
+         return sorted(self.multi_items()) == sorted(other.multi_items())
+ 
+     def __str__(self) -> str:
+-        """
+-        Note that we use '%20' encoding for spaces, and treat '/' as a safe
+-        character.
+-
+-        See https://github.com/encode/httpx/issues/2536 and
+-        https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlencode
+-        """
+-        return urlencode(self.multi_items())
++        return urlencode(self.multi_items(), safe=URLENCODE_SAFE)
+ 
+     def __repr__(self) -> str:
+         class_name = self.__class__.__name__
+diff --git a/tests/models/test_url.py b/tests/models/test_url.py
+index 84e305f0d3..d32ed52169 100644
+--- a/tests/models/test_url.py
++++ b/tests/models/test_url.py
+@@ -141,19 +141,14 @@ def test_path_query_fragment(url, raw_path, path, query, fragment):
+ 
+ 
+ def test_url_query_encoding():
+-    """
+-    URL query parameters should use '%20' for encoding spaces,
+-    and should treat '/' as a safe character. This behaviour differs
+-    across clients, but we're matching browser behaviour here.
+-
+-    See https://github.com/encode/httpx/issues/2536
+-    and https://github.com/encode/httpx/discussions/2460
+-    """
+     url = httpx.URL("https://www.example.com/?a=b c&d=e/f")
+     assert url.raw_path == b"/?a=b%20c&d=e/f"
+ 
++    url = httpx.URL("https://www.example.com/?a=b+c&d=e/f")
++    assert url.raw_path == b"/?a=b+c&d=e/f"
++
+     url = httpx.URL("https://www.example.com/", params={"a": "b c", "d": "e/f"})
+-    assert url.raw_path == b"/?a=b%20c&d=e%2Ff"
++    assert url.raw_path == b"/?a=b+c&d=e/f"
+ 
+ 
+ def test_url_params():
+@@ -289,9 +284,10 @@ def test_url_leading_dot_prefix_on_relative_url():
+ 
+ 
+ def test_param_with_space():
+-    # Params passed as form key-value pairs should be escaped.
++    # Params passed as form key-value pairs should be form escaped,
++    # Including the special case of "+" for space seperators.
+     url = httpx.URL("http://webservice", params={"u": "with spaces"})
+-    assert str(url) == "http://webservice?u=with%20spaces"
++    assert str(url) == "http://webservice?u=with+spaces"
+ 
+ 
+ def test_param_requires_encoding():
+@@ -313,7 +309,7 @@ def test_param_with_existing_escape_requires_encoding():
+     # even if they include a valid escape sequence.
+     # We want to match browser form behaviour here.
+     url = httpx.URL("http://webservice", params={"u": "http://example.com?q=foo%2Fa"})
+-    assert str(url) == "http://webservice?u=http%3A%2F%2Fexample.com%3Fq%3Dfoo%252Fa"
++    assert str(url) == "http://webservice?u=http://example.com?q%3Dfoo%252Fa"
+ 
+ 
+ # Tests for query parameter percent encoding.

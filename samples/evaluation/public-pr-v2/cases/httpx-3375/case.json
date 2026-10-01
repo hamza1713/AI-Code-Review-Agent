@@ -1,0 +1,24 @@
+{
+  "id": "httpx-3375",
+  "file": "cases/httpx-3375/input.diff",
+  "sha256": "711a06bb64f4931e744bc088dbdfdf6051daa251c8be28aac89cf149c965ecdd",
+  "source_repository": "encode/httpx",
+  "base_sha": "544038155382473ce87b17ef2238c96e48dee700",
+  "head_sha": "53b132f86dc5bf7606687533768c1f288088a1ab",
+  "source_diff_url": "https://github.com/encode/httpx/compare/544038155382473ce87b17ef2238c96e48dee700...53b132f86dc5bf7606687533768c1f288088a1ab.diff",
+  "source_url": "https://github.com/encode/httpx/pull/3375",
+  "merged_at": "2024-10-28T17:38:34Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/httpx-3375/LICENSE",
+  "license_sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+  "source_license_path": "LICENSE.md",
+  "head_files": [
+    {
+      "path": "tests/client/test_auth.py",
+      "file": "cases/httpx-3375/head/tests/client/test_auth.py",
+      "sha256": "5517f792de019f81f2a640ac25a5b202849c2317886ffb420eeb6f876ac1dc2b"
+    }
+  ],
+  "input_snapshot_hash": "ad0b5dae48994268179471c748df8ac8f392bb7dbe3d049e75866b5dcde54cc0",
+  "label_status": "UNREVIEWED"
+}

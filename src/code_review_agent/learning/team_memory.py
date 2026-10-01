@@ -8,7 +8,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 from code_review_agent.config import logger
@@ -16,14 +16,30 @@ from code_review_agent.config import logger
 
 class BestPractice(BaseModel):
     """Represents a learned team coding standard, convention, or accepted pattern."""
-    id: str = Field(..., description="Unique slug for the practice, e.g., 'use-httpx-over-requests'")
-    category: str = Field(default="idiom", description="'idiom', 'security', 'style', 'architecture', 'testing'")
+
+    id: str = Field(
+        ..., description="Unique slug for the practice, e.g., 'use-httpx-over-requests'"
+    )
+    category: str = Field(
+        default="idiom",
+        description="'idiom', 'security', 'style', 'architecture', 'testing'",
+    )
     title: str = Field(..., description="Human-readable title")
-    description: str = Field(..., description="Explanation of why this is preferred by the team")
-    bad_pattern: Optional[str] = Field(default=None, description="Disapproved snippet or anti-pattern")
-    good_pattern: Optional[str] = Field(default=None, description="Approved or idiomatic snippet")
-    times_accepted: int = Field(default=1, description="Number of times this pattern was accepted/reinforced")
-    source_pr: Optional[str] = Field(default=None, description="PR identifier or URL where this was first learned")
+    description: str = Field(
+        ..., description="Explanation of why this is preferred by the team"
+    )
+    bad_pattern: str | None = Field(
+        default=None, description="Disapproved snippet or anti-pattern"
+    )
+    good_pattern: str | None = Field(
+        default=None, description="Approved or idiomatic snippet"
+    )
+    times_accepted: int = Field(
+        default=1, description="Number of times this pattern was accepted/reinforced"
+    )
+    source_pr: str | None = Field(
+        default=None, description="PR identifier or URL where this was first learned"
+    )
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
@@ -34,30 +50,38 @@ class TeamMemoryStore:
     Stores records in .cache/team_memory/{safe_repo_id}.json.
     """
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: str | None = None):
         if cache_dir:
             self.cache_dir = Path(cache_dir)
         else:
-            self.cache_dir = Path(os.environ.get("TEAM_MEMORY_CACHE_DIR", ".cache/team_memory"))
+            self.cache_dir = Path(
+                os.environ.get("TEAM_MEMORY_CACHE_DIR", ".cache/team_memory")
+            )
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _safe_filename(self, repo_id: str) -> Path:
         """Convert 'owner/repo' into a safe filesystem filename."""
-        safe_name = repo_id.strip().replace("/", "_").replace("\\", "_").replace(":", "_")
+        safe_name = (
+            repo_id.strip().replace("/", "_").replace("\\", "_").replace(":", "_")
+        )
         return self.cache_dir / f"{safe_name}.json"
 
-    def get_practices(self, repo_id: str, category: Optional[str] = None) -> List[BestPractice]:
+    def get_practices(
+        self, repo_id: str, category: str | None = None
+    ) -> list[BestPractice]:
         """Retrieve all active practices learned for a repository."""
         file_path = self._safe_filename(repo_id)
         if not file_path.exists():
             return []
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
             practices = [BestPractice(**p) for p in data.get("practices", [])]
             if category:
-                practices = [p for p in practices if p.category.lower() == category.lower()]
+                practices = [
+                    p for p in practices if p.category.lower() == category.lower()
+                ]
             return sorted(practices, key=lambda p: p.times_accepted, reverse=True)
         except Exception as e:
             logger.warning(f"Failed to read team memory for {repo_id}: {e}")
@@ -84,7 +108,9 @@ class TeamMemoryStore:
             existing[practice.id] = practice
 
         self._save(repo_id, list(existing.values()))
-        logger.info(f"🧠 TeamMemory updated for {repo_id}: '{practice.title}' (accepted {practice.times_accepted}x)")
+        logger.info(
+            f"🧠 TeamMemory updated for {repo_id}: '{practice.title}' (accepted {practice.times_accepted}x)"
+        )
         return practice
 
     def record_accepted_suggestion(
@@ -93,14 +119,16 @@ class TeamMemoryStore:
         title: str,
         description: str,
         good_code: str,
-        bad_code: Optional[str] = None,
+        bad_code: str | None = None,
         category: str = "idiom",
-        source_pr: Optional[str] = None
+        source_pr: str | None = None,
     ) -> BestPractice:
         """Create or reinforce a practice from an accepted review suggestion."""
         # Slugify title
         slug = "-".join(title.lower().replace("_", " ").split()[:6])
-        slug = "".join(c for c in slug if c.isalnum() or c == "-") or "learned-convention"
+        slug = (
+            "".join(c for c in slug if c.isalnum() or c == "-") or "learned-convention"
+        )
 
         practice = BestPractice(
             id=slug,
@@ -110,7 +138,7 @@ class TeamMemoryStore:
             good_pattern=good_code.strip() if good_code else None,
             bad_pattern=bad_code.strip() if bad_code else None,
             source_pr=source_pr,
-            times_accepted=1
+            times_accepted=1,
         )
         return self.record_practice(repo_id, practice)
 
@@ -125,11 +153,13 @@ class TeamMemoryStore:
         lines = [
             "### 🧠 Learned Team Conventions & Best Practices for this Repository",
             "The development team has previously accepted and enforced the following coding standards in this repo. "
-            "Prioritize these conventions during your review:\n"
+            "Prioritize these conventions during your review:\n",
         ]
 
         for i, p in enumerate(practices, start=1):
-            lines.append(f"**{i}. {p.title}** (`{p.category}`, accepted {p.times_accepted}x)")
+            lines.append(
+                f"**{i}. {p.title}** (`{p.category}`, accepted {p.times_accepted}x)"
+            )
             lines.append(f"   - **Rule**: {p.description}")
             if p.bad_pattern:
                 lines.append("   - **Avoid**:")
@@ -149,14 +179,14 @@ class TeamMemoryStore:
             return True
         return False
 
-    def _save(self, repo_id: str, practices: List[BestPractice]):
+    def _save(self, repo_id: str, practices: list[BestPractice]):
         """Persist practices list to JSON file."""
         file_path = self._safe_filename(repo_id)
         payload = {
             "repo_id": repo_id,
             "updated_at": time.time(),
             "count": len(practices),
-            "practices": [p.model_dump() for p in practices]
+            "practices": [p.model_dump() for p in practices],
         }
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)

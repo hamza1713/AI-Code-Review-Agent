@@ -6,16 +6,15 @@ lazily on first use, so constructing the tool is cheap and the (more expensive)
 embedding pass only runs when an agent actually queries it.
 """
 
-from typing import List, Optional, Type
-
-from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from code_review_agent.context_engine.semantic.engine import SemanticContextEngine
+from code_review_agent.native_tools import BaseTool
 
 
 class SemanticContextInput(BaseModel):
     """Input parameters for SemanticContextTool."""
+
     query_type: str = Field(
         ...,
         description=(
@@ -40,17 +39,17 @@ class SemanticContextTool(BaseTool):
         "is consistent with conventions already in the codebase and to surface "
         "cross-file or cross-repo impact the raw diff cannot show."
     )
-    args_schema: Type[BaseModel] = SemanticContextInput
+    args_schema: type[BaseModel] = SemanticContextInput
 
-    _engine: Optional[SemanticContextEngine] = None
-    _repo_roots: Optional[List[str]] = None
-    _persist_path: Optional[str] = None
+    _engine: SemanticContextEngine | None = None
+    _repo_roots: list[str] | None = None
+    _persist_path: str | None = None
 
     def __init__(
         self,
-        repo_root: Optional[str] = None,
-        repo_roots: Optional[List[str]] = None,
-        persist_path: Optional[str] = None,
+        repo_root: str | None = None,
+        repo_roots: list[str] | None = None,
+        persist_path: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -78,7 +77,9 @@ class SemanticContextTool(BaseTool):
 
         if query_type in ("search_similar", "search", "similar"):
             # Reuse retrieve() by treating the query as a single added line.
-            synthetic_diff = "\n".join(f"+{line}" for line in target.splitlines()) or f"+{target}"
+            synthetic_diff = (
+                "\n".join(f"+{line}" for line in target.splitlines()) or f"+{target}"
+            )
             return engine.format_semantic_context(synthetic_diff, top_k=8)
 
         return (

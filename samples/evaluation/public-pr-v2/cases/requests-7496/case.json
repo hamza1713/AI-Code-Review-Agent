@@ -1,0 +1,44 @@
+{
+  "id": "requests-7496",
+  "file": "cases/requests-7496/input.diff",
+  "sha256": "6242490a0eabc3383d8607cc7ee62ff180601753eb1cbc5110b11bd573f5e7a3",
+  "source_repository": "psf/requests",
+  "base_sha": "3be097d450ee4ca8a2f9c1a3a58eb61ed19936b0",
+  "head_sha": "51599157d669a044272a96d547b4065103e1e5f3",
+  "source_diff_url": "https://github.com/psf/requests/compare/3be097d450ee4ca8a2f9c1a3a58eb61ed19936b0...51599157d669a044272a96d547b4065103e1e5f3.diff",
+  "source_url": "https://github.com/psf/requests/pull/7496",
+  "merged_at": "2026-06-04T17:20:34Z",
+  "license": "Apache-2.0",
+  "license_file": "cases/requests-7496/LICENSE",
+  "license_sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+  "source_license_path": "LICENSE",
+  "head_files": [
+    {
+      "path": "pyproject.toml",
+      "file": "cases/requests-7496/head/pyproject.toml",
+      "sha256": "c78f70955f348ef448751ff5c5b22d5082e31e5577a23cf7dbf45f736bd9f629"
+    },
+    {
+      "path": "src/requests/__init__.py",
+      "file": "cases/requests-7496/head/src/requests/__init__.py",
+      "sha256": "c83ab79d6646a851cb44f2927151135a311f80e438c7d6affae54f531287d70b"
+    },
+    {
+      "path": "src/requests/compat.py",
+      "file": "cases/requests-7496/head/src/requests/compat.py",
+      "sha256": "d662647e7b80a3c31489ca9e42410fa32718ae42885ff984fed73392ece6113f"
+    },
+    {
+      "path": "src/requests/help.py",
+      "file": "cases/requests-7496/head/src/requests/help.py",
+      "sha256": "8452dcb47ba6fe80592e82feeb707f00cd3eb86eb46cc5d8f2fe34dcc3109207"
+    },
+    {
+      "path": "src/requests/models.py",
+      "file": "cases/requests-7496/head/src/requests/models.py",
+      "sha256": "5bc9bddffa8a11df22c086640426d76a4011a2322d766e265bf9d2b819830975"
+    }
+  ],
+  "input_snapshot_hash": "cdaf0697e2559abb9d0470bab635989bc747f7f0b127491c24fa86a65fc353cb",
+  "label_status": "UNREVIEWED"
+}

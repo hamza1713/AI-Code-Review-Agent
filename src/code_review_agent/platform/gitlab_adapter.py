@@ -7,21 +7,28 @@ import hashlib
 import os
 import re
 import urllib.parse
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 import httpx
 
 from code_review_agent.models import InlineComment
-from code_review_agent.platform.base import GitPlatformClient, PlatformPRIdentifier, PlatformPRMetadata
+from code_review_agent.platform.base import (
+    GitPlatformClient,
+    PlatformPRIdentifier,
+    PlatformPRMetadata,
+)
 
 
 class GitLabPlatformClient(GitPlatformClient):
     """Platform client adapter for GitLab Merge Requests and Issues."""
 
-    def __init__(self, token: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, token: str | None = None, base_url: str | None = None):
         self.token = token or os.environ.get("GITLAB_TOKEN", "")
-        self.base_url = (base_url or os.environ.get("GITLAB_BASE_URL", "https://gitlab.com/api/v4")).rstrip("/")
+        self.base_url = (
+            base_url or os.environ.get("GITLAB_BASE_URL", "https://gitlab.com/api/v4")
+        ).rstrip("/")
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         headers = {
             "Accept": "application/json",
             "User-Agent": "AI-Code-Review-Agent/2.0",
@@ -43,7 +50,9 @@ class GitLabPlatformClient(GitPlatformClient):
           - group/project/merge_requests/42
         """
         clean = pr_identifier.strip()
-        match = re.search(r"gitlab(?:\.[^/]+)?/(.+?)(?:/-)?/merge_requests/(\d+)", clean)
+        match = re.search(
+            r"gitlab(?:\.[^/]+)?/(.+?)(?:/-)?/merge_requests/(\d+)", clean
+        )
         if match:
             project_path = match.group(1).strip("/")
             mr_id = int(match.group(2))
@@ -55,7 +64,7 @@ class GitLabPlatformClient(GitPlatformClient):
                 owner_or_project=owner,
                 repo_or_slug=repo,
                 pr_id=mr_id,
-                raw_identifier=pr_identifier
+                raw_identifier=pr_identifier,
             )
 
         # Scheme-less shorthand, incl. nested groups: 'group/sub/project/merge_requests/5'.
@@ -70,7 +79,7 @@ class GitLabPlatformClient(GitPlatformClient):
                 owner_or_project=owner,
                 repo_or_slug=repo,
                 pr_id=int(match.group(2)),
-                raw_identifier=pr_identifier
+                raw_identifier=pr_identifier,
             )
 
         raise ValueError(
@@ -78,7 +87,9 @@ class GitLabPlatformClient(GitPlatformClient):
             "Expected format: 'https://gitlab.com/group/repo/-/merge_requests/123' or 'group/repo/merge_requests/123'"
         )
 
-    def fetch_pull_request_metadata(self, owner: str, repo: str, pull_number: int) -> PlatformPRMetadata:
+    def fetch_pull_request_metadata(
+        self, owner: str, repo: str, pull_number: int
+    ) -> PlatformPRMetadata:
         project_str = f"{owner}/{repo}"
         enc = self._encode_project(project_str)
         url = f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}"
@@ -86,7 +97,9 @@ class GitLabPlatformClient(GitPlatformClient):
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             resp = client.get(url)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to fetch GitLab MR from {url}: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch GitLab MR from {url}: [{resp.status_code}] {resp.text}"
+                )
             data = resp.json()
             return PlatformPRMetadata(
                 title=data.get("title", ""),
@@ -97,7 +110,7 @@ class GitLabPlatformClient(GitPlatformClient):
                 head_ref=data.get("source_branch", ""),
                 base_ref=data.get("target_branch", ""),
                 state=data.get("state", "opened"),
-                html_url=data.get("web_url", "")
+                html_url=data.get("web_url", ""),
             )
 
     def fetch_pull_request_diff(self, owner: str, repo: str, pull_number: int) -> str:
@@ -114,15 +127,21 @@ class GitLabPlatformClient(GitPlatformClient):
                 return resp.text
 
             # Fallback to diffs JSON API and reconstruct unified diff
-            diffs_url = f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}/diffs"
+            diffs_url = (
+                f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}/diffs"
+            )
             resp2 = client.get(diffs_url, headers=self._get_headers())
             if resp2.status_code != 200:
-                raise RuntimeError(f"Failed to fetch GitLab MR diff: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch GitLab MR diff: [{resp.status_code}] {resp.text}"
+                )
             diff_chunks = []
             for d in resp2.json():
                 old_path = d.get("old_path", "unknown")
                 new_path = d.get("new_path", old_path)
-                diff_chunks.append(f"diff --git a/{old_path} b/{new_path}\n{d.get('diff', '')}")
+                diff_chunks.append(
+                    f"diff --git a/{old_path} b/{new_path}\n{d.get('diff', '')}"
+                )
             return "\n\n".join(diff_chunks)
 
     def post_pull_request_review(
@@ -132,9 +151,9 @@ class GitLabPlatformClient(GitPlatformClient):
         pull_number: int,
         event: str,
         body: str,
-        commit_id: Optional[str] = None,
-        comments: Optional[List[InlineComment]] = None
-    ) -> Dict[str, Any]:
+        commit_id: str | None = None,
+        comments: list[InlineComment] | None = None,
+    ) -> dict[str, Any]:
         """Post top-level review note and inline comments to GitLab MR."""
         project_str = f"{owner}/{repo}"
         enc = self._encode_project(project_str)
@@ -145,23 +164,23 @@ class GitLabPlatformClient(GitPlatformClient):
         if comments:
             full_note += "\n\n### 📝 Line-Level Findings\n"
             for c in comments:
-                full_note += f"\n- **`{c.path}:L{c.line}`** ({c.severity}): {c.comment_body}\n"
+                full_note += (
+                    f"\n- **`{c.path}:L{c.line}`** ({c.severity}): {c.comment_body}\n"
+                )
                 if c.suggestion_code:
                     full_note += f"```suggestion\n{c.suggestion_code.strip()}\n```\n"
 
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             resp = client.post(url, json={"body": full_note})
             if resp.status_code not in (200, 201):
-                raise RuntimeError(f"Failed to post GitLab review note: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to post GitLab review note: [{resp.status_code}] {resp.text}"
+                )
             return resp.json()
 
     def post_issue_comment(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        body: str
-    ) -> Dict[str, Any]:
+        self, owner: str, repo: str, issue_number: int, body: str
+    ) -> dict[str, Any]:
         """Post comment to GitLab MR or Issue discussion thread."""
         project_str = f"{owner}/{repo}"
         enc = self._encode_project(project_str)
@@ -171,10 +190,14 @@ class GitLabPlatformClient(GitPlatformClient):
             resp = client.post(url, json={"body": body})
             if resp.status_code not in (200, 201):
                 # Fallback to issue endpoint if not an MR
-                issue_url = f"{self.base_url}/projects/{enc}/issues/{issue_number}/notes"
+                issue_url = (
+                    f"{self.base_url}/projects/{enc}/issues/{issue_number}/notes"
+                )
                 resp = client.post(issue_url, json={"body": body})
                 if resp.status_code not in (200, 201):
-                    raise RuntimeError(f"Failed to post GitLab comment: [{resp.status_code}] {resp.text}")
+                    raise RuntimeError(
+                        f"Failed to post GitLab comment: [{resp.status_code}] {resp.text}"
+                    )
             return resp.json()
 
     def update_pull_request_description(
@@ -183,27 +206,24 @@ class GitLabPlatformClient(GitPlatformClient):
         repo: str,
         pull_number: int,
         body: str,
-        title: Optional[str] = None
-    ) -> Dict[str, Any]:
+        title: str | None = None,
+    ) -> dict[str, Any]:
         project_str = f"{owner}/{repo}"
         enc = self._encode_project(project_str)
         url = f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}"
-        payload: Dict[str, Any] = {"description": body}
+        payload: dict[str, Any] = {"description": body}
         if title:
             payload["title"] = title
 
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             resp = client.put(url, json=payload)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to update GitLab MR: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to update GitLab MR: [{resp.status_code}] {resp.text}"
+                )
             return resp.json()
 
-    def fetch_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int
-    ) -> Dict[str, Any]:
+    def fetch_issue(self, owner: str, repo: str, issue_number: int) -> dict[str, Any]:
         project_str = f"{owner}/{repo}"
         enc = self._encode_project(project_str)
         url = f"{self.base_url}/projects/{enc}/issues/{issue_number}"
@@ -211,13 +231,15 @@ class GitLabPlatformClient(GitPlatformClient):
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             resp = client.get(url)
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to fetch GitLab issue: [{resp.status_code}] {resp.text}")
+                raise RuntimeError(
+                    f"Failed to fetch GitLab issue: [{resp.status_code}] {resp.text}"
+                )
             data = resp.json()
             return {
                 "title": data.get("title", ""),
                 "body": data.get("description") or "",
                 "state": data.get("state", "opened"),
-                "html_url": data.get("web_url", "")
+                "html_url": data.get("web_url", ""),
             }
 
     def list_pull_request_review_comments(
@@ -227,17 +249,19 @@ class GitLabPlatformClient(GitPlatformClient):
         pull_number: int,
         max_pages: int = 10,
         per_page: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List MR discussion notes, normalized to the learning loop's shape
         ({'body', 'user': {'login'}}). System notes are skipped. Pagination is bounded
         by `max_pages` so a very active MR cannot make this unbounded.
         """
         enc = self._encode_project(f"{owner}/{repo}")
-        comments: List[Dict[str, Any]] = []
+        comments: list[dict[str, Any]] = []
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
             for page in range(1, max_pages + 1):
-                url = f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}/notes"
+                url = (
+                    f"{self.base_url}/projects/{enc}/merge_requests/{pull_number}/notes"
+                )
                 resp = client.get(url, params={"per_page": per_page, "page": page})
                 if resp.status_code != 200:
                     break
@@ -247,10 +271,14 @@ class GitLabPlatformClient(GitPlatformClient):
                 for n in notes:
                     if n.get("system"):
                         continue
-                    comments.append({
-                        "body": n.get("body", ""),
-                        "user": {"login": (n.get("author") or {}).get("username", "")},
-                    })
+                    comments.append(
+                        {
+                            "body": n.get("body", ""),
+                            "user": {
+                                "login": (n.get("author") or {}).get("username", "")
+                            },
+                        }
+                    )
                 if len(notes) < per_page:
                     break
         return comments
@@ -263,8 +291,8 @@ class GitLabPlatformClient(GitPlatformClient):
         state: str,  # 'pending', 'success', 'failure', 'error'
         description: str,
         context: str = "ai-code-review",
-        target_url: Optional[str] = None
-    ) -> Dict[str, Any]:
+        target_url: str | None = None,
+    ) -> dict[str, Any]:
         """Post commit status update to GitLab API."""
         enc = self._encode_project(f"{owner}/{repo}")
         url = f"{self.base_url}/projects/{enc}/statuses/{sha}"
@@ -273,13 +301,13 @@ class GitLabPlatformClient(GitPlatformClient):
             "pending": "running",
             "success": "success",
             "failure": "failed",
-            "error": "failed"
+            "error": "failed",
         }.get(state.lower(), "running")
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "state": gl_state,
             "name": context,
-            "description": description[:140]
+            "description": description[:140],
         }
         if target_url:
             payload["target_url"] = target_url
@@ -291,11 +319,7 @@ class GitLabPlatformClient(GitPlatformClient):
             return resp.json()
 
     def fetch_file_content(
-        self,
-        owner: str,
-        repo: str,
-        path: str,
-        ref: Optional[str] = None
+        self, owner: str, repo: str, path: str, ref: str | None = None
     ) -> str:
         """Fetch raw content of a file from GitLab repository."""
         enc_proj = self._encode_project(f"{owner}/{repo}")
@@ -315,16 +339,18 @@ class GitLabPlatformClient(GitPlatformClient):
         branch: str,
         path: str,
         content: str,
-        commit_message: str
-    ) -> Dict[str, Any]:
+        commit_message: str,
+    ) -> dict[str, Any]:
         """Commit an updated file directly to a branch on GitLab."""
         if not self.token:
-            simulated_sha = "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            simulated_sha = (
+                "simulated-" + hashlib.sha256(content.encode("utf-8")).hexdigest()[:10]
+            )
             return {
                 "sha": simulated_sha,
                 "html_url": f"{self.base_url}/{owner}/{repo}/-/commit/{simulated_sha}",
                 "branch": branch,
-                "path": path
+                "path": path,
             }
 
         enc_proj = self._encode_project(f"{owner}/{repo}")
@@ -334,7 +360,7 @@ class GitLabPlatformClient(GitPlatformClient):
         payload = {
             "branch": branch,
             "commit_message": commit_message,
-            "content": content
+            "content": content,
         }
 
         with httpx.Client(headers=self._get_headers(), timeout=30.0) as client:
@@ -346,7 +372,7 @@ class GitLabPlatformClient(GitPlatformClient):
                     "sha": data.get("commit_id") or data.get("file_path", ""),
                     "html_url": f"{self.base_url}/{owner}/{repo}/-/blob/{branch}/{path}",
                     "branch": branch,
-                    "path": path
+                    "path": path,
                 }
             # If file does not exist on branch, try POST (create new file)
             if resp.status_code in (400, 404):
@@ -357,9 +383,12 @@ class GitLabPlatformClient(GitPlatformClient):
                         "sha": data2.get("commit_id") or data2.get("file_path", ""),
                         "html_url": f"{self.base_url}/{owner}/{repo}/-/blob/{branch}/{path}",
                         "branch": branch,
-                        "path": path
+                        "path": path,
                     }
             if resp.status_code in (401, 403):
-                raise PermissionError(f"GitLab token lacks write permission for {owner}/{repo}:{branch}")
-            raise RuntimeError(f"Failed to commit file to GitLab: [{resp.status_code}] {resp.text}")
-
+                raise PermissionError(
+                    f"GitLab token lacks write permission for {owner}/{repo}:{branch}"
+                )
+            raise RuntimeError(
+                f"Failed to commit file to GitLab: [{resp.status_code}] {resp.text}"
+            )

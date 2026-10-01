@@ -2,44 +2,127 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_DOTENV_DISABLED: '1'
+  UV_CACHE_DIR: .uv-cache
+  REVIEW_SOURCE_COMMIT: ${{ github.sha }}
 
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - run: python -m pip install uv==0.11.32
+      - run: uv sync --locked --dev
+      - name: Complete Python suite including slow tests
+        run: uv run pytest -q -o addopts='' --junitxml=evidence/python-${{ matrix.python-version }}.xml tests/
+      - run: uv run python scripts/record_gate.py --output evidence/python-${{ matrix.python-version }}.json --artifact evidence/python-${{ matrix.python-version }}.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-${{ matrix.python-version }}
+          path: evidence
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pyyaml pydantic fastapi uvicorn httpx unidiff google-generativeai google-genai anthropic
-          pip install -e .
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.11.32
+      - run: uv sync --locked --dev
+      - run: uv run ruff check src tests scripts
+      - name: Type checked production boundary
+        run: uv run mypy --follow-imports=skip --ignore-missing-imports src/code_review_agent/models.py src/code_review_agent/access_policy.py src/code_review_agent/webhook_queue.py src/code_review_agent/calibration src/code_review_agent/platform src/code_review_agent/data_policy.py src/code_review_agent/pilot.py src/code_review_agent/release.py src/code_review_agent/llm_factory.py src/code_review_agent/review_contracts.py src/code_review_agent/reviewer_profile.py src/code_review_agent/source_snapshot.py src/code_review_agent/tools/full_source_scan.py src/code_review_agent/crews/code_review_crew/crew.py src/code_review_agent/pilot_migration.py
+      - run: uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file audit-requirements.txt
+      - run: uv run pip-audit --strict --no-deps --disable-pip -r audit-requirements.txt --format=json --output=python-audit.json
+      - run: mkdir -p evidence && cp python-audit.json evidence/
+      - run: uv run python scripts/record_gate.py --output evidence/static-pass.json --artifact evidence/python-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static
+          path: evidence
 
-      - name: Run fast test suite
-        run: |
-          pytest -v tests/
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: python scripts/record_gate.py --output evidence/secrets-pass.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: secrets
+          path: evidence
 
-      - name: Build isolated test image
-        if: matrix.python-version == '3.12'
+  image-and-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.11.32
+      - run: uv sync --locked --dev
+      - name: Build isolated sandbox
         run: |
-          docker build -t code-review-sandbox:test sandbox
+          docker buildx build --load --pull -t code-review-sandbox:test sandbox
           echo "REVIEW_SANDBOX_IMAGE=$(docker image inspect code-review-sandbox:test --format '{{.Id}}')" >> "$GITHUB_ENV"
+      - name: Require actual sandbox isolation tests
+        env:
+          REVIEW_REQUIRE_SANDBOX_TESTS: 'true'
+        run: uv run pytest -q -m sandbox_integration -o addopts='' --junitxml=evidence/sandbox.xml tests/
+      - run: uv run python scripts/record_gate.py --output evidence/sandbox-pass.json --artifact evidence/sandbox.xml
+      - name: Saturation, migration, crash, publication timeout and isolated restore
+        run: uv run python scripts/recovery_drill.py --directory .cache/release-drill --output evidence/recovery.json
+      - name: Build production image
+        run: docker buildx build --load --pull --build-arg COMMIT_SHA="$GITHUB_SHA" --iidfile image-id.txt -t code-review-release:test .
+      - name: Authenticate against this exact image
+        run: uv run python scripts/smoke_image.py --image "$(cat image-id.txt)" --output evidence/image-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: image-and-recovery
+          path: evidence
 
-      - name: Run subprocess-backed test suite (bandit/ruff CLI, sandbox execution)
-        run: |
-          pytest -v -m slow tests/
+  path-security:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.11.32
+      - run: uv sync --locked --dev
+      - run: uv run pytest -q tests/test_modules_0_2.py -k "path or scanner or metadata or symlink or null_sentinel"
+      - name: Evidence
+        shell: bash
+        run: uv run python scripts/record_gate.py --output evidence/path-security-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: path-security-${{ matrix.os }}
+          path: evidence
 
   frontend:
     runs-on: ubuntu-latest
@@ -56,12 +139,39 @@ jobs:
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
+      - run: npm audit --omit=dev --audit-level=low --json > ../frontend-audit.json
+        working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run test:e2e
         working-directory: frontend
+      - run: mkdir -p evidence && cp frontend-audit.json evidence/
+      - run: python3 scripts/record_gate.py --output evidence/frontend-pass.json --artifact evidence/frontend-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend
+          path: evidence
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-test-results
           path: frontend/test-results
+
+  release-record:
+    needs: [python, static, secrets, image-and-recovery, path-security, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.11.32
+      - run: uv sync --locked --dev
+      - uses: actions/download-artifact@v4
+        with:
+          path: evidence
+      - run: uv run python scripts/release_record.py --evidence evidence --commit "$GITHUB_SHA" --output release-record.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-record
+          path: release-record.json

@@ -1,0 +1,92 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3c16d6671f..4e2afe2e62 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
+ 
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ 
+-## [Unreleased]
++## 0.28.0 (...)
+ 
+ The 0.28 release includes a limited set of backwards incompatible changes.
+ 
+diff --git a/README.md b/README.md
+index d5d2148713..23992d9c24 100644
+--- a/README.md
++++ b/README.md
+@@ -13,9 +13,7 @@
+ </a>
+ </p>
+ 
+-HTTPX is a fully featured HTTP client library for Python 3. It includes **an integrated
+-command line client**, has support for both **HTTP/1.1 and HTTP/2**, and provides both **sync
+-and async APIs**.
++HTTPX is a fully featured HTTP client library for Python 3. It includes **an integrated command line client**, has support for both **HTTP/1.1 and HTTP/2**, and provides both **sync and async APIs**.
+ 
+ ---
+ 
+diff --git a/httpx/__version__.py b/httpx/__version__.py
+index 5eaaddbac9..0a684ac3a9 100644
+--- a/httpx/__version__.py
++++ b/httpx/__version__.py
+@@ -1,3 +1,3 @@
+ __title__ = "httpx"
+ __description__ = "A next generation HTTP client, for Python 3."
+-__version__ = "0.27.2"
++__version__ = "0.28.0"
+diff --git a/httpx/_decoders.py b/httpx/_decoders.py
+index 180898c53f..899dfada87 100644
+--- a/httpx/_decoders.py
++++ b/httpx/_decoders.py
+@@ -175,9 +175,11 @@ def __init__(self) -> None:
+             ) from None
+ 
+         self.decompressor = zstandard.ZstdDecompressor().decompressobj()
++        self.seen_data = False
+ 
+     def decode(self, data: bytes) -> bytes:
+         assert zstandard is not None
++        self.seen_data = True
+         output = io.BytesIO()
+         try:
+             output.write(self.decompressor.decompress(data))
+@@ -190,6 +192,8 @@ def decode(self, data: bytes) -> bytes:
+         return output.getvalue()
+ 
+     def flush(self) -> bytes:
++        if not self.seen_data:
++            return b""
+         ret = self.decompressor.flush()  # note: this is a no-op
+         if not self.decompressor.eof:
+             raise DecodingError("Zstandard data is incomplete")  # pragma: no cover
+diff --git a/tests/test_decoders.py b/tests/test_decoders.py
+index bcbb18bb0e..9ffaba189d 100644
+--- a/tests/test_decoders.py
++++ b/tests/test_decoders.py
+@@ -100,6 +100,25 @@ def test_zstd_decoding_error():
+         )
+ 
+ 
++def test_zstd_empty():
++    headers = [(b"Content-Encoding", b"zstd")]
++    response = httpx.Response(200, headers=headers, content=b"")
++    assert response.content == b""
++
++
++def test_zstd_truncated():
++    body = b"test 123"
++    compressed_body = zstd.compress(body)
++
++    headers = [(b"Content-Encoding", b"zstd")]
++    with pytest.raises(httpx.DecodingError):
++        httpx.Response(
++            200,
++            headers=headers,
++            content=compressed_body[1:3],
++        )
++
++
+ def test_zstd_multiframe():
+     # test inspired by urllib3 test suite
+     data = (

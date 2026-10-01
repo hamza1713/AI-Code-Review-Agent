@@ -1,0 +1,39 @@
+{
+  "id": "flask-6096",
+  "file": "cases/flask-6096/input.diff",
+  "sha256": "953270ffbfc4b312e23bebf58e1865e358734c917bd6f325d730ac1dd847c5ff",
+  "source_repository": "pallets/flask",
+  "base_sha": "514fc6b3e8402e4c646d5284e97a4f0ab50a7c4b",
+  "head_sha": "7203feabf723edae0286ae5dc64fec8ac4c91735",
+  "source_diff_url": "https://github.com/pallets/flask/compare/514fc6b3e8402e4c646d5284e97a4f0ab50a7c4b...7203feabf723edae0286ae5dc64fec8ac4c91735.diff",
+  "source_url": "https://github.com/pallets/flask/pull/6096",
+  "merged_at": "2026-08-11T19:48:41Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-6096/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-6096/head/src/flask/app.py",
+      "sha256": "fdcffafdf4614b57f3f2a7f1e0ac945d639bfe19f742b8bf46deeb29b9837a84"
+    },
+    {
+      "path": "src/flask/testing.py",
+      "file": "cases/flask-6096/head/src/flask/testing.py",
+      "sha256": "629d481658aaec7076a55913eda38c270ec45d430b34b2f9d38b2eec2b0ad3da"
+    },
+    {
+      "path": "tests/test_basic.py",
+      "file": "cases/flask-6096/head/tests/test_basic.py",
+      "sha256": "8784ee9664118a3b120f33898f6f792a2e11717029b25c818bc41c38db082cf0"
+    },
+    {
+      "path": "tests/test_testing.py",
+      "file": "cases/flask-6096/head/tests/test_testing.py",
+      "sha256": "f243647da60a4526a47bd0a69a33d84bdda8d0c5b7b9e5dcd8fd9e6ebe759dc7"
+    }
+  ],
+  "input_snapshot_hash": "fa2b2a6674d713dccef6679d8d050c9324ee4b4f1585e8722f79a5bcbd45915f",
+  "label_status": "UNREVIEWED"
+}

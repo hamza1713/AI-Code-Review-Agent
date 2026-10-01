@@ -1,0 +1,40 @@
+diff --git a/HISTORY.md b/HISTORY.md
+index 215ab5a496..fd84404714 100644
+--- a/HISTORY.md
++++ b/HISTORY.md
+@@ -6,6 +6,20 @@ dev
+ 
+ - \[Short description of non-trivial change.\]
+ 
++2.34.1 (2026-05-13)
++-------------------
++
++**Bugfixes**
++- Widened `json` input type from `dict` and `list` to `Mapping`
++  and `Sequence`. (#7436)
++- Changed `headers` input type to MutableMapping and removed `None` from
++  `Request.headers` typing to improve handling for users. (#7431)
++- `Response.reason` moved from `str | None` to `str` to improve handling
++  for users. (#7437)
++- Fixed a bug where some bodies with custom `__getattr__` implementations
++  weren't being properly detected as Iterables. (#7433)
++
++
+ 2.34.0 (2026-05-11)
+ -------------------
+ 
+diff --git a/src/requests/__version__.py b/src/requests/__version__.py
+index 872a8aaa22..bf5a4e9bc2 100644
+--- a/src/requests/__version__.py
++++ b/src/requests/__version__.py
+@@ -5,8 +5,8 @@
+ __title__ = "requests"
+ __description__ = "Python HTTP for Humans."
+ __url__ = "https://requests.readthedocs.io"
+-__version__ = "2.34.0"
+-__build__ = 0x023400
++__version__ = "2.34.1"
++__build__ = 0x023401
+ __author__ = "Kenneth Reitz"
+ __author_email__ = "me@kennethreitz.org"
+ __license__ = "Apache-2.0"

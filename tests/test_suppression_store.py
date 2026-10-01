@@ -3,10 +3,9 @@ Tests for Persistent SuppressionStore and finding lifecycle suppression integrat
 """
 
 import pytest
-from pathlib import Path
 
-from code_review_agent.suppression_store import SuppressionStore
 from code_review_agent.models import SastFinding, compute_finding_lifecycle
+from code_review_agent.suppression_store import SuppressionStore
 
 
 @pytest.fixture
@@ -30,7 +29,7 @@ def test_suppression_lifecycle(temp_store):
         fingerprint=fp1,
         reason="Mock test dummy password",
         author="alice",
-        pr_id="42"
+        pr_id="42",
     )
     assert success is True
     assert temp_store.is_suppressed(repo, fp1)
@@ -64,7 +63,7 @@ def test_repo_normalization(temp_store):
     temp_store.suppress(
         repo_id="https://github.com/my-org/my-project/pull/123",
         fingerprint=fp,
-        reason="Test URL normalization"
+        reason="Test URL normalization",
     )
 
     # Lookup via clean owner/repo
@@ -91,7 +90,7 @@ def test_suppressed_finding_lifecycle_integration(temp_store):
         line_number=10,
         snippet="cursor.execute(f'SELECT * FROM users WHERE id = {user_id}')",
         fix_recommendation="Use parameterized queries",
-        fingerprint=fp_active
+        fingerprint=fp_active,
     )
 
     f2 = SastFinding(
@@ -103,13 +102,13 @@ def test_suppressed_finding_lifecycle_integration(temp_store):
         line_number=5,
         snippet="TEST_TOKEN = 'secret_12345'",
         fix_recommendation="Move to env var",
-        fingerprint=fp_suppressed
+        fingerprint=fp_suppressed,
     )
 
     lifecycle = compute_finding_lifecycle(
         current_findings=[f1, f2],
         previous_findings=[],
-        suppressed_fingerprints=suppressed_set
+        suppressed_fingerprints=suppressed_set,
     )
 
     # f1 is NEW, f2 is SUPPRESSED
@@ -120,26 +119,38 @@ def test_suppressed_finding_lifecycle_integration(temp_store):
     assert lifecycle.suppressed[0].lifecycle_status == "SUPPRESSED"
 
 
-def test_execute_platform_review_with_suppressed_blocking_finding(tmp_path, monkeypatch):
-    from unittest.mock import MagicMock, patch
+def test_execute_platform_review_with_suppressed_blocking_finding(
+    tmp_path, monkeypatch, queued_claim
+):
     from contextlib import contextmanager
-    from code_review_agent.webhook_queue import execute_platform_review
+    from unittest.mock import MagicMock, patch
+
     from code_review_agent.platform.base import PlatformPRIdentifier, PlatformPRMetadata
+    from code_review_agent.webhook_queue import execute_platform_review
 
     test_db = tmp_path / "test_exec_suppress.db"
     monkeypatch.setenv("QUEUE_DB_PATH", str(test_db))
+    claim = queued_claim("test-org/test-repo/pull/1")
 
     store = SuppressionStore(db_path=str(test_db))
     fp_blocked = "beefbeef12345678"
     store.suppress("test-org/test-repo", fp_blocked, reason="Accepted risk in demo")
 
     fake_client = MagicMock()
+    fake_client.post_pull_request_review.return_value = {"id": 91}
+    fake_client.create_or_update_check_run.return_value = {"id": 92}
+    fake_client.set_commit_status.return_value = {"id": 93}
     fake_client.fetch_pull_request_diff.return_value = "diff --git a/x b/x\n+ok\n"
-    fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(head_sha="sha1", head_ref="feat")
+    fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(
+        head_sha="a" * 40, head_ref="feat"
+    )
     fake_client.list_pull_request_review_comments.return_value = []
 
     ident = PlatformPRIdentifier(
-        platform="github", owner_or_project="test-org", repo_or_slug="test-repo", pr_id=1,
+        platform="github",
+        owner_or_project="test-org",
+        repo_or_slug="test-repo",
+        pr_id=1,
         raw_identifier="test-org/test-repo/pull/1",
     )
 
@@ -152,25 +163,39 @@ def test_execute_platform_review_with_suppressed_blocking_finding(tmp_path, monk
         line_number=10,
         snippet="execute(query)",
         fix_recommendation="Use parameterized query",
-        fingerprint=fp_blocked
+        fingerprint=fp_blocked,
     )
 
-    fake_response = MagicMock()
-    fake_response.verdict = "REQUEST CHANGES"
-    fake_response.findings = [finding]
-    fake_response.inline_comments = []
-    fake_response.full_report = "## report"
-    fake_response.model_dump.return_value = {"verdict": "APPROVE"}
+    from code_review_agent.models import ReviewAPIResponse
+
+    fake_response = ReviewAPIResponse(
+        verdict="REQUEST CHANGES",
+        confidence_score=90,
+        summary="Review complete",
+        full_report="## report",
+        findings=[finding],
+    )
 
     @contextmanager
     def fake_checkout(*args, **kwargs):
         yield str(tmp_path)
 
-    with patch("code_review_agent.platform.factory.get_platform_client", return_value=(fake_client, ident)), \
-         patch("code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout), \
-         patch("code_review_agent.review_service.ReviewService.execute_review", return_value=fake_response):
-        res = execute_platform_review({}, "test-org/test-repo/pull/1")
+    with (
+        patch(
+            "code_review_agent.platform.factory.get_platform_client",
+            return_value=(fake_client, ident),
+        ),
+        patch("code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout),
+        patch(
+            "code_review_agent.review_service.ReviewService.execute_review",
+            return_value=fake_response,
+        ),
+    ):
+        res = execute_platform_review({}, "test-org/test-repo/pull/1", **claim)
 
-    # The verdict was overridden to APPROVE because the single CRITICAL finding was suppressed!
+    # Suppression never changes the internal verdict or human merge authority.
     fake_client.post_pull_request_review.assert_called_once()
-    assert fake_client.post_pull_request_review.call_args.kwargs["event"] == "APPROVE"
+    assert fake_client.post_pull_request_review.call_args.kwargs["event"] == "COMMENT"
+    assert res["verdict"] == "REQUEST CHANGES"
+    fake_client.create_or_update_check_run.assert_not_called()
+    fake_client.set_commit_status.assert_not_called()

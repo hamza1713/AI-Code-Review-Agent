@@ -7,25 +7,28 @@ Unit tests for enterprise Git platform adapters:
 - Local air-gapped Git adapter
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from code_review_agent.models import InlineComment
 from code_review_agent.platform import (
-    get_platform_client,
+    BitbucketPlatformClient,
     GitHubPlatformClient,
     GitLabPlatformClient,
-    BitbucketPlatformClient,
     LocalGitPlatformClient,
     PlatformPRMetadata,
+    get_platform_client,
 )
-from code_review_agent.models import InlineComment
 
 
 class TestPlatformFactory:
     """Test resolution of platform clients and PR identifiers from URLs."""
 
     def test_resolve_github_url(self):
-        client, ident = get_platform_client("https://github.com/octocat/Hello-World/pull/42", token="gh_dummy")
+        client, ident = get_platform_client(
+            "https://github.com/octocat/Hello-World/pull/42", token="gh_dummy"
+        )
         assert isinstance(client, GitHubPlatformClient)
         assert ident.platform == "github"
         assert ident.owner_or_project == "octocat"
@@ -41,7 +44,10 @@ class TestPlatformFactory:
         assert ident.pr_id == 42
 
     def test_resolve_gitlab_url(self):
-        client, ident = get_platform_client("https://gitlab.com/my-org/backend-team/api-service/-/merge_requests/15", token="gl_dummy")
+        client, ident = get_platform_client(
+            "https://gitlab.com/my-org/backend-team/api-service/-/merge_requests/15",
+            token="gl_dummy",
+        )
         assert isinstance(client, GitLabPlatformClient)
         assert ident.platform == "gitlab"
         assert ident.owner_or_project == "my-org/backend-team"
@@ -49,7 +55,10 @@ class TestPlatformFactory:
         assert ident.pr_id == 15
 
     def test_resolve_bitbucket_url(self):
-        client, ident = get_platform_client("https://bitbucket.org/corp-workspace/payment-gateway/pull-requests/7", token="bb_dummy")
+        client, ident = get_platform_client(
+            "https://bitbucket.org/corp-workspace/payment-gateway/pull-requests/7",
+            token="bb_dummy",
+        )
         assert isinstance(client, BitbucketPlatformClient)
         assert ident.platform == "bitbucket"
         assert ident.owner_or_project == "corp-workspace"
@@ -69,7 +78,11 @@ class TestPlatformFactory:
         """The scheme-less identifiers the durable queue enqueues resolve to the right host."""
         c1, i1 = get_platform_client("my-org/sub-group/api-service/merge_requests/15")
         assert isinstance(c1, GitLabPlatformClient) and i1.platform == "gitlab"
-        assert i1.owner_or_project == "my-org/sub-group" and i1.repo_or_slug == "api-service" and i1.pr_id == 15
+        assert (
+            i1.owner_or_project == "my-org/sub-group"
+            and i1.repo_or_slug == "api-service"
+            and i1.pr_id == 15
+        )
 
         c2, i2 = get_platform_client("corp/payments/pull-requests/7")
         assert isinstance(c2, BitbucketPlatformClient) and i2.platform == "bitbucket"
@@ -98,7 +111,9 @@ class TestGitHubPlatformAdapter:
             "state": "open",
             "html_url": "https://github.com/owner/repo/pull/1",
         }
-        mock_instance.fetch_pull_request_diff.return_value = "diff --git a/auth.py b/auth.py\n..."
+        mock_instance.fetch_pull_request_diff.return_value = (
+            "diff --git a/auth.py b/auth.py\n..."
+        )
 
         adapter = GitHubPlatformClient(token="mock_token")
         meta = adapter.fetch_pull_request_metadata("owner", "repo", 1)
@@ -115,17 +130,25 @@ class TestGitHubPlatformAdapter:
     def test_post_review_and_comments(self, mock_gh_cls):
         mock_instance = MagicMock()
         mock_gh_cls.return_value = mock_instance
-        mock_instance.post_pull_request_review.return_value = {"id": 1001, "state": "CHANGES_REQUESTED"}
+        mock_instance.post_pull_request_review.return_value = {
+            "id": 1001,
+            "state": "CHANGES_REQUESTED",
+        }
 
         adapter = GitHubPlatformClient(token="mock_token")
         inline = InlineComment(
             path="src/main.py",
             line=10,
             comment_body="Fix security flaw",
-            severity="CRITICAL"
+            severity="CRITICAL",
         )
         res = adapter.post_pull_request_review(
-            "owner", "repo", 1, event="REQUEST_CHANGES", body="Please fix critical issue", comments=[inline]
+            "owner",
+            "repo",
+            1,
+            event="REQUEST_CHANGES",
+            body="Please fix critical issue",
+            comments=[inline],
         )
         assert res["id"] == 1001
         mock_instance.post_pull_request_review.assert_called_once()
@@ -192,14 +215,16 @@ class TestGitLabPlatformAdapter:
             path="app.py",
             line=5,
             comment_body="Check null pointer exception",
-            severity="HIGH"
+            severity="HIGH",
         )
         res = adapter.post_pull_request_review(
-            "org", "proj", 10,
+            "org",
+            "proj",
+            10,
             event="REQUEST_CHANGES",
             body="Code review feedback",
             commit_id="abc1234",
-            comments=[inline]
+            comments=[inline],
         )
         assert res["id"] == 999
         assert mock_client.post.call_count == 1
@@ -235,10 +260,18 @@ class TestBitbucketPlatformAdapter:
             "title": "Payment Flow Refactoring",
             "description": "Clean up webhook handlers",
             "author": {"display_name": "Bitbucket Dev"},
-            "source": {"commit": {"hash": "bbcommit01"}, "branch": {"name": "refactor/payments"}},
-            "destination": {"commit": {"hash": "bbbase01"}, "branch": {"name": "master"}},
+            "source": {
+                "commit": {"hash": "bbcommit01"},
+                "branch": {"name": "refactor/payments"},
+            },
+            "destination": {
+                "commit": {"hash": "bbbase01"},
+                "branch": {"name": "master"},
+            },
             "state": "OPEN",
-            "links": {"html": {"href": "https://bitbucket.org/corp/payments/pull-requests/4"}},
+            "links": {
+                "html": {"href": "https://bitbucket.org/corp/payments/pull-requests/4"}
+            },
         }
         mock_client.get.return_value = mock_resp
 
@@ -277,13 +310,15 @@ class TestBitbucketPlatformAdapter:
             path="service.py",
             line=20,
             comment_body="Add logging statement",
-            severity="LOW"
+            severity="LOW",
         )
         res = adapter.post_pull_request_review(
-            "corp", "payments", 4,
+            "corp",
+            "payments",
+            4,
             event="APPROVE",
             body="Looks great overall!",
-            comments=[inline]
+            comments=[inline],
         )
         assert res["id"] == 555
         assert mock_client.post.call_count == 1
@@ -340,13 +375,15 @@ class TestLocalGitPlatformAdapter:
             line=1,
             comment_body="Initialize variable properly",
             severity="MEDIUM",
-            suggestion_code="x: int = 1"
+            suggestion_code="x: int = 1",
         )
         res = adapter.post_pull_request_review(
-            "local", "test", 1,
+            "local",
+            "test",
+            1,
             event="REQUEST_CHANGES",
             body="Found a type annotation issue.",
-            comments=[inline]
+            comments=[inline],
         )
         assert res["status"] == "saved"
         review_file = tmp_path / "REVIEW.md"
@@ -363,7 +400,9 @@ class TestLocalGitPlatformAdapter:
         assert notes_file.exists()
         assert "Discussing edge case" in notes_file.read_text(encoding="utf-8")
 
-        adapter.update_pull_request_description("local", "test", 1, "New PR description text", title="Updated PR")
+        adapter.update_pull_request_description(
+            "local", "test", 1, "New PR description text", title="Updated PR"
+        )
         desc_file = tmp_path / "PR_DESCRIPTION.md"
         assert desc_file.exists()
         assert "Updated PR" in desc_file.read_text(encoding="utf-8")
@@ -372,38 +411,69 @@ class TestLocalGitPlatformAdapter:
 class TestPlatformAgnosticWorker:
     """The durable-queue default handler reviews and posts across platforms."""
 
-    def test_default_review_resolves_platform_and_posts(self):
+    def test_default_review_resolves_platform_and_posts(self, queued_claim):
+        claim = queued_claim("grp/proj/merge_requests/5")
         from contextlib import contextmanager
+
+        from code_review_agent.platform.base import (
+            PlatformPRIdentifier,
+            PlatformPRMetadata,
+        )
         from code_review_agent.webhook_queue import WebhookWorker
-        from code_review_agent.platform.base import PlatformPRIdentifier, PlatformPRMetadata
 
         fake_client = MagicMock()
+        fake_client.post_pull_request_review.return_value = {"id": 91}
+        fake_client.create_or_update_check_run.return_value = {"id": 92}
+        fake_client.set_commit_status.return_value = {"id": 93}
+        fake_client.list_pull_request_review_comments.return_value = []
         fake_client.fetch_pull_request_diff.return_value = "diff --git a/x b/x\n+ok\n"
-        fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(head_sha="sha1", head_ref="feat")
+        fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(
+            head_sha="a" * 40, head_ref="feat"
+        )
         ident = PlatformPRIdentifier(
-            platform="gitlab", owner_or_project="grp", repo_or_slug="proj", pr_id=5,
+            platform="gitlab",
+            owner_or_project="grp",
+            repo_or_slug="proj",
+            pr_id=5,
             raw_identifier="grp/proj/merge_requests/5",
         )
 
-        fake_response = MagicMock()
-        fake_response.verdict = "REQUEST CHANGES"
-        fake_response.full_report = "## report"
-        fake_response.inline_comments = []
-        fake_response.model_dump.return_value = {"verdict": "REQUEST CHANGES"}
+        from code_review_agent.models import ReviewAPIResponse
+
+        fake_response = ReviewAPIResponse(
+            verdict="REQUEST CHANGES",
+            confidence_score=90,
+            summary="Review complete",
+            full_report="## report",
+        )
 
         @contextmanager
         def fake_checkout(*args, **kwargs):
             yield "/tmp/fake-checkout"
 
-        with patch("code_review_agent.platform.factory.get_platform_client", return_value=(fake_client, ident)), \
-             patch("code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout), \
-             patch("code_review_agent.review_service.ReviewService.execute_review", return_value=fake_response) as mock_exec:
+        with (
+            patch(
+                "code_review_agent.platform.factory.get_platform_client",
+                return_value=(fake_client, ident),
+            ),
+            patch(
+                "code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout
+            ),
+            patch(
+                "code_review_agent.review_service.ReviewService.execute_review",
+                return_value=fake_response,
+            ) as mock_exec,
+        ):
             worker = WebhookWorker(queue=MagicMock())
-            result = worker._default_execute_review({}, "grp/proj/merge_requests/5")
+            result = worker._default_execute_review(
+                {}, "grp/proj/merge_requests/5", **claim
+            )
 
         # Reviewed the fetched diff without per-IP throttling or size cap.
         assert mock_exec.call_args.kwargs.get("bypass_limits") is True
-        # Verdict mapped and posted back through the resolved (GitLab) client.
-        fake_client.post_pull_request_review.assert_called_once()
-        assert fake_client.post_pull_request_review.call_args.kwargs["event"] == "REQUEST_CHANGES"
+        # Analysis stays available; the launch publishes only GitHub advisory reviews.
+        fake_client.post_pull_request_review.assert_not_called()
+        fake_client.create_or_update_check_run.assert_not_called()
+        fake_client.set_commit_status.assert_not_called()
+        assert result["analyzer_status"]["publication"] == "UNSUPPORTED_PROVIDER"
         assert result["verdict"] == "REQUEST CHANGES"

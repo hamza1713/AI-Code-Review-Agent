@@ -1,0 +1,199 @@
+{
+  "id": "flask-5812",
+  "file": "cases/flask-5812/input.diff",
+  "sha256": "8b4a65ad30dc90fd324c9bdf8ad4072207a0e768a6f53f760e604c20d732beed",
+  "source_repository": "pallets/flask",
+  "base_sha": "330123258e8c3dc391cbe55ab1ed94891ca83af3",
+  "head_sha": "c2705ffd9ce1dc8476cb29eaf5ff5d4c719852d9",
+  "source_diff_url": "https://github.com/pallets/flask/compare/330123258e8c3dc391cbe55ab1ed94891ca83af3...c2705ffd9ce1dc8476cb29eaf5ff5d4c719852d9.diff",
+  "source_url": "https://github.com/pallets/flask/pull/5812",
+  "merged_at": "2025-09-19T23:45:27Z",
+  "license": "BSD-3-Clause",
+  "license_file": "cases/flask-5812/LICENSE",
+  "license_sha256": "489a8e1108509ed98a37bb983e11e0f7e1d31f0bd8f99a79c8448e7ff37d07ea",
+  "source_license_path": "LICENSE.txt",
+  "head_files": [
+    {
+      "path": "CHANGES.rst",
+      "file": "cases/flask-5812/head/CHANGES.rst",
+      "sha256": "4637ca6224682a69138c48523f24650c165b0d44f1772fd5447f48648019cf78"
+    },
+    {
+      "path": "docs/api.rst",
+      "file": "cases/flask-5812/head/docs/api.rst",
+      "sha256": "aa9f539e44e03345ea012efb3fe4a679e2a26a42406a6f0a15b62ebda2b9766f"
+    },
+    {
+      "path": "docs/appcontext.rst",
+      "file": "cases/flask-5812/head/docs/appcontext.rst",
+      "sha256": "3a3ed21b2fdc95b234dec701dfda0add1f13b5f6c8a17f97bee846cf8f725130"
+    },
+    {
+      "path": "docs/design.rst",
+      "file": "cases/flask-5812/head/docs/design.rst",
+      "sha256": "3c967ad45f23c68b4c19a6a1c3c7726146a283e802cb203b5e20712db6437168"
+    },
+    {
+      "path": "docs/extensiondev.rst",
+      "file": "cases/flask-5812/head/docs/extensiondev.rst",
+      "sha256": "581655635ec8eabd90b379f70554528c3b11148196763182eebb8556e43b53db"
+    },
+    {
+      "path": "docs/index.rst",
+      "file": "cases/flask-5812/head/docs/index.rst",
+      "sha256": "13318e703ac2e229ef53220b3164a76ca89c2552dc9ffe88aee02274321d847c"
+    },
+    {
+      "path": "docs/lifecycle.rst",
+      "file": "cases/flask-5812/head/docs/lifecycle.rst",
+      "sha256": "e2e503d011ce423f3d8702313056245b5e4b83aeaa314a755fbd32e542fcc745"
+    },
+    {
+      "path": "docs/patterns/sqlalchemy.rst",
+      "file": "cases/flask-5812/head/docs/patterns/sqlalchemy.rst",
+      "sha256": "25d9cf40831a8cc770d3793badd9672085e455091191e3100d1bbb65c1ce7f12"
+    },
+    {
+      "path": "docs/patterns/sqlite3.rst",
+      "file": "cases/flask-5812/head/docs/patterns/sqlite3.rst",
+      "sha256": "722f5b8be3bfa25348289bd84ca6020b6e6be681bb5a59b22a631d860db4aab6"
+    },
+    {
+      "path": "docs/patterns/streaming.rst",
+      "file": "cases/flask-5812/head/docs/patterns/streaming.rst",
+      "sha256": "e151a5f114040efdac3bc51700bee7fac0fcccef69dd1d700b845d0cb847020d"
+    },
+    {
+      "path": "docs/quickstart.rst",
+      "file": "cases/flask-5812/head/docs/quickstart.rst",
+      "sha256": "9c25778019c0e2d1758ef2ed2df36dc55f91345b0595142a4f850c001650b022"
+    },
+    {
+      "path": "docs/reqcontext.rst",
+      "file": "cases/flask-5812/head/docs/reqcontext.rst",
+      "sha256": "ba305c62eb1cb03320bd6a8abd615a2f2d6f4c7d3d369979076241cb36b62d49"
+    },
+    {
+      "path": "docs/shell.rst",
+      "file": "cases/flask-5812/head/docs/shell.rst",
+      "sha256": "d4b857fbd6a594387dd64c6a7b0d0b2bef4d4d3713fe7aee4d5a421fd77aef9f"
+    },
+    {
+      "path": "docs/signals.rst",
+      "file": "cases/flask-5812/head/docs/signals.rst",
+      "sha256": "ff0f7fbda361f07a6b05d992586bc3863011c0db153a003802c30666f03cccba"
+    },
+    {
+      "path": "docs/testing.rst",
+      "file": "cases/flask-5812/head/docs/testing.rst",
+      "sha256": "756a677ef4d1443cc9415787be2077e49d6a611f904b69e1160dd38b4502a066"
+    },
+    {
+      "path": "docs/tutorial/blog.rst",
+      "file": "cases/flask-5812/head/docs/tutorial/blog.rst",
+      "sha256": "7098cddfcfec1e5b85e7cdbac518dc5846687caaf524eb76ae47e03c78955a11"
+    },
+    {
+      "path": "docs/tutorial/database.rst",
+      "file": "cases/flask-5812/head/docs/tutorial/database.rst",
+      "sha256": "3ab6dc60105e37417705ab7a9e70a9cb61f920339cd796a08a77d1fd987f7a99"
+    },
+    {
+      "path": "docs/tutorial/templates.rst",
+      "file": "cases/flask-5812/head/docs/tutorial/templates.rst",
+      "sha256": "4955763f93637d092dcd95dab50a8648cc3711cbb715f6a70e556c679ce340a9"
+    },
+    {
+      "path": "docs/tutorial/tests.rst",
+      "file": "cases/flask-5812/head/docs/tutorial/tests.rst",
+      "sha256": "6660b2ffd773eed3a861f8a66b9beae775e919a15ef0bbea1c64fbbc5e6b0810"
+    },
+    {
+      "path": "docs/tutorial/views.rst",
+      "file": "cases/flask-5812/head/docs/tutorial/views.rst",
+      "sha256": "1398118000f286d1759fe392e5e52e6b394b2be501c0de03bda22cccac3b0a2d"
+    },
+    {
+      "path": "src/flask/app.py",
+      "file": "cases/flask-5812/head/src/flask/app.py",
+      "sha256": "9bc2760f860949d83793468e6772780effec39ec7bd606255a7d1c5d686db831"
+    },
+    {
+      "path": "src/flask/cli.py",
+      "file": "cases/flask-5812/head/src/flask/cli.py",
+      "sha256": "1f2e6624f5a34c86eb0e1928c6acb6b85297b19be0e039791bf0c065d2b2b7af"
+    },
+    {
+      "path": "src/flask/ctx.py",
+      "file": "cases/flask-5812/head/src/flask/ctx.py",
+      "sha256": "30822f73dbe124eef87586e04ec01854ac32b173d73bab9dbbdc408d56a75adc"
+    },
+    {
+      "path": "src/flask/debughelpers.py",
+      "file": "cases/flask-5812/head/src/flask/debughelpers.py",
+      "sha256": "75c8258dc3487e1d0857dc5d3c7ca471fac1a254282570fa57e56d71aada037e"
+    },
+    {
+      "path": "src/flask/globals.py",
+      "file": "cases/flask-5812/head/src/flask/globals.py",
+      "sha256": "1abe9a4e0a96c8bb28c232e2b08993fffdfb9bb694be2230755e54a46a40ca4d"
+    },
+    {
+      "path": "src/flask/helpers.py",
+      "file": "cases/flask-5812/head/src/flask/helpers.py",
+      "sha256": "3939be44fe5455d5c10b0400038d89f17fb5fdbaed67ac35d250a60399d603c9"
+    },
+    {
+      "path": "src/flask/json/__init__.py",
+      "file": "cases/flask-5812/head/src/flask/json/__init__.py",
+      "sha256": "b402bd0b89b87250f932bf4b8e2bec7af7130a8ebdc3ff5a0bba3865e9984173"
+    },
+    {
+      "path": "src/flask/sansio/app.py",
+      "file": "cases/flask-5812/head/src/flask/sansio/app.py",
+      "sha256": "d62cffbeb327dc6ac0004663fd868c22987b35ed6e30eeabd0ee2408e31b4918"
+    },
+    {
+      "path": "src/flask/sansio/scaffold.py",
+      "file": "cases/flask-5812/head/src/flask/sansio/scaffold.py",
+      "sha256": "8038161a341fab058ac50676422997c7220e6d04ad9b692fc28dddcbe3dc3519"
+    },
+    {
+      "path": "src/flask/templating.py",
+      "file": "cases/flask-5812/head/src/flask/templating.py",
+      "sha256": "c92a6a1cbd5c7f375c80def267fc0a7d30c31961edbaf7c1ae0b2435b1f39bd6"
+    },
+    {
+      "path": "src/flask/testing.py",
+      "file": "cases/flask-5812/head/src/flask/testing.py",
+      "sha256": "60c60294d716a6102e9993ad8f14930ad421fde322d8d3b54c7be642acbad560"
+    },
+    {
+      "path": "tests/conftest.py",
+      "file": "cases/flask-5812/head/tests/conftest.py",
+      "sha256": "f8b008561723896a3bf1fdacd935bc5997af6f08095437501ae739616cdd9d63"
+    },
+    {
+      "path": "tests/test_appctx.py",
+      "file": "cases/flask-5812/head/tests/test_appctx.py",
+      "sha256": "189bbfa5c664e74f406a7ee308bc52d77db223e492f140746525b0326f6ece8e"
+    },
+    {
+      "path": "tests/test_reqctx.py",
+      "file": "cases/flask-5812/head/tests/test_reqctx.py",
+      "sha256": "11b24219d76e0539edc951301a00803aa594c51a33438ecbc1ef5b71d8bac0e2"
+    },
+    {
+      "path": "tests/test_session_interface.py",
+      "file": "cases/flask-5812/head/tests/test_session_interface.py",
+      "sha256": "e898a1d162e524d36325f474e353a748ddeb3c2d5ac7b863c32c78ca219b25c3"
+    },
+    {
+      "path": "tests/test_testing.py",
+      "file": "cases/flask-5812/head/tests/test_testing.py",
+      "sha256": "a826cbbac09a83fd22227b578ba0488b330a929af8064e165e55dcd1f709f259"
+    }
+  ],
+  "input_snapshot_hash": "f8661cedd110140abcf6c4cb0e2da7cfd337837d93ffb2302f6a3577ab82baa0",
+  "label_status": "UNREVIEWED"
+}

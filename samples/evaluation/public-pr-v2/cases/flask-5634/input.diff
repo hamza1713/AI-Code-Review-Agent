@@ -1,0 +1,238 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 0207b1f4f2..e8820b4f86 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -23,6 +23,9 @@ Unreleased
+ -   Support key rotation with the ``SECRET_KEY_FALLBACKS`` config, a list of old
+     secret keys that can still be used for unsigning. Extensions will need to
+     add support. :issue:`5621`
++-   Fix how setting ``host_matching=True`` or ``subdomain_matching=False``
++    interacts with ``SERVER_NAME``. Setting ``SERVER_NAME`` no longer restricts
++    requests to only that domain. :issue:`5553`
+ 
+ 
+ Version 3.0.3
+diff --git a/docs/config.rst b/docs/config.rst
+index 51b795f740..ed68160e46 100644
+--- a/docs/config.rst
++++ b/docs/config.rst
+@@ -260,14 +260,23 @@ The following configuration values are used internally by Flask:
+ 
+ .. py:data:: SERVER_NAME
+ 
+-    Inform the application what host and port it is bound to. Required
+-    for subdomain route matching support.
++    Inform the application what host and port it is bound to.
+ 
+-    If set, ``url_for`` can generate external URLs with only an application
+-    context instead of a request context.
++    Must be set if ``subdomain_matching`` is enabled, to be able to extract the
++    subdomain from the request.
++
++    Must be set for ``url_for`` to generate external URLs outside of a
++    request context.
+ 
+     Default: ``None``
+ 
++    .. versionchanged:: 3.1
++        Does not restrict requests to only this domain, for both
++        ``subdomain_matching`` and ``host_matching``.
++
++    .. versionchanged:: 1.0
++        Does not implicitly enable ``subdomain_matching``.
++
+     .. versionchanged:: 2.3
+         Does not affect ``SESSION_COOKIE_DOMAIN``.
+ 
+diff --git a/src/flask/app.py b/src/flask/app.py
+index c4f309f3fa..166a129fd9 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -425,32 +425,40 @@ def create_url_adapter(self, request: Request | None) -> MapAdapter | None:
+         is created at a point where the request context is not yet set
+         up so the request is passed explicitly.
+ 
+-        .. versionadded:: 0.6
+-
+-        .. versionchanged:: 0.9
+-           This can now also be called without a request object when the
+-           URL adapter is created for the application context.
++        .. versionchanged:: 3.1
++            If :data:`SERVER_NAME` is set, it does not restrict requests to
++            only that domain, for both ``subdomain_matching`` and
++            ``host_matching``.
+ 
+         .. versionchanged:: 1.0
+             :data:`SERVER_NAME` no longer implicitly enables subdomain
+             matching. Use :attr:`subdomain_matching` instead.
++
++        .. versionchanged:: 0.9
++           This can be called outside a request when the URL adapter is created
++           for an application context.
++
++        .. versionadded:: 0.6
+         """
+         if request is not None:
+-            # If subdomain matching is disabled (the default), use the
+-            # default subdomain in all cases. This should be the default
+-            # in Werkzeug but it currently does not have that feature.
+-            if not self.subdomain_matching:
+-                subdomain = self.url_map.default_subdomain or None
+-            else:
+-                subdomain = None
++            subdomain = None
++            server_name = self.config["SERVER_NAME"]
++
++            if self.url_map.host_matching:
++                # Don't pass SERVER_NAME, otherwise it's used and the actual
++                # host is ignored, which breaks host matching.
++                server_name = None
++            elif not self.subdomain_matching:
++                # Werkzeug doesn't implement subdomain matching yet. Until then,
++                # disable it by forcing the current subdomain to the default, or
++                # the empty string.
++                subdomain = self.url_map.default_subdomain or ""
+ 
+             return self.url_map.bind_to_environ(
+-                request.environ,
+-                server_name=self.config["SERVER_NAME"],
+-                subdomain=subdomain,
++                request.environ, server_name=server_name, subdomain=subdomain
+             )
+-        # We need at the very least the server name to be set for this
+-        # to work.
++
++        # Need at least SERVER_NAME to match/build outside a request.
+         if self.config["SERVER_NAME"] is not None:
+             return self.url_map.bind(
+                 self.config["SERVER_NAME"],
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 842321ceeb..c737dc5f95 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -4,6 +4,7 @@
+ import uuid
+ import warnings
+ import weakref
++from contextlib import nullcontext
+ from datetime import datetime
+ from datetime import timezone
+ from platform import python_implementation
+@@ -1483,6 +1484,48 @@ def test_request_locals():
+     assert not flask.g
+ 
+ 
++@pytest.mark.parametrize(
++    ("subdomain_matching", "host_matching", "expect_base", "expect_abc", "expect_xyz"),
++    [
++        (False, False, "default", "default", "default"),
++        (True, False, "default", "abc", "<invalid>"),
++        (False, True, "default", "abc", "default"),
++    ],
++)
++def test_server_name_matching(
++    subdomain_matching: bool,
++    host_matching: bool,
++    expect_base: str,
++    expect_abc: str,
++    expect_xyz: str,
++) -> None:
++    app = flask.Flask(
++        __name__,
++        subdomain_matching=subdomain_matching,
++        host_matching=host_matching,
++        static_host="example.test" if host_matching else None,
++    )
++    app.config["SERVER_NAME"] = "example.test"
++
++    @app.route("/", defaults={"name": "default"}, host="<name>")
++    @app.route("/", subdomain="<name>", host="<name>.example.test")
++    def index(name: str) -> str:
++        return name
++
++    client = app.test_client()
++
++    r = client.get(base_url="http://example.test")
++    assert r.text == expect_base
++
++    r = client.get(base_url="http://abc.example.test")
++    assert r.text == expect_abc
++
++    with pytest.warns() if subdomain_matching else nullcontext():
++        r = client.get(base_url="http://xyz.other.test")
++
++    assert r.text == expect_xyz
++
++
+ def test_server_name_subdomain():
+     app = flask.Flask(__name__, subdomain_matching=True)
+     client = app.test_client()
+diff --git a/tests/test_blueprints.py b/tests/test_blueprints.py
+index 69bc71ad8f..e3e2905ab3 100644
+--- a/tests/test_blueprints.py
++++ b/tests/test_blueprints.py
+@@ -951,7 +951,10 @@ def index():
+ 
+ 
+ def test_nesting_subdomains(app, client) -> None:
+-    subdomain = "api"
++    app.subdomain_matching = True
++    app.config["SERVER_NAME"] = "example.test"
++    client.allow_subdomain_redirects = True
++
+     parent = flask.Blueprint("parent", __name__)
+     child = flask.Blueprint("child", __name__)
+ 
+@@ -960,42 +963,31 @@ def index():
+         return "child"
+ 
+     parent.register_blueprint(child)
+-    app.register_blueprint(parent, subdomain=subdomain)
+-
+-    client.allow_subdomain_redirects = True
+-
+-    domain_name = "domain.tld"
+-    app.config["SERVER_NAME"] = domain_name
+-    response = client.get("/child/", base_url="http://api." + domain_name)
++    app.register_blueprint(parent, subdomain="api")
+ 
++    response = client.get("/child/", base_url="http://api.example.test")
+     assert response.status_code == 200
+ 
+ 
+ def test_child_and_parent_subdomain(app, client) -> None:
+-    child_subdomain = "api"
+-    parent_subdomain = "parent"
++    app.subdomain_matching = True
++    app.config["SERVER_NAME"] = "example.test"
++    client.allow_subdomain_redirects = True
++
+     parent = flask.Blueprint("parent", __name__)
+-    child = flask.Blueprint("child", __name__, subdomain=child_subdomain)
++    child = flask.Blueprint("child", __name__, subdomain="api")
+ 
+     @child.route("/")
+     def index():
+         return "child"
+ 
+     parent.register_blueprint(child)
+-    app.register_blueprint(parent, subdomain=parent_subdomain)
+-
+-    client.allow_subdomain_redirects = True
+-
+-    domain_name = "domain.tld"
+-    app.config["SERVER_NAME"] = domain_name
+-    response = client.get(
+-        "/", base_url=f"http://{child_subdomain}.{parent_subdomain}.{domain_name}"
+-    )
++    app.register_blueprint(parent, subdomain="parent")
+ 
++    response = client.get("/", base_url="http://api.parent.example.test")
+     assert response.status_code == 200
+ 
+-    response = client.get("/", base_url=f"http://{parent_subdomain}.{domain_name}")
+-
++    response = client.get("/", base_url="http://parent.example.test")
+     assert response.status_code == 404
+ 
+ 

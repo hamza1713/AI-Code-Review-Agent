@@ -10,18 +10,20 @@ Covers:
 """
 
 import ast
-import json
-import os
-import sqlite3
 import time
 import uuid
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from production_fixtures import active_claim
 
+from code_review_agent.access_policy import authorize_actor, effective_command
 from code_review_agent.bot.command_router import CommandRouter
-from code_review_agent.governance.rules_engine import GovernanceConfigFile, RemediationPolicy, RulesEngine
+from code_review_agent.governance.rules_engine import (
+    GovernanceConfigFile,
+    RemediationPolicy,
+    RulesEngine,
+)
 from code_review_agent.models import (
     RollbackManifest,
     SastFinding,
@@ -30,9 +32,7 @@ from code_review_agent.models import (
 )
 from code_review_agent.remediator import (
     AutoRemediator,
-    BranchGuardrailViolation,
     PatchMismatchError,
-    StaleHeadShaError,
 )
 from code_review_agent.sandbox.self_healer import (
     AssertionIntegrityError,
@@ -42,11 +42,6 @@ from code_review_agent.sandbox.self_healer import (
 from code_review_agent.sandbox.test_runner import SandboxTestRunner
 from code_review_agent.suppression_store import SuppressionStore
 from code_review_agent.webhook_queue import WebhookJobQueue, is_transient_error
-from code_review_agent.webhook_server import (
-    _bot_maintainer_associations,
-    _is_authorized_commenter,
-    _username_authorized,
-)
 
 
 @pytest.fixture
@@ -54,6 +49,7 @@ def test_db_path(tmp_path, monkeypatch):
     """Provide isolated SQLite WAL test database."""
     db_file = tmp_path / f"test_phase5_{uuid.uuid4().hex[:8]}.db"
     monkeypatch.setenv("QUEUE_DB_PATH", str(db_file))
+    monkeypatch.setenv("REVIEW_ENABLE_REMEDIATION", "true")
     return str(db_file)
 
 
@@ -75,13 +71,13 @@ class TestRemediationSafetyEngine:
             file_path="auth.py",
             target_line=2,
             expected_old_text="query = f\"SELECT * FROM users WHERE name = '{user}'\"",
-            replacement_text="query = \"SELECT * FROM users WHERE name = :user\"",
-            rationale="Fix SQL injection with parameterized query"
+            replacement_text='query = "SELECT * FROM users WHERE name = :user"',
+            rationale="Fix SQL injection with parameterized query",
         )
 
         patched = AutoRemediator.apply_structured_patch(original_code, patch)
         assert "SELECT * FROM users WHERE name = :user" in patched
-        assert "query = f\"SELECT" not in patched
+        assert 'query = f"SELECT' not in patched
 
     def test_structured_patch_mismatch_raises_error(self):
         original_code = "def authenticate(user, password):\n    return False\n"
@@ -89,41 +85,55 @@ class TestRemediationSafetyEngine:
             file_path="auth.py",
             target_line=2,
             expected_old_text="SELECT * FROM users WHERE name = '{user}'",
-            replacement_text="SELECT * FROM users WHERE name = :user"
+            replacement_text="SELECT * FROM users WHERE name = :user",
         )
 
         with pytest.raises(PatchMismatchError) as exc_info:
             AutoRemediator.apply_structured_patch(original_code, patch)
         assert "Structured patch mismatch" in str(exc_info.value)
 
-    @pytest.mark.parametrize("protected_branch", [
-        "main",
-        "master",
-        "release",
-        "release/v1.0",
-        "release/2026.09",
-        "production",
-        "production/us-east-1",
-        "prod",
-        "prod/eu-west-1",
-    ])
+    @pytest.mark.parametrize(
+        "protected_branch",
+        [
+            "main",
+            "master",
+            "release",
+            "release/v1.0",
+            "release/2026.09",
+            "production",
+            "production/us-east-1",
+            "prod",
+            "prod/eu-west-1",
+        ],
+    )
     def test_is_branch_protected_blocks_critical_branches(self, protected_branch):
         assert AutoRemediator.is_branch_protected(protected_branch) is True
 
-    @pytest.mark.parametrize("allowed_branch", [
-        "feature/add-oauth",
-        "fix/sql-injection",
-        "remediation-9a4b2f1e",
-        "dependabot/npm_and_yarn/lodash-4.17.21",
-        "dev",
-        "staging-test",
-    ])
+    @pytest.mark.parametrize(
+        "allowed_branch",
+        [
+            "feature/add-oauth",
+            "fix/sql-injection",
+            "remediation-9a4b2f1e",
+            "dependabot/npm_and_yarn/lodash-4.17.21",
+            "dev",
+            "staging-test",
+        ],
+    )
     def test_is_branch_protected_allows_feature_branches(self, allowed_branch):
         assert AutoRemediator.is_branch_protected(allowed_branch) is False
 
     def test_custom_blocked_branches_in_guardrails(self):
-        assert AutoRemediator.is_branch_protected("staging-deploy", custom_blocked=["staging*"]) is True
-        assert AutoRemediator.is_branch_protected("dev", custom_blocked=["staging*"]) is False
+        assert (
+            AutoRemediator.is_branch_protected(
+                "staging-deploy", custom_blocked=["staging*"]
+            )
+            is True
+        )
+        assert (
+            AutoRemediator.is_branch_protected("dev", custom_blocked=["staging*"])
+            is False
+        )
 
     def test_apply_remediation_blocks_protected_branch(self, test_db_path):
         mock_client = MagicMock()
@@ -136,7 +146,7 @@ class TestRemediationSafetyEngine:
             pr_identifier="org/repo#10",
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
-            bypass_policy=True
+            bypass_policy=True,
         )
 
         assert result["status"] == "error"
@@ -155,7 +165,7 @@ class TestRemediationSafetyEngine:
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
             reviewed_head="old_reviewed_commit_123",
-            bypass_policy=True
+            bypass_policy=True,
         )
 
         assert result["status"] == "error"
@@ -186,7 +196,9 @@ class TestRemediationSafetyEngine:
         assert allowed is False
         assert "protected" in msg.lower()
 
-    def test_remediation_audit_trail_and_rollback(self, test_db_path, tmp_path):
+    def test_remediation_audit_trail_and_rollback(
+        self, test_db_path, tmp_path, queued_claim
+    ):
         rem_id = f"rem-{uuid.uuid4().hex[:8]}"
         repo = "acme/backend"
         branch = "feature/payment-fix"
@@ -206,7 +218,7 @@ class TestRemediationSafetyEngine:
             timestamp=time.time(),
             expected_old_text=old_text,
             replacement_text=new_text,
-            status="APPLIED"
+            status="APPLIED",
         )
 
         # 1. Record audit manifest
@@ -231,8 +243,7 @@ class TestRemediationSafetyEngine:
         mock_client.commit_file_change.return_value = {"sha": "revert-commit-333"}
 
         rollback_res = AutoRemediator.rollback_remediation(
-            remediation_id=rem_id,
-            client=mock_client
+            remediation_id=rem_id, client=mock_client, **queued_claim("acme/backend#42")
         )
         assert rollback_res["status"] == "success"
         assert rollback_res["rollback_commit_sha"] == "revert-commit-333"
@@ -248,7 +259,9 @@ class TestRemediationSafetyEngine:
         assert updated_manifest["status"] == "ROLLED_BACK"
 
         # 5. Subsequent rollback on already rolled-back remediation is rejected
-        second_rollback = AutoRemediator.rollback_remediation(rem_id, client=mock_client)
+        second_rollback = AutoRemediator.rollback_remediation(
+            rem_id, client=mock_client
+        )
         assert second_rollback["status"] == "error"
         assert "already been rolled back" in second_rollback["message"]
 
@@ -262,10 +275,7 @@ class TestEvidenceTrustGradingAndSelfHealing:
     """Test 4-tier evidence grading, test suite telemetry persistence, and assertion integrity."""
 
     def test_trust_grade_original_pass(self):
-        valid_test = (
-            "def test_addition():\n"
-            "    assert 1 + 1 == 2\n"
-        )
+        valid_test = "def test_addition():\n    assert 1 + 1 == 2\n"
         mock_runner = MagicMock()
         mock_runner.return_value = TestExecutionResult(
             executed=True, status="PASSED", tests_passed=1
@@ -279,11 +289,9 @@ class TestEvidenceTrustGradingAndSelfHealing:
 
     def test_trust_grade_syntax_healed(self):
         markdown_wrapped = (
-            "```python\n"
-            "def test_multiplication():\n"
-            "    assert 3 * 3 == 9\n"
-            "```"
+            "```python\ndef test_multiplication():\n    assert 3 * 3 == 9\n```"
         )
+
         # Runner passes on cleaned syntax
         def runner(code, pr_content=None):
             ast.parse(code)
@@ -303,6 +311,7 @@ class TestEvidenceTrustGradingAndSelfHealing:
             "    assert client is not None\n"
         )
         call_count = 0
+
         def runner(code, pr_content=None):
             nonlocal call_count
             call_count += 1
@@ -310,11 +319,13 @@ class TestEvidenceTrustGradingAndSelfHealing:
                 return TestExecutionResult(
                     executed=True,
                     status="ERROR",
-                    stderr="ModuleNotFoundError: No module named 'obscure_database_driver'"
+                    stderr="ModuleNotFoundError: No module named 'obscure_database_driver'",
                 )
             return TestExecutionResult(executed=True, status="PASSED", tests_passed=1)
 
-        res, healed = TestSelfHealer.heal_and_run(runner, test_with_missing_pkg, max_attempts=2)
+        res, healed = TestSelfHealer.heal_and_run(
+            runner, test_with_missing_pkg, max_attempts=2
+        )
         assert res.trust_grade == EvidenceTrustGrade.HEALED_MOCK_STUBBED.value
         assert res.original_test_suite == test_with_missing_pkg
         assert "obscure_database_driver" in res.healed_test_suite
@@ -324,10 +335,7 @@ class TestEvidenceTrustGradingAndSelfHealing:
 
     def test_assertion_integrity_verification_accepts_preserved_assertions(self):
         original = (
-            "def test_calc():\n"
-            "    x = 10\n"
-            "    assert x > 5\n"
-            "    assert x == 10\n"
+            "def test_calc():\n    x = 10\n    assert x > 5\n    assert x == 10\n"
         )
         candidate = (
             "# Auto-healed import header\n"
@@ -341,10 +349,7 @@ class TestEvidenceTrustGradingAndSelfHealing:
 
     def test_assertion_integrity_verification_rejects_deleted_assertion(self):
         original = (
-            "def test_calc():\n"
-            "    x = 10\n"
-            "    assert x > 5\n"
-            "    assert x == 10\n"
+            "def test_calc():\n    x = 10\n    assert x > 5\n    assert x == 10\n"
         )
         weakened = (
             "def test_calc():\n"
@@ -355,10 +360,7 @@ class TestEvidenceTrustGradingAndSelfHealing:
         assert TestSelfHealer.verify_assertion_integrity(original, weakened) is False
 
     def test_assertion_integrity_verification_rejects_modified_assertion(self):
-        original = (
-            "def test_auth():\n"
-            "    assert is_admin('guest') is False\n"
-        )
+        original = "def test_auth():\n    assert is_admin('guest') is False\n"
         tampered = (
             "def test_auth():\n"
             "    assert is_admin('guest') is True\n"  # Flipped logic
@@ -366,20 +368,20 @@ class TestEvidenceTrustGradingAndSelfHealing:
         assert TestSelfHealer.verify_assertion_integrity(original, tampered) is False
 
     def test_heal_and_run_assertion_integrity_error_on_tampering(self):
-        original_test = (
-            "def test_security():\n"
-            "    assert is_safe() is True\n"
-        )
+        original_test = "def test_security():\n    assert is_safe() is True\n"
+
         # Runner returns missing module error so healer attempts repairs
         def tampering_runner(code, pr_content=None):
             return TestExecutionResult(
                 executed=True,
                 status="ERROR",
-                stderr="ModuleNotFoundError: No module named 'auth_helper'"
+                stderr="ModuleNotFoundError: No module named 'auth_helper'",
             )
 
         # Mock heal_code to simulate an aggressive heuristic rewriting asserts
-        with patch.object(TestSelfHealer, "heal_code", return_value="def test_security(): pass"):
+        with patch.object(
+            TestSelfHealer, "heal_code", return_value="def test_security(): pass"
+        ):
             with pytest.raises(AssertionIntegrityError) as exc_info:
                 TestSelfHealer.heal_and_run(tampering_runner, original_test)
             assert "Assertion integrity violation" in str(exc_info.value)
@@ -404,7 +406,7 @@ class TestExternalIdempotencyAndQueueResilience:
             target_id="repo/123#1",
             payload={"body": "Hello PR"},
             status="SUCCESS",
-            result={"comment_id": 9999}
+            result={"comment_id": 9999},
         )
         assert first is True
         assert q.is_operation_executed(op_key) is True
@@ -415,7 +417,7 @@ class TestExternalIdempotencyAndQueueResilience:
             operation_type="post_comment",
             target_id="repo/123#1",
             payload={"body": "Hello PR Duplicate"},
-            status="SUCCESS"
+            status="SUCCESS",
         )
         assert duplicate is False
 
@@ -427,31 +429,37 @@ class TestExternalIdempotencyAndQueueResilience:
         assert record["target_id"] == "repo/123#1"
         assert "9999" in record["result_json"]
 
-    @pytest.mark.parametrize("transient_err", [
-        "HTTP 429 Too Many Requests: Rate limit exceeded",
-        "500 Internal Server Error",
-        "502 Bad Gateway",
-        "503 Service Unavailable",
-        "504 Gateway Timeout",
-        "Connection reset by peer",
-        "Connection refused to host",
-        "RemoteDisconnected: connection closed prematurely",
-        "ReadTimeout: request timed out after 30 seconds",
-    ])
+    @pytest.mark.parametrize(
+        "transient_err",
+        [
+            "HTTP 429 Too Many Requests: Rate limit exceeded",
+            "500 Internal Server Error",
+            "502 Bad Gateway",
+            "503 Service Unavailable",
+            "504 Gateway Timeout",
+            "Connection reset by peer",
+            "Connection refused to host",
+            "RemoteDisconnected: connection closed prematurely",
+            "ReadTimeout: request timed out after 30 seconds",
+        ],
+    )
     def test_is_transient_error_detects_retryable_errors(self, transient_err):
         assert is_transient_error(Exception(transient_err)) is True
 
-    @pytest.mark.parametrize("permanent_err", [
-        "400 Bad Request: Malformed JSON payload",
-        "401 Unauthorized: Invalid GitHub API token",
-        "403 Forbidden: Missing write permissions on repository",
-        "404 Not Found: Pull request does not exist",
-        "422 Unprocessable Entity: Validation failed",
-        "InputValidationError: Invalid parameter format",
-        "Strict branch guardrail violation: commits to main are forbidden",
-        "Structured patch mismatch for file.py",
-        "Stale Head SHA check failed",
-    ])
+    @pytest.mark.parametrize(
+        "permanent_err",
+        [
+            "400 Bad Request: Malformed JSON payload",
+            "401 Unauthorized: Invalid GitHub API token",
+            "403 Forbidden: Missing write permissions on repository",
+            "404 Not Found: Pull request does not exist",
+            "422 Unprocessable Entity: Validation failed",
+            "InputValidationError: Invalid parameter format",
+            "Strict branch guardrail violation: commits to main are forbidden",
+            "Structured patch mismatch for file.py",
+            "Stale Head SHA check failed",
+        ],
+    )
     def test_is_transient_error_detects_permanent_fail_fast_errors(self, permanent_err):
         assert is_transient_error(Exception(permanent_err)) is False
 
@@ -465,7 +473,11 @@ class TestExternalIdempotencyAndQueueResilience:
         assert claimed["job_id"] == job_id
 
         # Fail with permanent 401 Unauthorized error
-        q.fail_job(job_id=job_id, error="401 Unauthorized: GitHub token expired")
+        q.fail_job(
+            job_id=job_id,
+            claim_token=active_claim(q, job_id),
+            error="401 Unauthorized: GitHub token expired",
+        )
 
         # Job must be marked FAILED immediately, without RETRYING state
         job = q.get_job(job_id)
@@ -480,7 +492,11 @@ class TestExternalIdempotencyAndQueueResilience:
         assert claimed is not None
 
         # Fail with transient 503 error
-        q.fail_job(job_id=job_id, error="503 Service Unavailable")
+        q.fail_job(
+            job_id=job_id,
+            claim_token=active_claim(q, job_id),
+            error="503 Service Unavailable",
+        )
 
         job = q.get_job(job_id)
         assert job["status"] == "RETRYING"
@@ -496,101 +512,81 @@ class TestExternalIdempotencyAndQueueResilience:
 class TestProductionSecurityAndRBAC:
     """Test maintainer permissions on slash commands and sandbox security defaults."""
 
-    def test_maintainer_only_slash_commands_rejected_for_non_maintainers(self, test_db_path):
-        # Non-maintainer trying /apply
-        res_apply = CommandRouter.dispatch(
-            "/apply 9a4b2f1e00112233",
-            pr_url="https://github.com/acme/app/pull/1",
-            author_association="CONTRIBUTOR",
-            auto_post=False
-        )
-        assert res_apply.status == "ERROR"
-        assert "Permission Denied" in res_apply.response_markdown
-        assert "restricted to repository maintainers" in res_apply.response_markdown
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "/apply abcd",
+            "/review apply abcd",
+            "/suppress abcd reason",
+            "/review suppress abcd reason",
+            "/unsuppress abcd",
+        ],
+    )
+    def test_maintainer_only_slash_commands_rejected_for_non_maintainers(
+        self, test_db_path, command
+    ):
+        with pytest.raises(PermissionError):
+            CommandRouter.dispatch(
+                command,
+                pr_url="https://github.com/acme/app/pull/1",
+                author_association="OWNER",
+                auto_post=False,
+            )
 
-        # Non-maintainer trying /suppress
-        res_suppress = CommandRouter.dispatch(
-            "/suppress 9a4b2f1e00112233 Accepted risk",
-            pr_url="https://github.com/acme/app/pull/1",
-            author_association="COLLABORATOR",
-            auto_post=False
-        )
-        assert res_suppress.status == "ERROR"
-        assert "Permission Denied" in res_suppress.response_markdown
-
-        # Non-maintainer trying /unsuppress
-        res_unsuppress = CommandRouter.dispatch(
-            "/unsuppress 9a4b2f1e00112233",
-            pr_url="https://github.com/acme/app/pull/1",
-            author_association="NONE",
-            auto_post=False
-        )
-        assert res_unsuppress.status == "ERROR"
-        assert "Permission Denied" in res_unsuppress.response_markdown
-
-        # Non-maintainer trying /review apply subcommand
-        res_rev_apply = CommandRouter.dispatch(
-            "/review apply 9a4b2f1e00112233",
-            pr_url="https://github.com/acme/app/pull/1",
-            author_association="FIRST_TIME_CONTRIBUTOR",
-            auto_post=False
-        )
-        assert res_rev_apply.status == "ERROR"
-        assert "Permission Denied" in res_rev_apply.response_markdown
-
-    def test_maintainer_only_slash_commands_permitted_for_maintainers(self, test_db_path):
+    def test_maintainer_only_slash_commands_permitted_for_maintainers(
+        self, test_db_path, offline_repository_client
+    ):
         fp = "abcd1234ef567890"
-        # OWNER running /review suppress
-        res_owner = CommandRouter.dispatch(
-            f"/review suppress {fp} Test valid maintainer suppression",
-            pr_url="https://github.com/acme/app/pull/5",
-            author_association="OWNER",
-            auto_post=False
-        )
-        assert res_owner.status == "SUCCESS"
-        assert "Finding Suppressed" in res_owner.response_markdown
-
-        # MEMBER running /review unsuppress
-        res_member = CommandRouter.dispatch(
+        for command in (
+            f"/review suppress {fp} Maintainer accepted risk",
             f"/review unsuppress {fp}",
-            pr_url="https://github.com/acme/app/pull/5",
-            author_association="MEMBER",
-            auto_post=False
+        ):
+            result = CommandRouter.dispatch(
+                command,
+                pr_url="https://github.com/acme/app/pull/5",
+                actor="alice",
+                author_association="NONE",
+                auto_post=False,
+            )
+            assert result.status == "SUCCESS"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "apply",
+            "suppress",
+            "unsuppress",
+            "audit-confirm",
+            "audit_reject",
+            "fp",
+            "confirm",
+        ],
+    )
+    def test_webhook_authorized_commenter_maintainer_restriction(self, command):
+        client = MagicMock()
+        client.get_repository_permission.return_value = "read"
+        effective = effective_command("review", command + " fingerprint")
+        assert not authorize_actor(client, "org", "repo", "alice", effective)
+        client.get_repository_permission.return_value = "write"
+        assert authorize_actor(client, "org", "repo", "alice", effective) == (
+            effective not in {"apply", "suppress", "unsuppress"}
         )
-        assert res_member.status == "SUCCESS"
-        assert "Finding Unsuppressed" in res_member.response_markdown
-
-    def test_webhook_authorized_commenter_maintainer_restriction(self):
-        # /help is open to anyone
-        assert _is_authorized_commenter({"author_association": "NONE"}, "help") is True
-
-        # Non-mutating command allowed for collaborator
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "describe") is True
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "ask") is True
-
-        # Mutating commands restricted to OWNER and MEMBER
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "apply") is False
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "suppress") is False
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "unsuppress") is False
-
-        assert _is_authorized_commenter({"author_association": "OWNER"}, "apply") is True
-        assert _is_authorized_commenter({"author_association": "MEMBER"}, "suppress") is True
-
-        # Subcommands via /review
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "review", subcommand="apply") is False
-        assert _is_authorized_commenter({"author_association": "COLLABORATOR"}, "review", subcommand="suppress") is False
-        assert _is_authorized_commenter({"author_association": "MEMBER"}, "review", subcommand="apply") is True
+        client.get_repository_permission.return_value = "maintain"
+        assert authorize_actor(client, "org", "repo", "alice", effective)
+        client.get_repository_permission.side_effect = TimeoutError()
+        assert not authorize_actor(client, "org", "repo", "alice", effective)
 
     def test_sandbox_local_disabled_by_default(self, monkeypatch):
         monkeypatch.delenv("REVIEW_ALLOW_LOCAL_SANDBOX", raising=False)
         monkeypatch.delenv("REVIEW_SANDBOX_IMAGE", raising=False)
 
-        res = SandboxTestRunner.run_tests(
-            test_code="def test_foo(): assert True"
-        )
+        res = SandboxTestRunner.run_tests(test_code="def test_foo(): assert True")
         assert res.executed is False
         assert res.trust_grade == "UNVERIFIED"
-        assert "Execution disabled: configure a reviewed sandbox image" in res.summary_message
+        assert (
+            "Execution disabled: configure a reviewed sandbox image"
+            in res.summary_message
+        )
 
 
 # =============================================================================
@@ -626,10 +622,14 @@ class TestSuppressionGovernance:
         fp_expired = "expired_fp_789012"
 
         # Active suppression (30 days TTL)
-        store.suppress(repo_id=repo, fingerprint=fp_active, reason="Active", ttl_seconds=86400)
+        store.suppress(
+            repo_id=repo, fingerprint=fp_active, reason="Active", ttl_seconds=86400
+        )
 
         # Expired suppression (already expired 10 seconds ago)
-        store.suppress(repo_id=repo, fingerprint=fp_expired, reason="Expired", ttl_seconds=-10)
+        store.suppress(
+            repo_id=repo, fingerprint=fp_expired, reason="Expired", ttl_seconds=-10
+        )
 
         # Query active status
         assert store.is_suppressed(repo, fp_active) is True
@@ -648,10 +648,17 @@ class TestSuppressionGovernance:
         fp_override = "override_suppressed_2"
 
         # Regular suppression without override keyword
-        store.suppress(repo_id=repo, fingerprint=fp_regular, reason="False positive in demo")
+        store.suppress(
+            repo_id=repo, fingerprint=fp_regular, reason="False positive in demo"
+        )
 
         # Explicit override suppression
-        store.suppress(repo_id=repo, fingerprint=fp_override, reason="Accepted risk: signed off by security architect")
+        store.suppress(
+            repo_id=repo,
+            fingerprint=fp_override,
+            reason="Accepted risk: signed off by security architect",
+            critical_override=True,
+        )
 
         assert store.has_critical_override(repo, fp_regular) is False
         assert store.has_critical_override(repo, fp_override) is True
@@ -667,7 +674,7 @@ class TestSuppressionGovernance:
             fingerprint=fp,
             reason="Mock database credential",
             author="security-lead",
-            pr_id="101"
+            pr_id="101",
         )
 
         # 2. Record unsuppress
@@ -698,13 +705,7 @@ class TestSuppressionGovernance:
 class TestPhase5DeepEdgeCasesAndRegressions:
     """Rigorous verification of edge cases, idempotency, heartbeat resilience, and operational endpoints."""
 
-    @pytest.mark.parametrize("protected_name", [
-        "default",
-        "trunk",
-        "",
-        "   ",
-        None
-    ])
+    @pytest.mark.parametrize("protected_name", ["default", "trunk", "", "   ", None])
     def test_default_and_empty_branch_guardrail(self, protected_name):
         assert AutoRemediator.is_branch_protected(protected_name) is True
 
@@ -720,7 +721,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             pr_identifier="org/repo#12",
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
-            bypass_policy=True
+            bypass_policy=True,
         )
         assert result["status"] == "error"
         assert "Strict branch guardrail violation" in result["message"]
@@ -739,7 +740,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             timestamp=time.time(),
             expected_old_text="old_code()",
             replacement_text="new_code()",
-            status="COMMITTED"
+            status="COMMITTED",
         )
         AutoRemediator.record_remediation_audit(manifest)
 
@@ -751,7 +752,10 @@ class TestPhase5DeepEdgeCasesAndRegressions:
         assert res["status"] == "error"
         assert "replacement text was not found" in res["message"]
 
-    def test_apply_remediation_idempotent_skips_duplicate_commit(self, test_db_path, tmp_path):
+    def test_apply_remediation_idempotent_skips_duplicate_commit(
+        self, test_db_path, tmp_path, queued_claim
+    ):
+        claim = queued_claim("org/repo#20")
         mock_client = MagicMock()
         mock_pr_meta = MagicMock()
         mock_pr_meta.head_ref = "feature/idempotent-fix"
@@ -761,10 +765,12 @@ class TestPhase5DeepEdgeCasesAndRegressions:
         mock_client.fetch_pull_request_diff.return_value = (
             "diff --git a/app.py b/app.py\n"
             "@@ -1,2 +1,2 @@\n"
-            "-query = f\"SELECT * FROM users WHERE id = {uid}\"\n"
-            "+query = \"SELECT * FROM users WHERE id = :uid\"\n"
+            '-query = f"SELECT * FROM users WHERE id = {uid}"\n'
+            '+query = "SELECT * FROM users WHERE id = :uid"\n'
         )
-        mock_client.fetch_file_content.return_value = "query = f\"SELECT * FROM users WHERE id = {uid}\"\n"
+        mock_client.fetch_file_content.return_value = (
+            'query = f"SELECT * FROM users WHERE id = {uid}"\n'
+        )
         mock_client.commit_file_change.return_value = {"sha": "commit_first_run"}
 
         fp = "idem12345678"
@@ -776,9 +782,9 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             severity="HIGH",
             file_path="app.py",
             line_number=1,
-            snippet="query = f\"SELECT * FROM users WHERE id = {uid}\"",
-            fix_recommendation="Use parameterized query: `query = \"SELECT * FROM users WHERE id = :uid\"`",
-            fingerprint=fp
+            snippet='query = f"SELECT * FROM users WHERE id = {uid}"',
+            fix_recommendation='Use parameterized query: `query = "SELECT * FROM users WHERE id = :uid"`',
+            fingerprint=fp,
         )
 
         with patch.object(AutoRemediator, "find_target_finding", return_value=finding):
@@ -787,7 +793,8 @@ class TestPhase5DeepEdgeCasesAndRegressions:
                 pr_identifier="org/repo#20",
                 fingerprint=fp,
                 client=mock_client,
-                bypass_policy=True
+                bypass_policy=True,
+                **claim,
             )
             assert res1["status"] == "success"
             assert res1["commit_sha"] == "commit_first_run"
@@ -798,7 +805,8 @@ class TestPhase5DeepEdgeCasesAndRegressions:
                 pr_identifier="org/repo#20",
                 fingerprint=fp,
                 client=mock_client,
-                bypass_policy=True
+                bypass_policy=True,
+                **claim,
             )
             assert res2["status"] == "success"
             assert "idempotent" in res2["message"].lower()
@@ -813,11 +821,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             "    assert check() is True\n"
         )
         # Cand deleted the second assert
-        cand = (
-            "def test_multi_assert():\n"
-            "    assert check() is True\n"
-            "    do_work()\n"
-        )
+        cand = "def test_multi_assert():\n    assert check() is True\n    do_work()\n"
         assert TestSelfHealer.verify_assertion_integrity(orig, cand) is False
 
     def test_assertion_integrity_syntax_error_in_original_not_falsely_rejected(self):
@@ -832,7 +836,10 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             "    val = (unclosed_call())\n"
         )
         # Should not crash or falsely reject intact assertion
-        assert TestSelfHealer.verify_assertion_integrity(orig_with_syntax_err, cand_healed) is True
+        assert (
+            TestSelfHealer.verify_assertion_integrity(orig_with_syntax_err, cand_healed)
+            is True
+        )
 
     def test_mock_stub_warning_in_reconciled_test_evidence(self):
         from code_review_agent.synthesis.reconciler import SynthesisReconciler
@@ -842,57 +849,90 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             status="PASSED",
             evidence_badge="PASSING",
             trust_grade="HEALED_MOCK_STUBBED",
-            mock_stub_warning="Dependencies were stubbed in-memory with MagicMock."
+            mock_stub_warning="Dependencies were stubbed in-memory with MagicMock.",
         )
         rec = SynthesisReconciler.reconcile(
             sast_findings=[],
             rule_violations=[],
             test_execution=te,
             generated_tests="def test_sample(): assert True",
-            pr_content="+def foo(): pass"
+            pr_content="+def foo(): pass",
         )
         assert rec.test_evidence is not None
         assert "Mock Stub Warning" in rec.test_evidence.proves
         assert "in-memory" in rec.test_evidence.proves.lower()
 
-    def test_execute_platform_review_idempotent_side_effects(self, test_db_path, tmp_path):
+    def test_execute_platform_review_idempotent_side_effects(
+        self, test_db_path, tmp_path, queued_claim
+    ):
+        claim = queued_claim("idem-org/idem-repo/pull/5")
         from contextlib import contextmanager
+
+        from code_review_agent.platform.base import (
+            PlatformPRIdentifier,
+            PlatformPRMetadata,
+        )
         from code_review_agent.webhook_queue import execute_platform_review
-        from code_review_agent.platform.base import PlatformPRIdentifier, PlatformPRMetadata
 
         fake_client = MagicMock()
+        fake_client.post_pull_request_review.return_value = {"id": 91}
+        fake_client.create_or_update_check_run.return_value = {"id": 92}
+        fake_client.set_commit_status.return_value = {"id": 93}
         fake_client.fetch_pull_request_diff.return_value = "diff --git a/x b/x\n+ok\n"
-        fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(head_sha="sha_idem_99", head_ref="feat")
+        fake_client.fetch_pull_request_metadata.return_value = PlatformPRMetadata(
+            head_sha="9" * 40, head_ref="feat"
+        )
         fake_client.list_pull_request_review_comments.return_value = []
 
         ident = PlatformPRIdentifier(
-            platform="github", owner_or_project="idem-org", repo_or_slug="idem-repo", pr_id=5,
+            platform="github",
+            owner_or_project="idem-org",
+            repo_or_slug="idem-repo",
+            pr_id=5,
             raw_identifier="idem-org/idem-repo/pull/5",
         )
 
-        fake_response = MagicMock()
-        fake_response.verdict = "APPROVE"
-        fake_response.findings = []
-        fake_response.inline_comments = []
-        fake_response.full_report = "## report"
-        fake_response.model_dump.return_value = {"verdict": "APPROVE"}
+        from production_fixtures import versioned_response
+
+        from code_review_agent.models import ReviewAPIResponse
+
+        fake_response = versioned_response(
+            ReviewAPIResponse(
+                verdict="APPROVE",
+                confidence_score=90,
+                summary="Review complete",
+                full_report="## report",
+            )
+        )
 
         @contextmanager
         def fake_checkout(*args, **kwargs):
             yield str(tmp_path)
 
-        with patch("code_review_agent.platform.factory.get_platform_client", return_value=(fake_client, ident)), \
-             patch("code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout), \
-             patch("code_review_agent.review_service.ReviewService.execute_review", return_value=fake_response):
-
+        with (
+            patch(
+                "code_review_agent.platform.factory.get_platform_client",
+                return_value=(fake_client, ident),
+            ),
+            patch(
+                "code_review_agent.bot.checkout.temporary_pr_checkout", fake_checkout
+            ),
+            patch(
+                "code_review_agent.review_service.ReviewService.execute_review",
+                return_value=fake_response,
+            ),
+        ):
             # First run: posts review and check-run
-            execute_platform_review({}, "idem-org/idem-repo/pull/5")
+            execute_platform_review({}, "idem-org/idem-repo/pull/5", **claim)
             assert fake_client.post_pull_request_review.call_count == 1
-            assert fake_client.create_or_update_check_run.call_count >= 1
+            fake_client.create_or_update_check_run.assert_not_called()
 
             # Second run on same PR and head_sha (e.g. queue retry): skips duplicate side effects
-            execute_platform_review({}, "idem-org/idem-repo/pull/5")
-            assert fake_client.post_pull_request_review.call_count == 1  # Still 1! Not duplicated!
+            execute_platform_review({}, "idem-org/idem-repo/pull/5", **claim)
+            assert (
+                fake_client.post_pull_request_review.call_count == 1
+            )  # Still 1! Not duplicated!
+            fake_client.create_or_update_check_run.assert_not_called()
 
     def test_worker_heartbeat_prevents_stale_job_theft(self, test_db_path):
         q = WebhookJobQueue()
@@ -904,16 +944,24 @@ class TestPhase5DeepEdgeCasesAndRegressions:
         assert claimed["job_id"] == job_id
 
         # Worker-A issues heartbeat extending lease to 60s
-        pulse = q.heartbeat_job(job_id=job_id, worker_id="worker-A", lease_duration=60.0)
+        pulse = q.heartbeat_job(
+            job_id=job_id,
+            claim_token=active_claim(q, job_id),
+            worker_id="worker-A",
+            lease_duration=60.0,
+        )
         assert pulse is True
 
         # Worker-B attempts to claim next job with a 0s lock timeout threshold
         # Because Worker-A's lease_expires_at is in the future, Worker-B must NOT steal it
-        steal_attempt = q.claim_next_job(worker_id="worker-B", lock_timeout_seconds=0.001)
+        steal_attempt = q.claim_next_job(
+            worker_id="worker-B", lock_timeout_seconds=0.001
+        )
         assert steal_attempt is None
 
     def test_operational_endpoints_fail_closed_without_token(self, monkeypatch):
         from fastapi.testclient import TestClient
+
         from code_review_agent.webhook_server import app
 
         monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
@@ -928,26 +976,68 @@ class TestPhase5DeepEdgeCasesAndRegressions:
 
         # With token configured, invalid bearer returns 401 Unauthorized
         monkeypatch.setenv("REVIEW_API_TOKEN", "a" * 32)
-        assert client.get("/jobs", headers={"Authorization": "Bearer wrong"}).status_code == 401
-        assert client.get("/api/cache/stats", headers={"Authorization": "Bearer wrong"}).status_code == 401
-        assert client.get("/api/suppressions", headers={"Authorization": "Bearer wrong"}).status_code == 401
-        assert client.post("/api/remediation/apply", json={}, headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert (
+            client.get("/jobs", headers={"Authorization": "Bearer wrong"}).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/api/cache/stats", headers={"Authorization": "Bearer wrong"}
+            ).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/api/suppressions", headers={"Authorization": "Bearer wrong"}
+            ).status_code
+            == 401
+        )
+        assert (
+            client.post(
+                "/api/remediation/apply",
+                json={},
+                headers={"Authorization": "Bearer wrong"},
+            ).status_code
+            == 401
+        )
 
-    def test_slash_command_apply_enforces_stale_head_sha(self, test_db_path):
+    def test_slash_command_apply_enforces_stale_head_sha(
+        self, test_db_path, queued_claim
+    ):
+        claim = queued_claim("https://github.com/org/repo/pull/1")
         mock_client = MagicMock()
+        mock_client.fetch_pull_request_diff.return_value = (
+            "diff --git a/app.py b/app.py\n+value=1\n"
+        )
         mock_pr_meta = MagicMock()
         mock_pr_meta.head_ref = "feature/security-fix"
         mock_pr_meta.head_sha = "new_head_pushed_commit_999"
         mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
 
-        with patch("code_review_agent.bot.command_router.get_platform_client", return_value=(mock_client, MagicMock(owner_or_project="org", repo_or_slug="repo", pr_id=1, platform="github"))):
+        with patch(
+            "code_review_agent.platform.factory.get_platform_client",
+            return_value=(
+                mock_client,
+                MagicMock(
+                    owner_or_project="org",
+                    repo_or_slug="repo",
+                    pr_id=1,
+                    platform="github",
+                ),
+            ),
+        ):
             res = CommandRouter.dispatch(
                 "/apply 9a4b2f1e00112233",
                 pr_url="https://github.com/org/repo/pull/1",
+                trusted_operator=True,
                 author_association="OWNER",
-                pr_metadata={"head_sha": "stale_old_reviewed_sha_111", "author": "alice"},
+                pr_metadata={
+                    "head_sha": "stale_old_reviewed_sha_111",
+                    "author": "alice",
+                },
                 client=mock_client,
-                auto_post=False
+                auto_post=False,
+                _job_claim=claim,
             )
             assert res.status == "ERROR"
             assert "Stale Head SHA check failed" in res.response_markdown

@@ -1,0 +1,93 @@
+diff --git a/requirements.txt b/requirements.txt
+index 8b5a111a71..18480596c8 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -20,7 +20,7 @@ twine==6.0.1
+ # Tests & Linting
+ coverage[toml]==7.6.1
+ cryptography==44.0.1
+-mypy==1.13.0
++mypy==1.17.1
+ pytest==8.3.4
+ ruff==0.12.11
+ trio==0.27.0
+diff --git a/tests/client/test_auth.py b/tests/client/test_auth.py
+index 7638b8bd68..72674e6f4b 100644
+--- a/tests/client/test_auth.py
++++ b/tests/client/test_auth.py
+@@ -326,7 +326,7 @@ async def test_auth_property() -> None:
+     async with httpx.AsyncClient(transport=httpx.MockTransport(app)) as client:
+         assert client.auth is None
+ 
+-        client.auth = ("user", "password123")  # type: ignore
++        client.auth = ("user", "password123")
+         assert isinstance(client.auth, httpx.BasicAuth)
+ 
+         url = "https://example.org/"
+diff --git a/tests/client/test_properties.py b/tests/client/test_properties.py
+index eb8709813b..f9ca9f247f 100644
+--- a/tests/client/test_properties.py
++++ b/tests/client/test_properties.py
+@@ -3,35 +3,35 @@
+ 
+ def test_client_base_url():
+     client = httpx.Client()
+-    client.base_url = "https://www.example.org/"  # type: ignore
++    client.base_url = "https://www.example.org/"
+     assert isinstance(client.base_url, httpx.URL)
+     assert client.base_url == "https://www.example.org/"
+ 
+ 
+ def test_client_base_url_without_trailing_slash():
+     client = httpx.Client()
+-    client.base_url = "https://www.example.org/path"  # type: ignore
++    client.base_url = "https://www.example.org/path"
+     assert isinstance(client.base_url, httpx.URL)
+     assert client.base_url == "https://www.example.org/path/"
+ 
+ 
+ def test_client_base_url_with_trailing_slash():
+     client = httpx.Client()
+-    client.base_url = "https://www.example.org/path/"  # type: ignore
++    client.base_url = "https://www.example.org/path/"
+     assert isinstance(client.base_url, httpx.URL)
+     assert client.base_url == "https://www.example.org/path/"
+ 
+ 
+ def test_client_headers():
+     client = httpx.Client()
+-    client.headers = {"a": "b"}  # type: ignore
++    client.headers = {"a": "b"}
+     assert isinstance(client.headers, httpx.Headers)
+     assert client.headers["A"] == "b"
+ 
+ 
+ def test_client_cookies():
+     client = httpx.Client()
+-    client.cookies = {"a": "b"}  # type: ignore
++    client.cookies = {"a": "b"}
+     assert isinstance(client.cookies, httpx.Cookies)
+     mycookies = list(client.cookies.jar)
+     assert len(mycookies) == 1
+@@ -42,7 +42,7 @@ def test_client_timeout():
+     expected_timeout = 12.0
+     client = httpx.Client()
+ 
+-    client.timeout = expected_timeout  # type: ignore
++    client.timeout = expected_timeout
+ 
+     assert isinstance(client.timeout, httpx.Timeout)
+     assert client.timeout.connect == expected_timeout
+diff --git a/tests/client/test_queryparams.py b/tests/client/test_queryparams.py
+index e5acb0ba20..1c6d587309 100644
+--- a/tests/client/test_queryparams.py
++++ b/tests/client/test_queryparams.py
+@@ -17,7 +17,7 @@ def test_client_queryparams_string():
+     assert client.params["a"] == "b"
+ 
+     client = httpx.Client()
+-    client.params = "a=b"  # type: ignore
++    client.params = "a=b"
+     assert isinstance(client.params, httpx.QueryParams)
+     assert client.params["a"] == "b"
+ 
