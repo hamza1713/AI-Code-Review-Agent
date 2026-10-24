@@ -12,12 +12,14 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
   const [copiedFp, setCopiedFp] = useState<string | null>(null);
 
   const handleCopySuppress = async (fp: string) => {
+    setCopyError('');
     try {
       await navigator.clipboard.writeText(`/review suppress ${fp}`);
       setCopiedFp(fp);
       setTimeout(() => setCopiedFp(null), 2000);
     } catch {
-      // ignore
+      setCopiedFp(null);
+      setCopyError('Copy failed. Select the text and copy it manually.');
     }
   };
 

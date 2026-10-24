@@ -297,30 +297,48 @@ class ASTSecurityScanner:
             if not added_lines_map:
                 continue
 
-            # Reconstruct Python file content from patch
+            # Reconstruct Python file content from patch hunks (preserving blank context lines)
             clean_lines = []
             line_no_mapping = {}  # 1-indexed line in clean_lines -> actual target line_no
-            curr_target_line = 1
+            if getattr(file_diff, "hunks", None):
+                for hunk in file_diff.hunks:
+                    curr_target_line = hunk.new_start
+                    for raw_line in hunk.lines:
+                        if raw_line.startswith("+") and not raw_line.startswith("+++"):
+                            clean_lines.append(raw_line[1:])
+                            line_no_mapping[len(clean_lines)] = curr_target_line
+                            curr_target_line += 1
+                        elif raw_line.startswith("-"):
+                            continue
+                        else:
+                            clean_lines.append(
+                                raw_line[1:] if raw_line.startswith(" ") else raw_line
+                            )
+                            line_no_mapping[len(clean_lines)] = curr_target_line
+                            curr_target_line += 1
+            else:
+                curr_target_line = 1
+                for raw_line in file_diff.raw_patch.splitlines():
+                    if raw_line.startswith("@@"):
+                        m = re.search(r"\+(\d+)", raw_line)
+                        if m:
+                            curr_target_line = int(m.group(1))
+                        continue
+                    if raw_line.startswith(("---", "+++", "diff ")):
+                        continue
 
-            for raw_line in file_diff.raw_patch.splitlines():
-                if raw_line.startswith("@@"):
-                    m = re.search(r"\+(\d+)", raw_line)
-                    if m:
-                        curr_target_line = int(m.group(1))
-                    continue
-                if raw_line.startswith(("---", "+++", "diff ")):
-                    continue
-
-                if raw_line.startswith("+"):
-                    clean_lines.append(raw_line[1:])
-                    line_no_mapping[len(clean_lines)] = curr_target_line
-                    curr_target_line += 1
-                elif raw_line.startswith(" "):
-                    clean_lines.append(raw_line[1:])
-                    line_no_mapping[len(clean_lines)] = curr_target_line
-                    curr_target_line += 1
-                elif raw_line.startswith("-"):
-                    continue
+                    if raw_line.startswith("+"):
+                        clean_lines.append(raw_line[1:])
+                        line_no_mapping[len(clean_lines)] = curr_target_line
+                        curr_target_line += 1
+                    elif raw_line.startswith(" ") or raw_line == "":
+                        clean_lines.append(
+                            raw_line[1:] if raw_line.startswith(" ") else raw_line
+                        )
+                        line_no_mapping[len(clean_lines)] = curr_target_line
+                        curr_target_line += 1
+                    elif raw_line.startswith("-"):
+                        continue
 
             code_text = "\n".join(clean_lines)
             if not code_text.strip():
@@ -662,31 +680,47 @@ class ASTSecurityScanner:
                         isinstance(first_arg, ast.Name)
                         and (scope, first_arg.id) in path_joins
                     ):
-                        pj_line = path_joins[(scope, first_arg.id)]
-                        actual_line = line_no_mapping.get(node.lineno, node.lineno)
-                        if actual_line in added_lines_map:
-                            snippet = (
-                                clean_lines[node.lineno - 1]
-                                if 0 < node.lineno <= len(clean_lines)
-                                else ""
-                            )
-                            findings.append(
-                                SastFinding(
-                                    rule_id="SEC-PATH-001",
-                                    cwe="CWE-22",
-                                    name="Path Traversal / Arbitrary File Read",
-                                    description=(
-                                        f"Opening file using variable '{first_arg.id}' constructed via unsanitized os.path.join "
-                                        f"at line {line_no_mapping.get(pj_line, pj_line)}."
-                                    ),
-                                    severity="HIGH",
-                                    file_path=file_path,
-                                    line_number=actual_line,
-                                    snippet=snippet.strip(),
-                                    fix_recommendation="Validate path against an allowed base directory using os.path.realpath.",
-                                    analyzer_source="ast",
+                        # Check if enclosing scope explicitly guards the path with commonpath / startswith / is_relative_to
+                        enclosing_fn = cls._enclosing_function_node(node, tree)
+                        is_guarded = False
+                        if enclosing_fn is not None:
+                            for guard_node in ast.walk(enclosing_fn):
+                                if (
+                                    isinstance(guard_node, ast.Call)
+                                    and getattr(guard_node, "lineno", 0) <= node.lineno
+                                ):
+                                    gname = cls._get_func_name(guard_node.func)
+                                    if gname in ("os.path.commonpath", "os.path.commonprefix") or gname.endswith(
+                                        (".startswith", ".is_relative_to")
+                                    ):
+                                        is_guarded = True
+                                        break
+                        if not is_guarded:
+                            pj_line = path_joins[(scope, first_arg.id)]
+                            actual_line = line_no_mapping.get(node.lineno, node.lineno)
+                            if actual_line in added_lines_map:
+                                snippet = (
+                                    clean_lines[node.lineno - 1]
+                                    if 0 < node.lineno <= len(clean_lines)
+                                    else ""
                                 )
-                            )
+                                findings.append(
+                                    SastFinding(
+                                        rule_id="SEC-PATH-001",
+                                        cwe="CWE-22",
+                                        name="Path Traversal / Arbitrary File Read",
+                                        description=(
+                                            f"Opening file using variable '{first_arg.id}' constructed via unsanitized os.path.join "
+                                            f"at line {line_no_mapping.get(pj_line, pj_line)}."
+                                        ),
+                                        severity="HIGH",
+                                        file_path=file_path,
+                                        line_number=actual_line,
+                                        snippet=snippet.strip(),
+                                        fix_recommendation="Validate path against an allowed base directory using os.path.realpath.",
+                                        analyzer_source="ast",
+                                    )
+                                )
 
             # ── Sink 4: SQL Injection with indirect variables cur.execute(query) ──
             if isinstance(node, ast.Call):
@@ -741,6 +775,10 @@ class ASTSecurityScanner:
                     "subprocess.run",
                     "subprocess.call",
                     "subprocess.Popen",
+                    "subprocess.check_output",
+                    "subprocess.check_call",
+                    "subprocess.getoutput",
+                    "subprocess.getstatusoutput",
                     "os.system",
                     "os.popen",
                 )
@@ -749,7 +787,12 @@ class ASTSecurityScanner:
                         kw.arg == "shell"
                         and evaluate_ast_constant(kw.value, env) is True
                         for kw in node.keywords
-                    ) or func_name in ("os.system", "os.popen")
+                    ) or func_name in (
+                        "os.system",
+                        "os.popen",
+                        "subprocess.getoutput",
+                        "subprocess.getstatusoutput",
+                    )
 
                     first_arg = node.args[0]
                     scope = _scope_of(node)
@@ -883,7 +926,7 @@ class ASTSecurityScanner:
                         context_blob = f"{fn_name} {first_arg_str} {snippet}".lower()
                         is_pw_ctx = bool(
                             re.search(
-                                r"password|passwd|pwd|credential|secret|auth|token|pin",
+                                r"password|passwd|pwd|passphrase|credential|pin",
                                 context_blob,
                             )
                         )
@@ -1075,13 +1118,24 @@ class ASTSecurityScanner:
                             or "query" in subfunc.lower()
                         )
                         if is_query_call:
-                            actual_line = line_no_mapping.get(
+                            loop_line = line_no_mapping.get(node.lineno, node.lineno)
+                            call_line = line_no_mapping.get(
                                 subnode.lineno, subnode.lineno
+                            )
+                            actual_line = (
+                                loop_line
+                                if loop_line in added_lines_map
+                                else call_line
+                            )
+                            snippet_lineno = (
+                                node.lineno
+                                if loop_line in added_lines_map
+                                else subnode.lineno
                             )
                             if actual_line in added_lines_map:
                                 snippet = (
-                                    clean_lines[subnode.lineno - 1]
-                                    if 0 < subnode.lineno <= len(clean_lines)
+                                    clean_lines[snippet_lineno - 1]
+                                    if 0 < snippet_lineno <= len(clean_lines)
                                     else ""
                                 )
                                 findings.append(
@@ -1102,6 +1156,7 @@ class ASTSecurityScanner:
                                         analyzer_source="ast",
                                     )
                                 )
+                                break
 
         # Class-level concurrency checks (Fix 2 & 2b)
         findings.extend(
@@ -1584,6 +1639,21 @@ class ASTSecurityScanner:
             return False
         func_name = cls._get_func_name(node.func)
         if func_name == "os.path.join":
+            if len(node.args) < 2:
+                return False
+            # Safe if all joined sub-path segments are constants or os.path.basename(...)
+            def _is_safe_segment(arg: ast.AST) -> bool:
+                if isinstance(arg, ast.Constant):
+                    return True
+                if (
+                    isinstance(arg, ast.Call)
+                    and cls._get_func_name(arg.func) == "os.path.basename"
+                ):
+                    return True
+                return False
+
+            if all(_is_safe_segment(arg) for arg in node.args[1:]):
+                return False
             return True
         if func_name in _PATH_RESOLVERS:
             # Recurse into positional args to find a nested os.path.join.

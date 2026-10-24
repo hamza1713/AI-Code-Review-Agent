@@ -161,3 +161,143 @@ class DataHandler:
         assert sym.line_start == 1
         # The closing brace is at line 7, NOT line 11 (1 + 10)
         assert sym.line_end == 7
+
+    def test_polyglot_ast_indexing_go_java_rust(self, tmp_path):
+        """Verify Tree-Sitter AST parser extracts symbols and calls from Go, Java, and Rust files."""
+        # Go file
+        go_file = tmp_path / "handler.go"
+        go_file.write_text(
+            """package main
+func ProcessData(ctx Context, query string) error {
+    validate(query)
+    return executeDB(query)
+}
+""",
+            encoding="utf-8",
+        )
+
+        # Java file
+        java_file = tmp_path / "OrderService.java"
+        java_file.write_text(
+            """public class OrderService {
+    public void submitOrder(String orderId) {
+        verifyOrder(orderId);
+        dispatchOrder(orderId);
+    }
+}
+""",
+            encoding="utf-8",
+        )
+
+        # Rust file
+        rust_file = tmp_path / "worker.rs"
+        rust_file.write_text(
+            """fn process_message(msg: &str) -> bool {
+    decode_payload(msg);
+    forward_message(msg);
+    true
+}
+""",
+            encoding="utf-8",
+        )
+
+        indexer = CodeGraphIndexer(repo_root=str(tmp_path))
+        indexer.index_repository(force_reindex=True)
+
+        # Go check
+        go_sym = indexer.symbols.get("handler.go:ProcessData")
+        assert go_sym is not None
+        assert go_sym.kind == "function"
+        assert "query" in go_sym.parameters
+        assert "executeDB" in go_sym.callees
+
+        # Java check
+        java_sym = indexer.symbols.get("OrderService.java:submitOrder")
+        assert java_sym is not None
+        assert java_sym.kind in ("method", "function")
+        assert "dispatchOrder" in java_sym.callees
+
+        # Rust check
+        rust_sym = indexer.symbols.get("worker.rs:process_message")
+        assert rust_sym is not None
+        assert rust_sym.kind == "function"
+        assert "forward_message" in rust_sym.callees
+
+    def test_interprocedural_call_chain_discovery(self, tmp_path):
+        """Verify cross-file multi-hop call chains and taint traces are resolved end-to-end."""
+        f_controller = tmp_path / "controller.py"
+        f_controller.write_text(
+            """from service import process_payload
+def handle_webhook(request):
+    raw_data = request.get_data()
+    return process_payload(raw_data)
+""",
+            encoding="utf-8",
+        )
+
+        f_service = tmp_path / "service.py"
+        f_service.write_text(
+            """from db import raw_exec
+def process_payload(payload):
+    clean = sanitize(payload)
+    return raw_exec(clean)
+""",
+            encoding="utf-8",
+        )
+
+        f_db = tmp_path / "db.py"
+        f_db.write_text(
+            """def raw_exec(sql_cmd):
+    return connection.execute(sql_cmd)
+""",
+            encoding="utf-8",
+        )
+
+        indexer = CodeGraphIndexer(repo_root=str(tmp_path))
+        indexer.index_repository(force_reindex=True)
+
+        chains = indexer.find_call_chains(
+            "handle_webhook", "raw_exec", max_depth=5
+        )
+        assert len(chains) >= 1
+        found_chain = chains[0]
+        # Chain must start with controller and terminate at raw_exec
+        assert any("controller.py:handle_webhook" in node for node in found_chain)
+        assert any("raw_exec" in node for node in found_chain)
+
+        # Verify formatting
+        formatted = indexer.format_taint_path(found_chain)
+        assert "[SOURCE]" in formatted
+        assert "[SINK]" in formatted
+        assert "controller.py" in formatted
+
+    def test_context_tool_find_taint_path(self, tmp_path):
+        """Verify CodebaseContextTool executes find_taint_path queries properly."""
+        from code_review_agent.context_engine.context_tool import (
+            CodebaseContextTool,
+        )
+
+        f1 = tmp_path / "api.py"
+        f1.write_text(
+            """from core import dangerous_eval
+def api_endpoint(user_input):
+    return dangerous_eval(user_input)
+""",
+            encoding="utf-8",
+        )
+
+        f2 = tmp_path / "core.py"
+        f2.write_text(
+            """def dangerous_eval(expr):
+    return eval(expr)
+""",
+            encoding="utf-8",
+        )
+
+        tool = CodebaseContextTool(repo_root=str(tmp_path))
+        result = tool._run(
+            query_type="find_taint_path", target="api_endpoint -> eval"
+        )
+        assert "🚨 Inter-Procedural Call Chain" in result
+        assert "[SOURCE]" in result
+        assert "[SINK]" in result

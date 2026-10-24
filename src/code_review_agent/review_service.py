@@ -646,6 +646,7 @@ class ReviewService:
                 analyzed_commit=snapshot.analyzed_commit,
                 verdict=verdict if flow.state.analysis_complete else "ESCALATE",
                 findings=flow.state.findings,
+                reconciled_findings=list(flow.state.findings),
                 analysis_complete=flow.state.analysis_complete,
                 analyzer_status=flow.state.analyzer_status,
                 confidence_score=confidence,
@@ -710,6 +711,7 @@ class ReviewService:
         response = ReviewAPIResponse(
             verdict=verdict if state.analysis_complete else "ESCALATE",
             findings=state.findings,
+            reconciled_findings=list(state.findings),
             analysis_complete=state.analysis_complete,
             analyzer_status=state.analyzer_status,
             confidence_score=confidence,

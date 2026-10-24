@@ -19,12 +19,17 @@ class ScanReport(BaseModel):
 def run_scanners(
     raw_diff: str, snapshot: ReviewInputSnapshot | None = None
 ) -> ScanReport:
+    from code_review_agent.security.trojan_source import TrojanSourceScanner
+    from code_review_agent.tools.ai_code_detectors import AICodeDefectScanner
     from code_review_agent.tools.bandit_runner import BanditRunner
     from code_review_agent.tools.sast_scanner import (
         ASTSecurityScanner,
         QuickPatternScanner,
     )
     from code_review_agent.tools.semgrep_runner import SemgrepRunner
+    from code_review_agent.tools.supply_chain_scanner import (
+        SupplyChainAndSlopsquatScanner,
+    )
 
     parsed = DiffParser.parse_diff(raw_diff)
     if snapshot is None:
@@ -41,6 +46,9 @@ def run_scanners(
     for name, scanner, applicable, optional in [
         ("ast", ASTSecurityScanner, python, False),
         ("patterns", QuickPatternScanner, True, False),
+        ("supply_chain", SupplyChainAndSlopsquatScanner, bool(parsed.files), False),
+        ("ai_code_defects", AICodeDefectScanner, python, False),
+        ("trojan_source", TrojanSourceScanner, bool(parsed.files), False),
         ("bandit", BanditRunner, python, False),
         ("ruff", RuffRunner, python, False),
         ("semgrep", SemgrepRunner, bool(parsed.files), True),

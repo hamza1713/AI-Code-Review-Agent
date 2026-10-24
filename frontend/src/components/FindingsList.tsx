@@ -1,37 +1,85 @@
 import React, { useState } from 'react';
 import { ShieldAlert, Copy, Check, Filter, CheckCircle2, Zap } from 'lucide-react';
+import { apiFetch, responseError } from '../api';
 import type { SastFinding, Severity } from '../types/review';
 
 interface FindingsListProps {
   findings: SastFinding[];
   label: string;
+  /** owner/repo; when provided, Suppress calls the suppression API. */
+  repoId?: string;
+  /** PR identifier/URL; when provided, 1-Click Fix queues remediation. */
+  prIdentifier?: string;
 }
 
-export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) => {
+export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, repoId, prIdentifier }) => {
   const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
   const [copyError, setCopyError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedFp, setCopiedFp] = useState<string | null>(null);
   const [copiedApplyFp, setCopiedApplyFp] = useState<string | null>(null);
 
-  const handleCopySuppress = async (fp: string) => {
+  const copyCommand = async (text: string, done: () => void) => {
+    setCopyError('');
     try {
-      await navigator.clipboard.writeText(`/review suppress ${fp}`);
-      setCopiedFp(fp);
-      setTimeout(() => setCopiedFp(null), 2000);
+      await navigator.clipboard.writeText(text);
+      done();
     } catch {
-      // ignore
+      setCopyError('Copy failed. Select the text and copy it manually.');
     }
   };
 
-  const handleCopyApply = async (fp: string) => {
-    try {
-      await navigator.clipboard.writeText(`/review apply ${fp}`);
-      setCopiedApplyFp(fp);
-      setTimeout(() => setCopiedApplyFp(null), 2000);
-    } catch {
-      // ignore
+  const handleCopySuppress = async (fp: string) => {
+    setActionMessage('');
+    if (repoId) {
+      try {
+        const response = await apiFetch('/api/suppressions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_id: repoId, fingerprint: fp, reason: 'Suppressed from workspace UI' }),
+        });
+        if (!response.ok) throw new Error(await responseError(response));
+        setCopiedFp(fp);
+        setActionMessage(`Finding ${fp.slice(0, 8)} suppressed for ${repoId}.`);
+        setTimeout(() => setCopiedFp(null), 2000);
+        return;
+      } catch (reason) {
+        setCopyError(reason instanceof Error ? reason.message : 'Suppression failed.');
+        return;
+      }
     }
+    await copyCommand(`/review suppress ${fp}`, () => {
+      setCopiedFp(fp);
+      setActionMessage('No repository bound; command copied. Paste it in the PR to suppress.');
+      setTimeout(() => setCopiedFp(null), 2000);
+    });
+  };
+
+  const handleCopyApply = async (fp: string) => {
+    setActionMessage('');
+    if (prIdentifier) {
+      try {
+        const response = await apiFetch('/api/remediation/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pr_identifier: prIdentifier, fingerprint: fp }),
+        });
+        if (!response.ok) throw new Error(await responseError(response));
+        setCopiedApplyFp(fp);
+        setActionMessage(`Remediation for ${fp.slice(0, 8)} queued.`);
+        setTimeout(() => setCopiedApplyFp(null), 2000);
+        return;
+      } catch (reason) {
+        setCopyError(reason instanceof Error ? reason.message : 'Remediation request failed.');
+        return;
+      }
+    }
+    await copyCommand(`/review apply ${fp}`, () => {
+      setCopiedApplyFp(fp);
+      setActionMessage('No pull request bound; command copied. Paste it in the PR to apply.');
+      setTimeout(() => setCopiedApplyFp(null), 2000);
+    });
   };
 
   const filtered = selectedSeverity === 'ALL'
@@ -67,6 +115,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label }) =
   return (
     <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
       {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
+      {actionMessage && <p role="status" className="text-xs text-emerald-300 mb-3">{actionMessage}</p>}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-2">
         <div className="flex items-center space-x-2.5">

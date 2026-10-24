@@ -2,10 +2,13 @@ import React, { useState, useMemo } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-tsx';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-yaml';
 import {
   ShieldAlert,
   AlertTriangle,
@@ -27,10 +30,19 @@ interface AnnotatedCodeViewerProps {
 
 interface ParsedFileLine {
   lineNumber: number;
+  oldLineNumber?: number;
   content: string;
   type: 'context' | 'added' | 'deleted';
   raw: string;
 }
+
+const escapeHtml = (text: string) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 interface ParsedFile {
   filename: string;
@@ -69,6 +81,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   const [copyError, setCopyError] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [manuallyExpandedFolds, setManuallyExpandedFolds] = useState<Record<number, boolean>>({});
+  const [diffView, setDiffView] = useState<'unified' | 'split'>('unified');
 
   // 1. Parse raw diff or plain file content into structured file lines
   const parsedFiles: ParsedFile[] = useMemo(() => {
@@ -95,14 +108,16 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
 
         const lines: ParsedFileLine[] = [];
         let currentLineNo = 1;
+        let oldLineNo = 1;
 
         const rawLines = section.split(/\r?\n/);
         for (const line of rawLines) {
           if (line.startsWith('@@')) {
-            // Extract hunk line number: @@ -old,count +new,count @@
-            const hunkMatch = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+            // Extract hunk line numbers: @@ -old,count +new,count @@
+            const hunkMatch = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
             if (hunkMatch) {
-              currentLineNo = parseInt(hunkMatch[1], 10);
+              oldLineNo = parseInt(hunkMatch[1], 10);
+              currentLineNo = parseInt(hunkMatch[2], 10);
             }
             continue;
           }
@@ -119,21 +134,25 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
             });
             currentLineNo++;
           } else if (line.startsWith('-')) {
-            // Deleted line
+            // Deleted line: never consumes or reuses a new-file line number
             lines.push({
-              lineNumber: currentLineNo,
+              lineNumber: 0,
+              oldLineNumber: oldLineNo,
               content: line.slice(1),
               type: 'deleted',
               raw: line,
             });
+            oldLineNo++;
           } else if (line.startsWith(' ') || line === '') {
             lines.push({
               lineNumber: currentLineNo,
+              oldLineNumber: oldLineNo,
               content: line.startsWith(' ') ? line.slice(1) : line,
               type: 'context',
               raw: line,
             });
             currentLineNo++;
+            oldLineNo++;
           }
         }
 
@@ -177,7 +196,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
       let lineNo = comment.line;
 
       // Fallback: If lineNo is not directly in rendered lines, but within hunk line index range:
-      if (!validLines.has(lineNo) && currentFile.lines[lineNo - 1]) {
+      if (!validLines.has(lineNo) && currentFile.lines[lineNo - 1] && currentFile.lines[lineNo - 1].lineNumber > 0) {
         lineNo = currentFile.lines[lineNo - 1].lineNumber;
       }
 
@@ -237,6 +256,15 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
     setExpandedComments(all);
   };
 
+  const scrollToLine = (lineNo: number) => {
+    const el = document.getElementById(`code-line-${lineNo}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const key = `${currentFile.filename}-${lineNo}-0`;
+      setExpandedComments(prev => ({ ...prev, [key]: true }));
+    }
+  };
+
   const collapseAllComments = () => {
     const all: Record<string, boolean> = {};
     Object.entries(commentsByLine).forEach(([line, comments]) => {
@@ -248,17 +276,39 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
   // Syntax highlighter helper
   const highlightSyntax = (codeText: string) => {
     try {
-      const lang = currentFile.filename.endsWith('.js') || currentFile.filename.endsWith('.ts')
-        ? Prism.languages.javascript
-        : currentFile.filename.endsWith('.json')
-        ? Prism.languages.json
-        : currentFile.filename.endsWith('.sql')
-        ? Prism.languages.sql
-        : Prism.languages.python;
+      const fn = currentFile.filename.toLowerCase();
+      let lang = Prism.languages.python;
+      let langName = 'python';
 
-      return Prism.highlight(codeText || ' ', lang || Prism.languages.clike, 'python');
+      if (fn.endsWith('.tsx')) {
+        lang = Prism.languages.tsx || Prism.languages.typescript || Prism.languages.javascript;
+        langName = 'tsx';
+      } else if (fn.endsWith('.ts')) {
+        lang = Prism.languages.typescript || Prism.languages.javascript;
+        langName = 'typescript';
+      } else if (fn.endsWith('.jsx')) {
+        lang = Prism.languages.jsx || Prism.languages.javascript;
+        langName = 'jsx';
+      } else if (fn.endsWith('.js')) {
+        lang = Prism.languages.javascript;
+        langName = 'javascript';
+      } else if (fn.endsWith('.json')) {
+        lang = Prism.languages.json;
+        langName = 'json';
+      } else if (fn.endsWith('.sql')) {
+        lang = Prism.languages.sql;
+        langName = 'sql';
+      } else if (fn.endsWith('.sh') || fn.endsWith('.bash')) {
+        lang = Prism.languages.bash;
+        langName = 'bash';
+      } else if (fn.endsWith('.yaml') || fn.endsWith('.yml')) {
+        lang = Prism.languages.yaml;
+        langName = 'yaml';
+      }
+
+      return Prism.highlight(codeText || ' ', lang || Prism.languages.clike, langName);
     } catch {
-      return codeText;
+      return escapeHtml(codeText);
     }
   };
 
@@ -369,6 +419,20 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
 
         {/* Global Expand/Collapse Toggle */}
         <div className="flex items-center space-x-2">
+          <div role="group" aria-label="Diff view mode" className="flex items-center bg-[#0a0c12] p-0.5 rounded-lg border border-slate-800/80">
+            {(['unified', 'split'] as const).map(mode => (
+              <button
+                key={mode}
+                aria-pressed={diffView === mode}
+                onClick={() => setDiffView(mode)}
+                className={`text-[11px] px-2.5 py-1 rounded-md capitalize cursor-pointer ${
+                  diffView === mode ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
           <button
             onClick={expandAllComments}
             className="text-[11px] text-slate-400 hover:text-slate-200 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer"
@@ -411,7 +475,126 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
         </div>
       )}
 
+      {/* 3. Code Canvas with Minimap Rail */}
+      <div className="relative flex bg-[#07090e] border-t border-slate-800/80">
+        <div className="flex-1 overflow-x-auto font-mono text-xs selection:bg-indigo-600/40">
+      {diffView === 'split' && (
+        <div className="overflow-x-auto bg-[#07090e] font-mono text-xs">
+          <table className="w-full border-collapse table-fixed">
+            <tbody>
+              {(() => {
+                type Row = { left?: ParsedFileLine; right?: ParsedFileLine };
+                const rows: Row[] = [];
+                let pending: ParsedFileLine[] = [];
+                for (const l of currentFile.lines) {
+                  if (l.type === 'deleted') { pending.push(l); continue; }
+                  if (l.type === 'added') {
+                    const del = pending.shift();
+                    rows.push({ left: del, right: l });
+                    continue;
+                  }
+                  pending.forEach(d => rows.push({ left: d }));
+                  pending = [];
+                  rows.push({ left: l, right: l });
+                }
+                pending.forEach(d => rows.push({ left: d }));
+                return rows.map((row, i) => {
+                  const rightComments = row.right ? (commentsByLine[row.right.lineNumber] || []) : [];
+                  const flagged = rightComments.length > 0;
+                  return (
+                    <React.Fragment key={`split-${i}`}>
+                      <tr id={row.right && row.right.lineNumber > 0 ? `code-line-${row.right.lineNumber}` : undefined} className="border-b border-slate-900/40">
+                        <td className={`w-10 px-2 py-1 text-right text-slate-600 align-top ${row.left?.type === 'deleted' ? 'bg-rose-950/30' : ''}`}>
+                          {row.left ? (row.left.oldLineNumber ?? '') : ''}
+                        </td>
+                        <td className={`px-2 py-1 whitespace-pre overflow-hidden align-top ${row.left?.type === 'deleted' ? 'bg-rose-950/30 text-rose-200' : 'text-slate-300'}`}
+                          dangerouslySetInnerHTML={{ __html: row.left ? highlightSyntax(row.left.content) : '' }} />
+                        <td className={`w-10 px-2 py-1 text-right text-slate-600 align-top border-l border-slate-800 ${row.right?.type === 'added' ? 'bg-emerald-950/30' : ''}`}>
+                          {row.right ? row.right.lineNumber : ''}
+                        </td>
+                        <td className={`px-2 py-1 whitespace-pre overflow-hidden align-top ${flagged ? 'bg-rose-950/20 border-l-4 border-l-rose-500' : row.right?.type === 'added' ? 'bg-emerald-950/30' : ''} text-slate-200`}
+                          dangerouslySetInnerHTML={{ __html: row.right ? highlightSyntax(row.right.content) : '' }} />
+                      </tr>
+                      {rightComments.map((c, cIdx) => {
+                        const cardKey = `split-${currentFile.filename}-${row.right?.lineNumber}-${cIdx}`;
+                        const sev = normalizeSeverity(c.severity);
+                        return (
+                          <tr key={`split-card-${i}-${cIdx}`} className="bg-[#0a0d14] border-b border-slate-800/90">
+                            <td colSpan={4} className="p-3">
+                              <div className="bg-[#131826] border border-slate-800 rounded-xl p-4 shadow-xl space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2.5">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                                      sev === 'CRITICAL' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' :
+                                      sev === 'WARNING' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                                      'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                                    }`}>
+                                      {sev}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-100">{c.comment_body}</span>
+                                  </div>
+                                </div>
+                                {c.why && (
+                                  <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-indigo-200 text-[11px] flex items-start space-x-2">
+                                    <span className="text-indigo-400 font-bold shrink-0">💡 Why:</span>
+                                    <span className="leading-relaxed">{c.why}</span>
+                                  </div>
+                                )}
+                                {c.suggestion_code && (
+                                  <div className="rounded-lg bg-[#07090e] border border-slate-800/90 overflow-hidden text-xs">
+                                    <div className="px-3 py-1.5 bg-[#0e121a] border-b border-slate-800 flex items-center justify-between">
+                                      <div className="flex items-center space-x-2">
+                                        <Code2 className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">
+                                          Suggested Fix (Proposed Patch)
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleCopyCode(c.suggestion_code || '', cardKey);
+                                        }}
+                                        className="text-[10px] text-slate-300 hover:text-white flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                                      >
+                                        {copiedKey === cardKey ? (
+                                          <>
+                                            <Check className="w-3 h-3 text-emerald-400" />
+                                            <span>Copied!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3 h-3" />
+                                            <span>Copy Code</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                    <div className="px-3 py-1.5 bg-rose-950/20 border-b border-rose-900/30 text-rose-300 font-mono text-[11px] flex items-center space-x-2">
+                                      <span className="select-none text-rose-500 font-bold">-</span>
+                                      <span className="line-through opacity-80">{row.right?.content?.trim() || '(original)'}</span>
+                                    </div>
+                                    <div className="px-3 py-1.5 bg-emerald-950/20 text-emerald-300 font-mono text-[11px] flex items-start space-x-2">
+                                      <span className="select-none text-emerald-400 font-bold">+</span>
+                                      <pre className="whitespace-pre overflow-x-auto flex-1 font-mono">{c.suggestion_code}</pre>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* 3. Interactive Code Canvas with Gutter Markers & In-Flow Cards */}
+      {diffView === 'unified' && (
       <div className="overflow-x-auto bg-[#07090e] font-mono text-xs selection:bg-indigo-600/40">
         <table className="w-full border-collapse">
           <tbody>
@@ -438,7 +621,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                 return null;
               }
 
-              const lineComments = commentsByLine[line.lineNumber] || [];
+              const lineComments = line.type === 'deleted' ? [] : (commentsByLine[line.lineNumber] || []);
               const hasFlag = lineComments.length > 0;
               const topSeverity = hasFlag
                 ? lineComments.some(c => normalizeSeverity(c.severity) === 'CRITICAL')
@@ -484,6 +667,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
               return (
                 <React.Fragment key={`line-${line.lineNumber}-${idx}`}>
                   <tr
+                    id={line.lineNumber > 0 ? `code-line-${line.lineNumber}` : undefined}
                     onClick={() => {
                       if (hasFlag) {
                         lineComments.forEach((_, cIdx) => {
@@ -519,7 +703,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
 
                     {/* Gutter: Line Number */}
                     <td className="w-12 px-2 py-1 text-right select-none text-slate-600 font-mono text-[11px] border-r border-slate-800/80 shrink-0 align-top group-hover:text-slate-400">
-                      {line.lineNumber}
+                      {line.type === 'deleted' ? `−${line.oldLineNumber ?? ''}` : line.lineNumber}
                     </td>
 
                     {/* Code Content with Wavy Decoration */}
@@ -655,6 +839,44 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
             })}
           </tbody>
         </table>
+      </div>
+      )}
+        </div>
+
+        {/* Minimap Rail */}
+        <aside
+          aria-label="Diff navigation minimap"
+          className="w-7 bg-[#05070a] border-l border-slate-800/80 sticky top-0 h-auto min-h-[300px] select-none py-2 hidden sm:flex flex-col items-center"
+        >
+          <div className="text-[8px] font-mono text-slate-500 mb-1 font-bold" title="Code findings map">MAP</div>
+          <div className="relative w-full flex-1 min-h-[260px]">
+            {flaggedLineNumbers.map((lineNo) => {
+              const comments = commentsByLine[lineNo] || [];
+              const topSev = comments.some(c => normalizeSeverity(c.severity) === 'CRITICAL')
+                ? 'CRITICAL'
+                : comments.some(c => normalizeSeverity(c.severity) === 'WARNING')
+                ? 'WARNING'
+                : 'INFO';
+              const totalLines = Math.max(1, currentFile.lines.length);
+              const topPercent = Math.min(96, Math.max(2, (lineNo / totalLines) * 100));
+              return (
+                <button
+                  key={`minimap-${lineNo}`}
+                  onClick={() => scrollToLine(lineNo)}
+                  title={`Jump to Line ${lineNo} (${topSev}): ${comments[0]?.comment_body || ''}`}
+                  style={{ top: `${topPercent}%` }}
+                  className={`absolute left-1/2 -translate-x-1/2 w-3.5 h-1.5 rounded-sm transition-transform hover:scale-150 cursor-pointer ${
+                    topSev === 'CRITICAL'
+                      ? 'bg-rose-500 shadow-sm shadow-rose-500/80'
+                      : topSev === 'WARNING'
+                      ? 'bg-amber-400 shadow-sm shadow-amber-400/80'
+                      : 'bg-sky-400 shadow-sm shadow-sky-400/80'
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </aside>
       </div>
     </div>
   );

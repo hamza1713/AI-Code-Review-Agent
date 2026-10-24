@@ -1,11 +1,15 @@
-import { Shield, GitPullRequest, Layers, Activity } from 'lucide-react';
+import { Shield, GitPullRequest, Layers, Activity, LogOut } from 'lucide-react';
 import type { HealthStatus } from '../types/review';
 interface NavbarProps {
   health: HealthStatus | null;
   activeView: 'review' | 'jobs' | 'calibration';
   onViewChange: (view: 'review' | 'jobs' | 'calibration') => void;
+  onLogout?: () => void;
 }
-export function Navbar({ health, activeView, onViewChange }: NavbarProps) {
+export function Navbar({ health, activeView, onViewChange, onLogout }: NavbarProps) {
+  const isHealthy = Boolean(
+    health?.status && ['healthy', 'alive', 'ready', 'ok'].includes(health.status.toLowerCase())
+  );
   return <header className="workspace-nav">
     <a href="#main-content" className="skip-link">Skip to workspace</a>
     <div className="nav-inner">
@@ -15,7 +19,8 @@ export function Navbar({ health, activeView, onViewChange }: NavbarProps) {
         <button aria-current={activeView === 'jobs' ? 'page' : undefined} onClick={() => onViewChange('jobs')}><Layers size={16} />Job queue{health?.queue?.queued ? <span className="queue-count">{health.queue.queued}</span> : null}</button>
         <button aria-current={activeView === 'calibration' ? 'page' : undefined} onClick={() => onViewChange('calibration')}><Activity size={16} />Calibration</button>
       </nav>
-      <div className="connection-status" role="status"><span className={health?.status === 'healthy' ? 'status-dot online' : 'status-dot'} />{health?.status === 'healthy' ? 'Service connected' : 'Service unavailable'}</div>
+      <div className="connection-status" role="status"><span className={isHealthy ? 'status-dot online' : 'status-dot'} />{isHealthy ? 'Service connected' : 'Service unavailable'}</div>
+      {onLogout && <button type="button" onClick={onLogout} className="logout-button"><LogOut size={16} />Log out</button>}
     </div>
   </header>;
 }

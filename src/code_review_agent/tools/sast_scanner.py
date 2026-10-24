@@ -70,7 +70,7 @@ SECURITY_PATTERN_RULES: list[SecurityPatternRule] = [
         cwe="CWE-78",
         name="OS Command Injection / Execution",
         severity="CRITICAL",
-        pattern=r"(?:os\.system|subprocess\.(?:call|run|Popen))\s*\(",
+        pattern=r"(?:os\.(?:system|popen)|subprocess\.(?:call|run|Popen|check_output|check_call|getoutput|getstatusoutput))\s*\(",
         description="Executing operating system commands with os.system or subprocess.",
         fix_recommendation="Pass arguments as a list with shell=False: `subprocess.run(['ls', '-l', directory], shell=False, check=True)`",
     ),
@@ -422,41 +422,52 @@ class UnifiedSecurityScanner:
     def scan_diff(cls, raw_diff: str) -> list[SastFinding]:
         """Execute all available security scanners and merge results without duplication."""
         all_findings: list[SastFinding] = []
-        seen_keys = set()
+        seen_keys: set[tuple[str, int, str]] = set()
+        seen_cwe_keys: set[tuple[str, int, str]] = set()
+        seen_file_lines: set[tuple[str, int]] = set()
 
-        # 1. AST Constant Folding & Variable Indirection Scanner (Python AST - high semantic fidelity)
-        ast_findings = ASTSecurityScanner.scan_diff(raw_diff)
-        for f in ast_findings:
+        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
+        regex_sqli_lines: dict[str, set[int]] = {}
+        for rf in regex_findings:
+            if rf.cwe == "CWE-89":
+                regex_sqli_lines.setdefault(rf.file_path, set()).add(rf.line_number)
+
+        def _add(f: SastFinding, line_exclusive: bool) -> None:
             key = (f.file_path, f.line_number, f.rule_id)
-            if key not in seen_keys:
-                seen_keys.add(key)
-                all_findings.append(f)
+            cwe_key = (f.file_path, f.line_number, f.cwe) if f.cwe else None
+            if key in seen_keys or (cwe_key and cwe_key in seen_cwe_keys):
+                return
+            if line_exclusive and (f.file_path, f.line_number) in seen_file_lines:
+                return
+            seen_keys.add(key)
+            if cwe_key:
+                seen_cwe_keys.add(cwe_key)
+            seen_file_lines.add((f.file_path, f.line_number))
+            all_findings.append(f)
+
+        # 1. AST Constant Folding & Variable Indirection Scanner
+        for f in ASTSecurityScanner.scan_diff(raw_diff):
+            # Skip sink-line echo when interpolation was already flagged within 5 lines above
+            if f.rule_id == "SEC-SQLI-002" and any(
+                0 < f.line_number - rl <= 5
+                for rl in regex_sqli_lines.get(f.file_path, set())
+            ):
+                continue
+            _add(f, False)
 
         # 2. Built-in Regex Pattern scanner (heuristic fallback)
-        regex_findings = QuickPatternScanner.scan_diff(raw_diff)
         for f in regex_findings:
-            key = (f.file_path, f.line_number, f.rule_id)
-            if key not in seen_keys:
-                seen_keys.add(key)
-                all_findings.append(f)
+            _add(f, False)
 
         # 3. Bandit AST scan (if available)
         if BanditRunner.is_available():
-            bandit_findings = BanditRunner.scan_diff(raw_diff)
-            for f in bandit_findings:
-                key = (f.file_path, f.line_number, f.rule_id)
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    all_findings.append(f)
+            for f in BanditRunner.scan_diff(raw_diff):
+                _add(f, True)
 
-        # 3. Semgrep AST scan (if available)
+        # 4. Semgrep AST scan (if available)
         if SemgrepRunner.is_available():
-            semgrep_findings = SemgrepRunner.scan_diff(raw_diff)
-            for f in semgrep_findings:
-                key = (f.file_path, f.line_number, f.rule_id)
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    all_findings.append(f)
+            for f in SemgrepRunner.scan_diff(raw_diff):
+                _add(f, True)
 
         return all_findings
 

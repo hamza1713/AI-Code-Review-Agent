@@ -105,7 +105,7 @@ def worker_workspace():
                     time.sleep(0.1)
 
 
-def run_job(operation, payload, timeout=180.0, cancel_event=None):
+def run_job(operation, payload, timeout=180.0, cancel_event=None, event_callback=None):
     if not _slots.acquire(blocking=False):
         raise ReviewBusyError("All review workers are busy. Try again shortly.")
     process = None
@@ -121,6 +121,9 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None):
             env = os.environ.copy()
             env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
             env["REVIEW_WORKER_DEADLINE"] = str(time.time() + timeout)
+            events_file = root / "events.jsonl"
+            events_pos = 0
+            env["REVIEW_EVENTS_FILE"] = str(events_file)
             options = (
                 {
                     "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP
@@ -159,6 +162,17 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None):
                             # The worker publishes atomically. Do not wait for third-party
                             # background threads during interpreter shutdown after work is done.
                             break
+                        if event_callback and events_file.exists():
+                            try:
+                                with open(events_file, "r", encoding="utf-8") as ef:
+                                    ef.seek(events_pos)
+                                    new_lines = ef.read()
+                                    events_pos = ef.tell()
+                                    for eline in new_lines.splitlines():
+                                        if eline.strip():
+                                            event_callback(json.loads(eline))
+                            except Exception:
+                                pass
                         time.sleep(0.05)
                     if not result_file.exists():
                         stop_process_tree(process)
@@ -199,10 +213,10 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None):
         _slots.release()
 
 
-async def run_job_async(operation, payload, timeout=180.0):
+async def run_job_async(operation, payload, timeout=180.0, event_callback=None):
     cancelled = threading.Event()
     task = asyncio.create_task(
-        asyncio.to_thread(run_job, operation, payload, timeout, cancelled)
+        asyncio.to_thread(run_job, operation, payload, timeout, cancelled, event_callback)
     )
     try:
         return await asyncio.shield(task)

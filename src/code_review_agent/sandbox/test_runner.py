@@ -128,6 +128,30 @@ class SandboxTestRunner:
                 parsed = DiffParser.parse_diff(pr_content or "")
                 if len(parsed.files) > 100:
                     raise ValueError("Too many diff files")
+                # Provide sibling repo modules so unchanged imports resolve in the sandbox.
+                if repo_root and Path(repo_root).is_dir():
+                    copied = 0
+                    root_path = Path(repo_root).resolve()
+                    for src in root_path.rglob("*.py"):
+                        if copied >= 200:
+                            break
+                        rel = src.relative_to(root_path)
+                        if any(
+                            part.startswith(".")
+                            or part in {"node_modules", "venv", ".venv", "__pycache__", "tests", "test"}
+                            for part in rel.parts
+                        ):
+                            continue
+                        if src.is_symlink() or src.stat().st_size > 256 * 1024:
+                            continue
+                        try:
+                            sib = safe_diff_path(workspace, rel.as_posix())
+                            sib.parent.mkdir(parents=True, exist_ok=True)
+                            sib.write_bytes(src.read_bytes())
+                            sib.chmod(0o644)
+                            copied += 1
+                        except (ValueError, OSError):
+                            continue
                 for item in parsed.files:
                     filename = item.target_file or item.source_file
                     if filename == "/dev/null":

@@ -67,7 +67,7 @@ export const TraceVisualizer: React.FC<TraceVisualizerProps> = ({ trace }) => {
             </div>
             <div className="flex items-center space-x-3 text-xs">
               {node.duration_ms !== undefined && node.duration_ms !== null && (
-                <span className="text-slate-400 font-mono">⚡ {node.duration_ms}ms</span>
+                <span className="text-slate-400 font-mono">⚡ {Math.round(node.duration_ms).toLocaleString()}ms</span>
               )}
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-950/60 text-emerald-300 border border-emerald-800">
                 {node.status}
@@ -102,7 +102,7 @@ export const TraceVisualizer: React.FC<TraceVisualizerProps> = ({ trace }) => {
           </span>
         </div>
         <div className="text-xs text-slate-400 font-mono">
-          Total Duration: <span className="text-indigo-400 font-semibold">{trace.duration_ms}ms</span>
+          Total Duration: <span className="text-indigo-400 font-semibold">{Math.round(trace.duration_ms).toLocaleString()}ms</span>
         </div>
       </div>
 

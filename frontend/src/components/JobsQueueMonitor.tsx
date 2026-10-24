@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Server, Copy, ExternalLink } from 'lucide-react';
-import type { WebhookJob, QueueMetrics } from '../types/review';
+import type { WebhookJob, QueueMetrics, ReviewAPIResponse } from '../types/review';
 import { apiFetch, responseError } from '../api';
 
 interface WebhookConfig {
@@ -19,10 +19,12 @@ function JobDetails({
   job,
   onClose,
   onCancel,
+  onSelectReview,
 }: {
   job: WebhookJob;
   onClose: () => void;
   onCancel?: (jobId: string) => void;
+  onSelectReview?: (result: ReviewAPIResponse) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -92,15 +94,33 @@ function JobDetails({
         </p>
       )}
       {job.result && (
-        <pre className="mt-4 text-xs whitespace-pre-wrap break-all bg-slate-950 p-4 rounded-xl border border-slate-800">
-          {JSON.stringify(job.result, null, 2)}
-        </pre>
+        <div className="mt-4 space-y-2">
+          {onSelectReview && (
+            <button
+              onClick={() => {
+                onSelectReview(job.result as unknown as ReviewAPIResponse);
+                dialog.current?.close();
+              }}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-sm text-white font-medium transition-colors cursor-pointer shadow"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Open in Review Dashboard</span>
+            </button>
+          )}
+          <pre className="text-xs whitespace-pre-wrap break-all bg-slate-950 p-4 rounded-xl border border-slate-800 max-h-[300px] overflow-auto">
+            {JSON.stringify(job.result, null, 2)}
+          </pre>
+        </div>
       )}
     </dialog>
   );
 }
 
-export function JobsQueueMonitor() {
+export function JobsQueueMonitor({
+  onSelectReview,
+}: {
+  onSelectReview?: (result: ReviewAPIResponse) => void;
+} = {}) {
   const [jobs, setJobs] = useState<WebhookJob[]>([]);
   const [filter, setFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -393,6 +413,16 @@ export function JobsQueueMonitor() {
                     >
                       Inspect
                     </button>
+                    {job.status === 'COMPLETED' && job.result && onSelectReview && (
+                      <button
+                        onClick={() => onSelectReview(job.result as unknown as ReviewAPIResponse)}
+                        className="text-emerald-400 hover:underline font-medium inline-flex items-center gap-1"
+                        title="Open review results in dashboard"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Dashboard
+                      </button>
+                    )}
                     {['QUEUED', 'RETRYING', 'PROCESSING'].includes(job.status) && (
                       <button onClick={() => handleCancelJob(job.job_id)} className="text-rose-400 hover:underline">
                         Cancel
@@ -417,6 +447,7 @@ export function JobsQueueMonitor() {
           job={jobs.find((job) => job.job_id === selectedJob.job_id) || selectedJob}
           onClose={() => setSelectedJob(null)}
           onCancel={handleCancelJob}
+          onSelectReview={onSelectReview}
         />
       )}
     </div>

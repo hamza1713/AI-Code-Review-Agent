@@ -46,7 +46,10 @@ interface ParsedFinding {
  * does not populate `full_report`.
  */
 function buildFullReport(data: ReviewAPIResponse): string {
-  const { verdict, confidence_score, summary, pattern_findings = [], governance_violations = [] } = data;
+  const { verdict, confidence_score, summary, governance_violations = [] } = data;
+  const pattern_findings = (data.pattern_findings && data.pattern_findings.length > 0)
+    ? data.pattern_findings
+    : (data.findings ?? []);
   const lines: string[] = [];
 
   lines.push('# Pull Request Review Report', '');
@@ -249,7 +252,10 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
     }
     // Fallback: collect critical findings and blocking governance rules
     const list: string[] = [];
-    (data.pattern_findings || [])
+    const resolvedFindings = (data.pattern_findings && data.pattern_findings.length > 0)
+      ? data.pattern_findings
+      : (data.findings || []);
+    resolvedFindings
       .filter(f => f.severity === 'CRITICAL')
       .forEach(f => list.push(`CRITICAL ${f.cwe || ''} in ${f.file_path}:L${f.line_number} — ${f.description}`));
     (data.governance_violations || [])
@@ -294,8 +300,27 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
 
   // Structured Reconciled Findings
   const allFindings = useMemo(() => {
-    return extractStructuredFindings(displayReport, data.pattern_findings || [], blockingReasons);
-  }, [displayReport, data.pattern_findings, blockingReasons]);
+    if (data.reconciled_findings && data.reconciled_findings.length > 0) {
+      return data.reconciled_findings.map((s, idx): ParsedFinding => ({
+        id: `reconciled-${idx}-${s.file_path}-${s.line_number}`,
+        index: idx + 1,
+        severity: (s.severity || 'HIGH') as ParsedFinding['severity'],
+        cwe: s.cwe || 'CWE-Unknown',
+        location: `${s.file_path}:L${s.line_number}`,
+        filePath: s.file_path,
+        lineNumber: s.line_number,
+        defect: s.description,
+        sources: s.analyzer_source ? String(s.analyzer_source).split(',') : ['reconciled'],
+        fixRecommendation: s.fix_recommendation,
+        snippet: s.snippet,
+        isBlocking: s.blocking || s.severity === 'CRITICAL',
+      }));
+    }
+    const rawFindings = (data.pattern_findings && data.pattern_findings.length > 0)
+      ? data.pattern_findings
+      : (data.findings || []);
+    return extractStructuredFindings(displayReport, rawFindings, blockingReasons);
+  }, [displayReport, data.reconciled_findings, data.pattern_findings, data.findings, blockingReasons]);
 
   // Finding counts by severity
   const severityCounts = useMemo(() => {

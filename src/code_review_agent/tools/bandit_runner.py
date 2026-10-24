@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
 
 from code_review_agent.config import logger
@@ -105,33 +106,78 @@ class BanditRunner:
         with tempfile.TemporaryDirectory(prefix="bandit_scan_") as tmp_dir:
             tmp_path = Path(tmp_dir)
             file_map = {}
+            line_maps: dict[str, tuple[dict[int, int], set[int]]] = {}
 
             for file_diff in py_files:
                 target_rel = file_diff.target_file
                 dest = safe_diff_path(tmp_path, target_rel)
+                added_lines = {
+                    line_no
+                    for line_no, _ in DiffParser.extract_added_lines_with_numbers(
+                        file_diff
+                    )
+                }
+                if not added_lines:
+                    continue
+
                 dest.parent.mkdir(parents=True, exist_ok=True)
 
-                # Reconstruct syntactically valid Python code preserving context
-                clean_lines = []
-                for line in file_diff.raw_patch.splitlines():
-                    if line.startswith("+") and not line.startswith("+++"):
-                        clean_lines.append(line[1:])
-                    elif line.startswith(" "):
-                        clean_lines.append(line[1:])
-                    elif line.startswith(("-", "@@", "diff ", "index ")):
-                        continue
-                    elif line.startswith(("---", "+++")):
-                        continue
-                    elif line.startswith(("new file mode", "deleted file mode")):
-                        continue
-                    else:
-                        clean_lines.append(line)
+                # Reconstruct syntactically valid Python code preserving target line mappings
+                clean_lines: list[str] = []
+                line_no_mapping: dict[int, int] = {}
+                if getattr(file_diff, "hunks", None):
+                    for hunk in file_diff.hunks:
+                        curr_target_line = hunk.new_start
+                        for line in hunk.lines:
+                            if line.startswith("+") and not line.startswith("+++"):
+                                clean_lines.append(line[1:])
+                                line_no_mapping[len(clean_lines)] = curr_target_line
+                                curr_target_line += 1
+                            elif line.startswith("-"):
+                                continue
+                            else:
+                                clean_lines.append(
+                                    line[1:] if line.startswith(" ") else line
+                                )
+                                line_no_mapping[len(clean_lines)] = curr_target_line
+                                curr_target_line += 1
+                else:
+                    curr_target_line = 1
+                    for line in file_diff.raw_patch.splitlines():
+                        if line.startswith("@@"):
+                            m = re.search(r"\+(\d+)", line)
+                            if m:
+                                curr_target_line = int(m.group(1))
+                            continue
+                        if line.startswith(
+                            (
+                                "-",
+                                "---",
+                                "+++",
+                                "diff ",
+                                "index ",
+                                "new file mode",
+                                "deleted file mode",
+                            )
+                        ):
+                            continue
+                        if line.startswith("+") or line.startswith(" "):
+                            clean_lines.append(line[1:])
+                        else:
+                            clean_lines.append(line)
+                        line_no_mapping[len(clean_lines)] = curr_target_line
+                        curr_target_line += 1
 
+                code_text = textwrap.dedent("\n".join(clean_lines))
                 dest.write_text(
-                    "\n".join(clean_lines), encoding="utf-8", errors="ignore"
+                    code_text, encoding="utf-8", errors="ignore"
                 )
                 file_map[str(dest.resolve())] = target_rel
                 file_map[str(dest)] = target_rel
+                line_maps[target_rel] = (line_no_mapping, added_lines)
+
+            if not file_map:
+                return []
 
             try:
                 cmd = [
@@ -160,7 +206,11 @@ class BanditRunner:
                     ):
                         raise ValueError("INVALID_OR_PARTIAL_TOOL_OUTPUT")
                 if res.stdout:
-                    findings.extend(cls._parse_bandit_json(res.stdout, file_map))
+                    findings.extend(
+                        cls._parse_bandit_json(
+                            res.stdout, file_map, line_maps=line_maps
+                        )
+                    )
             except Exception as e:
                 if strict:
                     raise
@@ -170,7 +220,10 @@ class BanditRunner:
 
     @classmethod
     def _parse_bandit_json(
-        cls, json_output: str, file_map: dict | None = None
+        cls,
+        json_output: str,
+        file_map: dict | None = None,
+        line_maps: dict[str, tuple[dict[int, int], set[int]]] | None = None,
     ) -> list[SastFinding]:
         """Parse Bandit JSON results into SastFinding list."""
         findings: list[SastFinding] = []
@@ -212,6 +265,13 @@ class BanditRunner:
                         raise ValueError("UNKNOWN_SCANNER_PATH")
                 if not rel_file:
                     rel_file = raw_filename or "app/file.py"
+
+                if line_maps and rel_file in line_maps:
+                    line_no_mapping, added_lines = line_maps[rel_file]
+                    actual_line = line_no_mapping.get(line_number, line_number)
+                    if actual_line not in added_lines:
+                        continue
+                    line_number = actual_line
 
                 severity = "MEDIUM"
                 if issue_severity == "HIGH":

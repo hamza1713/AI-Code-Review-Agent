@@ -82,3 +82,70 @@ diff --git a/file2.py b/file2.py
             parsed_pr, max_chars_per_chunk=50
         )
         assert len(chunks) >= 1
+
+    def test_filter_noise_files_removes_lockfiles_and_build_artifacts(self):
+        """Confirm package-lock.json, poetry.lock, and minified bundles are filtered from review."""
+        mixed_diff = """diff --git a/package-lock.json b/package-lock.json
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,5 +1,5 @@
+-{"version": "1.0.0"}
++{"version": "1.0.1"}
+diff --git a/src/auth.py b/src/auth.py
+--- a/src/auth.py
++++ b/src/auth.py
+@@ -10,2 +10,3 @@
+ def login():
++    token = request.headers.get("Authorization")
+     return True
+diff --git a/dist/bundle.min.js b/dist/bundle.min.js
+--- a/dist/bundle.min.js
++++ b/dist/bundle.min.js
+@@ -1,1 +1,1 @@
+-var x=1;
++var x=2;
+"""
+        filtered_diff, skipped_files = DiffParser.filter_noise_files(mixed_diff)
+        assert "src/auth.py" in filtered_diff
+        assert "package-lock.json" not in filtered_diff
+        assert "bundle.min.js" not in filtered_diff
+        assert "package-lock.json" in skipped_files
+        assert "dist/bundle.min.js" in skipped_files
+
+    def test_rank_chunks_by_risk_prioritizes_vulnerable_and_security_files(self):
+        """Confirm risk-ranked diff chunking sorts chunks with SAST findings and sensitive paths first."""
+        from code_review_agent.models import SastFinding
+
+        chunk_low = """diff --git a/docs/readme.txt b/docs/readme.txt
+--- a/docs/readme.txt
++++ b/docs/readme.txt
+@@ -1,2 +1,2 @@
+-old info
++new info
+"""
+        chunk_high = """diff --git a/services/auth_service.py b/services/auth_service.py
+--- a/services/auth_service.py
++++ b/services/auth_service.py
+@@ -1,3 +1,4 @@
+ def verify(token):
++    cursor.execute(f"SELECT * FROM users WHERE token = '{token}'")
+"""
+        sast_findings = [
+            SastFinding(
+                file_path="services/auth_service.py",
+                line_number=2,
+                tool="semgrep",
+                rule_id="sql_injection",
+                severity="HIGH",
+                description="Potential SQL Injection detected",
+                fix_recommendation="Use parameterized queries",
+            )
+        ]
+
+        ranked = DiffParser.rank_chunks_by_risk(
+            [chunk_low, chunk_high], sast_findings=sast_findings
+        )
+        assert len(ranked) == 2
+        # chunk_high must be placed ahead of chunk_low
+        assert "services/auth_service.py" in ranked[0]
+        assert "docs/readme.txt" in ranked[1]

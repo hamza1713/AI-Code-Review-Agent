@@ -108,6 +108,25 @@ class PRCodeReviewFlow:
             encoding="utf-8",
         )
 
+    def _emit_stage(self, stage: str, progress: float, message: str) -> None:
+        """Emit live pipeline stage transition to events log if configured."""
+        events_path = os.environ.get("REVIEW_EVENTS_FILE")
+        if not events_path:
+            return
+        try:
+            event_data = {
+                "stage": stage,
+                "current_stage": stage,
+                "stage_progress": round(progress, 2),
+                "message": message,
+                "timestamp": time.time(),
+            }
+            with open(events_path, "a", encoding="utf-8") as ef:
+                ef.write(json.dumps(event_data) + "\n")
+                ef.flush()
+        except Exception:
+            pass
+
     _telemetry_tracker: TelemetryTracker | None = None
     _code_graph: CodeGraphIndexer | None = None
     _rules_engine: RulesEngine | None = None
@@ -177,6 +196,7 @@ class PRCodeReviewFlow:
     def read_pr_file(self):
         """Load PR diff, index repository AST graph, and execute security pattern & rules pre-scans."""
         logger.info("🔍 Initializing PR Code Review Ingestion...")
+        self._emit_stage("INGESTION", 0.10, "Ingesting diff, resolving AST & symbol references...")
         self.state.errors = []
         self.state.final_answer = ""
         self.state.inline_comments = []
@@ -320,6 +340,7 @@ class PRCodeReviewFlow:
                     statuses={"static_analysis": "SKIPPED_COMPARISON_MODEL_ONLY"}
                 )
             else:
+                self._emit_stage("SECURITY_SCAN", 0.35, "Scanning for OWASP vulnerabilities, supply-chain & Trojan Source...")
                 scan = run_scanners(self.state.pr_content, self.state.input_snapshot)
             self.state.sast_findings = scan.findings
             self.state.analyzer_status.update(scan.statuses)
@@ -333,6 +354,7 @@ class PRCodeReviewFlow:
             )
 
             # Initialize AST Code Graph
+            self._emit_stage("AST_PRESCAN", 0.50, "Constructing polyglot AST code graph & evaluating rules...")
             self._code_graph = CodeGraphIndexer(repo_root=self.state.repo_root)
             self._code_graph.index_repository()
 
@@ -667,6 +689,7 @@ class PRCodeReviewFlow:
         )
 
         # Ticket & intent compliance — COMPLEX path only, behind the flow's LLM timeout.
+        self._emit_stage("LLM_REASONING", 0.75, "Multi-agent crew formulating architectural review & consensus...")
         self.state.analyzer_status["ticket_compliance"] = "SKIPPED_FIXED_REVIEW_STAGES"
 
         # Format AST Call Graph context
@@ -913,6 +936,7 @@ class PRCodeReviewFlow:
 
         # Ensure all SAST and governance findings have inline comments with code suggestions
         self._synthesize_inline_comments()
+        self._emit_stage("TEST_SANDBOX", 0.88, "Running isolated empirical sandbox test verification...")
 
         # Ensure unit tests are generated via AST introspection if missing
         if not self.state.generated_unit_tests and self.state.pr_content:
@@ -1118,6 +1142,7 @@ class PRCodeReviewFlow:
             return
 
     def _finalize(self):
+        self._emit_stage("SYNTHESIS", 0.96, "Synthesizing final executive verdict and actionable inline fixes...")
         if self.state.reviewer_profile:
             from code_review_agent.reviewer_profile import build_profile
 

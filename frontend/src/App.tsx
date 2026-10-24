@@ -1,14 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { apiFetch, responseError, setOperatorToken } from './api';
 import { OperatorConnection } from './components/OperatorConnection';
 import { Navbar } from './components/Navbar';
 import { ReviewInput } from './components/ReviewInput';
 import { PipelineProgress } from './components/PipelineProgress';
-import { ReviewDashboard } from './components/ReviewDashboard';
-import { JobsQueueMonitor } from './components/JobsQueueMonitor';
-import { CalibrationView } from './components/CalibrationView';
 import type { ReviewAPIResponse, HealthStatus } from './types/review';
-import { AlertTriangle, ShieldCheck, GitGraph, FileCheck2, ArrowUpRight } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, GitGraph, FileCheck2, ArrowUpRight, Loader2 } from 'lucide-react';
+
+// Lazy-loaded heavy views for optimized initial load and code-splitting
+const ReviewDashboard = lazy(() =>
+  import('./components/ReviewDashboard').then((m) => ({ default: m.ReviewDashboard }))
+);
+const JobsQueueMonitor = lazy(() =>
+  import('./components/JobsQueueMonitor').then((m) => ({ default: m.JobsQueueMonitor }))
+);
+const CalibrationView = lazy(() =>
+  import('./components/CalibrationView').then((m) => ({ default: m.CalibrationView }))
+);
 
 export function App() {
   const [connected, setConnected] = useState(false);
@@ -121,6 +129,95 @@ export function App() {
     requestController.current?.abort(); requestController.current = controller;
 
     try {
+      // 1. Try real-time SSE streaming for live pipeline telemetry
+      try {
+        let streamBody: BodyInit;
+        let streamHeaders: HeadersInit = {};
+        if (payload.prUrl) {
+          streamHeaders = { 'Content-Type': 'application/json' };
+          streamBody = JSON.stringify({ pr_url: payload.prUrl });
+        } else if (payload.rawDiff) {
+          streamHeaders = { 'Content-Type': 'application/json' };
+          streamBody = JSON.stringify({ raw_diff: payload.rawDiff });
+        } else if (payload.file) {
+          const fd = new FormData();
+          fd.append('file', payload.file);
+          streamBody = fd;
+        } else if (payload.zipFile) {
+          const fd = new FormData();
+          fd.append('zip_file', payload.zipFile);
+          streamBody = fd;
+        } else {
+          throw new Error('No input provided for review.');
+        }
+
+        const streamRes = await apiFetch('/api/review/stream', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: streamHeaders,
+          body: streamBody,
+        });
+
+        if (streamRes.ok && streamRes.body) {
+          const reader = streamRes.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+          let buffer = '';
+          let finalData: ReviewAPIResponse | null = null;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const chunks = buffer.split('\n\n');
+            buffer = chunks.pop() || '';
+
+            for (const chunk of chunks) {
+              const lines = chunk.split('\n');
+              let eventType = 'message';
+              let dataStr = '';
+              for (const line of lines) {
+                if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+                else if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+              }
+              if (!dataStr) continue;
+
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (eventType === 'step') {
+                  if (parsed.current_stage || parsed.stage) {
+                    setActiveJobStage(parsed.current_stage || parsed.stage);
+                  }
+                  if (typeof parsed.stage_progress === 'number') {
+                    setActiveJobProgress(parsed.stage_progress);
+                  }
+                } else if (eventType === 'complete') {
+                  finalData = parsed as ReviewAPIResponse;
+                } else if (eventType === 'error') {
+                  throw new Error(parsed.error || 'Review stream encountered an error.');
+                }
+              } catch (parseErr) {
+                if (parseErr instanceof Error && parseErr.message.includes('Review stream')) {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+
+          if (finalData) {
+            if (!controller.signal.aborted) {
+              setReviewResult(finalData);
+              setActiveJobStage(null);
+              setActiveJobProgress(null);
+            }
+            return;
+          }
+        }
+      } catch (streamErr) {
+        if (controller.signal.aborted) return;
+        console.warn('Real-time streaming fallback to queued review:', streamErr);
+      }
+
+      // 2. Fallback to standard queue polling
       let response: Response;
 
       if (payload.prUrl) {
@@ -197,14 +294,14 @@ export function App() {
         health={health}
         activeView={activeView}
         onViewChange={setActiveView}
+        onLogout={() => {
+          requestController.current?.abort(); setOperatorToken(''); setConnected(false);
+          setReviewResult(null); setIsLoading(false);
+        }}
       />
 
-      <button className="self-end px-6 py-2 text-sm" onClick={() => {
-        requestController.current?.abort(); setOperatorToken(''); setConnected(false);
-        setReviewResult(null); setIsLoading(false);
-      }}>Log out</button>
       {/* Main Container */}
-      <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 focus:outline-none">
         {/* Global Error Banner */}
         {errorMessage && (
           <div role="alert" className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between shadow-md">
@@ -256,18 +353,54 @@ export function App() {
 
             {/* Results Dashboard when completed */}
             {!isLoading && reviewResult && (
-              <ReviewDashboard
-                data={reviewResult}
-                onReset={handleReset}
-              />
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                    <span className="text-sm">Loading Review Dashboard...</span>
+                  </div>
+                }
+              >
+                <ReviewDashboard
+                  data={reviewResult}
+                  onReset={handleReset}
+                />
+              </Suspense>
             )}
           </div>
 
         {/* View 2: Durable Webhook Task Queue Monitor */}
-        {activeView === 'jobs' && <JobsQueueMonitor />}
+        {activeView === 'jobs' && (
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                <span className="text-sm">Loading Task Queue...</span>
+              </div>
+            }
+          >
+            <JobsQueueMonitor
+              onSelectReview={(result) => {
+                setReviewResult(result);
+                setActiveView('review');
+              }}
+            />
+          </Suspense>
+        )}
 
         {/* View 3: Repository Calibration & Cried-Wolf Telemetry */}
-        {activeView === 'calibration' && <CalibrationView />}
+        {activeView === 'calibration' && (
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                <span className="text-sm">Loading Calibration Console...</span>
+              </div>
+            }
+          >
+            <CalibrationView />
+          </Suspense>
+        )}
       </main>
 
       {/* Footer */}

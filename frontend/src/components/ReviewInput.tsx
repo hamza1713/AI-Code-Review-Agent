@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FileCode, Upload, FolderArchive, Sparkles, Trash2, ArrowRight, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 
@@ -47,11 +47,39 @@ const SAMPLE_GOV_VIOLATION_DIFF = `diff --git a/services/payment.py b/services/p
 
 export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading }) => {
   const [activeTab, setActiveTab] = useState<'diff' | 'github' | 'file' | 'zip'>('diff');
-  const [diffContent, setDiffContent] = useState('');
-  const [prUrl, setPrUrl] = useState('');
+  const [diffContent, setDiffContent] = useState(() => {
+    try { return sessionStorage.getItem('review_draft_diff') || ''; } catch { return ''; }
+  });
+  const [prUrl, setPrUrl] = useState(() => {
+    try { return sessionStorage.getItem('review_draft_pr_url') || ''; } catch { return ''; }
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedZip, setSelectedZip] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      if (diffContent) {
+        sessionStorage.setItem('review_draft_diff', diffContent);
+      } else {
+        sessionStorage.removeItem('review_draft_diff');
+      }
+    } catch {
+      // Ignore quota or private browsing exceptions
+    }
+  }, [diffContent]);
+
+  useEffect(() => {
+    try {
+      if (prUrl) {
+        sessionStorage.setItem('review_draft_pr_url', prUrl);
+      } else {
+        sessionStorage.removeItem('review_draft_pr_url');
+      }
+    } catch {
+      // Ignore quota or private browsing exceptions
+    }
+  }, [prUrl]);
 
   // Dropzone for Single File
   const onDropFile = useCallback((acceptedFiles: File[]) => {
@@ -112,6 +140,12 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
     setSelectedFile(null);
     setSelectedZip(null);
     setErrorMessage(null);
+    try {
+      sessionStorage.removeItem('review_draft_diff');
+      sessionStorage.removeItem('review_draft_pr_url');
+    } catch {
+      // Ignore
+    }
   };
 
   const handleStartReview = () => {
@@ -256,6 +290,14 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                 id="review-diff"
                 value={diffContent}
                 onChange={(e) => setDiffContent(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!isLoading && diffContent.trim()) {
+                      handleStartReview();
+                    }
+                  }
+                }}
                 placeholder={`diff --git a/app/user_auth.py b/app/user_auth.py\n--- a/app/user_auth.py\n+++ b/app/user_auth.py\n@@ -10,0 +11,3 @@\n+def authenticate_user(username, password):\n+    query = f"SELECT * FROM users WHERE username = '{username}'"\n+    return db.query(query)`}
                 rows={13}
                 className="w-full bg-transparent p-3.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none resize-y leading-relaxed"
@@ -294,6 +336,14 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                     type="text"
                     value={prUrl}
                     onChange={(e) => setPrUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!isLoading && prUrl.trim()) {
+                          handleStartReview();
+                        }
+                      }
+                    }}
                     placeholder="https://github.com/owner/repository/pull/42 or owner/repo#42"
                     className="flex-1 bg-[#0a0c10] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
                   />
@@ -420,6 +470,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Review code</span>
+            <kbd className="hidden sm:inline-block text-[9px] font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

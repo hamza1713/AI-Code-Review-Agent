@@ -14,11 +14,11 @@ class CodebaseContextInput(BaseModel):
 
     query_type: str = Field(
         ...,
-        description="Type of query: 'find_callers' (find who calls a function), 'lookup_symbol' (find where a function/class is defined), or 'analyze_diff_impact' (find all callers of functions in a diff)",
+        description="Type of query: 'find_callers' (find who calls a function), 'lookup_symbol' (find where a function/class is defined), 'analyze_diff_impact' (find all callers of functions in a diff), or 'find_taint_path' (trace multi-hop call chain from source to sink, e.g. 'source -> sink' or 'sink')",
     )
     target: str = Field(
         ...,
-        description="Function/class name (for find_callers/lookup_symbol) or raw diff snippet (for analyze_diff_impact)",
+        description="Function/class name, raw diff snippet, or 'source -> sink' for taint tracing",
     )
 
 
@@ -73,4 +73,37 @@ class CodebaseContextTool(BaseTool):
         elif query_type == "analyze_diff_impact":
             return indexer.format_impact_context(target)
 
-        return f"Unknown query_type '{query_type}'. Use 'find_callers', 'lookup_symbol', or 'analyze_diff_impact'."
+        elif query_type == "find_taint_path":
+            if "->" in target:
+                src, sink = [part.strip() for part in target.split("->", 1)]
+            elif "," in target:
+                src, sink = [part.strip() for part in target.split(",", 1)]
+            else:
+                src, sink = None, target.strip()
+
+            if src:
+                chains = indexer.find_call_chains(src, sink)
+                if not chains:
+                    return f"No inter-procedural call chains detected from '{src}' to '{sink}' (depth <= 5)."
+                res = [f"🚨 Inter-Procedural Call Chain(s) from '{src}' to '{sink}':"]
+                for idx, chain in enumerate(chains, 1):
+                    res.append(
+                        f"\nPath {idx} (hops: {len(chain) - 1}):\n"
+                        + indexer.format_taint_path(chain)
+                    )
+                return "\n".join(res)
+            else:
+                chains = indexer.find_incoming_chains(sink)
+                if not chains:
+                    return f"No callers or upstream call chains detected leading to sink '{sink}'."
+                res = [
+                    f"🚨 Inter-Procedural Call Chains leading to Sink '{sink}':"
+                ]
+                for idx, chain in enumerate(chains, 1):
+                    res.append(
+                        f"\nPath {idx} (hops: {len(chain) - 1}):\n"
+                        + indexer.format_taint_path(chain)
+                    )
+                return "\n".join(res)
+
+        return f"Unknown query_type '{query_type}'. Use 'find_callers', 'lookup_symbol', 'analyze_diff_impact', or 'find_taint_path'."

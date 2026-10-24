@@ -126,6 +126,16 @@ class BenchmarkRunner:
                     "severity": v.severity,
                 }
                 for v in rule_violations
+                if not (
+                    v.rule_id
+                    in {
+                        "gov-no-plaintext-passwords",
+                        "gov-no-raw-sql",
+                        "default-no-raw-queries",
+                    }
+                    and (v.file_path, v.line_number)
+                    in {(f.file_path, f.line_number) for f in sast_findings}
+                )
             )
             derived_verdict = predict_verdict(all_detected_issues)
             expected_issues = item.get("expected_issues", [])

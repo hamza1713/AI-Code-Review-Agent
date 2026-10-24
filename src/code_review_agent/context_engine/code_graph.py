@@ -18,6 +18,23 @@ from code_review_agent.config import logger
 from code_review_agent.diff_parser import DiffParser
 from code_review_agent.models import CodeGraphSummary, SymbolInfo
 
+try:
+    import tree_sitter_languages
+
+    _TREE_SITTER_AVAILABLE = True
+except ImportError:
+    _TREE_SITTER_AVAILABLE = False
+
+_EXT_TO_TS_LANG: dict[str, str] = {
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".go": "go",
+    ".java": "java",
+    ".rs": "rust",
+}
+
 # Thread-safe global cache for indexed code graphs
 _INDEX_CACHE: dict[
     str,
@@ -167,7 +184,16 @@ class CodeGraphIndexer:
         self.reverse_call_graph.clear()
         self.indexed_files_count = 0
 
-        supported_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java"}
+        supported_exts = {
+            ".py",
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".go",
+            ".java",
+            ".rs",
+        }
         source_files: list[Path] = []
         for root, dirs, files in os.walk(self.repo_root):
             # Skip hidden and cache folders
@@ -242,7 +268,7 @@ class CodeGraphIndexer:
                 self._index_ast_nodes(tree, rel_path, import_map, scope_prefix="")
             except Exception as e:
                 logger.debug(f"Could not parse Python AST for {file_path}: {e}")
-        elif ext in [".js", ".jsx", ".ts", ".tsx", ".go", ".java"]:
+        elif ext in [".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".rs"]:
             self._index_non_python_file(content, rel_path, ext)
 
     def _find_block_end(self, lines: list[str], start_idx: int) -> int:
@@ -261,7 +287,211 @@ class CodeGraphIndexer:
         return min(len(lines), start_idx + 1)
 
     def _index_non_python_file(self, content: str, rel_path: str, ext: str):
-        """Extract symbols and function calls from non-Python files using structured pattern matching."""
+        """
+        Extract symbols and function calls from non-Python files (.js, .jsx, .ts, .tsx, .go, .java, .rs).
+        Uses Tree-Sitter AST parsing for semantic precision, falling back seamlessly to regex matching.
+        """
+        if _TREE_SITTER_AVAILABLE and ext in _EXT_TO_TS_LANG:
+            try:
+                if self._index_non_python_tree_sitter(content, rel_path, ext):
+                    return
+            except Exception as e:
+                logger.debug(
+                    f"Tree-sitter parse failed for {rel_path}: {e}; falling back to regex"
+                )
+
+        self._index_non_python_regex(content, rel_path, ext)
+
+    def _index_non_python_tree_sitter(
+        self, content: str, rel_path: str, ext: str
+    ) -> bool:
+        """Parse non-Python files using polyglot Tree-Sitter grammar ASTs."""
+        ts_lang = _EXT_TO_TS_LANG.get(ext)
+        if not ts_lang:
+            return False
+
+        parser = tree_sitter_languages.get_parser(ts_lang)
+        code_bytes = content.encode("utf-8", errors="ignore")
+        tree = parser.parse(code_bytes)
+
+        def _get_text(node) -> str:
+            return code_bytes[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+
+        def _extract_params(param_node) -> list[str]:
+            params: list[str] = []
+            if not param_node:
+                return params
+            for child in param_node.children:
+                if child.type in (",", "(", ")", "{", "}", ";", ":"):
+                    continue
+                if child.type in ("identifier", "name"):
+                    params.append(_get_text(child))
+                elif child.type in ("required_parameter", "optional_parameter"):
+                    p_name = child.child_by_field_name(
+                        "pattern"
+                    ) or child.child_by_field_name("name")
+                    params.append(
+                        _get_text(p_name)
+                        if p_name
+                        else _get_text(child).split(":")[0].strip()
+                    )
+                elif child.type == "parameter_declaration":
+                    p_name = child.child_by_field_name("name")
+                    params.append(
+                        _get_text(p_name)
+                        if p_name
+                        else _get_text(child).split(" ")[0].strip()
+                    )
+                elif child.type == "formal_parameter":
+                    p_name = child.child_by_field_name("name")
+                    params.append(
+                        _get_text(p_name)
+                        if p_name
+                        else _get_text(child).split()[-1].strip()
+                    )
+                else:
+                    txt = _get_text(child).split(":")[0].split()[0].strip()
+                    if txt and txt not in (",", "(", ")", "{", "}"):
+                        params.append(txt)
+            return [
+                p for p in params if p and p not in (",", "(", ")", "self", "this")
+            ]
+
+        symbols_found: list[dict] = []
+        calls_found: list[tuple[str, int]] = []
+
+        def _walk(node):
+            ntype = node.type
+            sym_name = None
+            kind = "function"
+            params: list[str] = []
+
+            if ntype in ("function_declaration", "function_item"):
+                name_node = node.child_by_field_name("name")
+                if name_node:
+                    sym_name = _get_text(name_node)
+                    params = _extract_params(node.child_by_field_name("parameters"))
+            elif ntype in ("method_declaration", "method_definition"):
+                name_node = node.child_by_field_name("name")
+                if name_node:
+                    sym_name = _get_text(name_node)
+                    kind = "method"
+                    params = _extract_params(node.child_by_field_name("parameters"))
+            elif ntype in (
+                "class_declaration",
+                "struct_item",
+                "interface_declaration",
+            ):
+                name_node = node.child_by_field_name("name")
+                if name_node:
+                    sym_name = _get_text(name_node)
+                    kind = "class"
+            elif ntype == "variable_declarator":
+                val = node.child_by_field_name("value")
+                if val and val.type in ("arrow_function", "function_expression"):
+                    name_node = node.child_by_field_name("name")
+                    if name_node:
+                        sym_name = _get_text(name_node)
+                        params = _extract_params(val.child_by_field_name("parameters"))
+
+            if sym_name:
+                symbols_found.append(
+                    {
+                        "name": sym_name,
+                        "kind": kind,
+                        "line_start": node.start_point[0] + 1,
+                        "line_end": node.end_point[0] + 1,
+                        "params": params,
+                    }
+                )
+
+            if ntype in ("call_expression", "method_invocation"):
+                fn_node = node.child_by_field_name(
+                    "function"
+                ) or node.child_by_field_name("name")
+                if fn_node:
+                    if fn_node.type == "member_expression":
+                        prop = fn_node.child_by_field_name("property")
+                        cname = _get_text(prop) if prop else _get_text(fn_node)
+                    elif fn_node.type == "field_expression":
+                        field = fn_node.child_by_field_name("field")
+                        cname = _get_text(field) if field else _get_text(fn_node)
+                    else:
+                        cname = _get_text(fn_node)
+
+                    if cname and cname not in (
+                        "if",
+                        "for",
+                        "while",
+                        "switch",
+                        "catch",
+                        "import",
+                        "require",
+                        "make",
+                        "new",
+                        "super",
+                        "this",
+                        "return",
+                        "func",
+                        "fmt",
+                    ):
+                        calls_found.append((cname, node.start_point[0] + 1))
+
+            for child in node.children:
+                _walk(child)
+
+        _walk(tree.root_node)
+
+        if not symbols_found and not calls_found:
+            return False
+
+        for sym_data in symbols_found:
+            fn_name = sym_data["name"]
+            kind = sym_data["kind"]
+            qname = f"{rel_path}:{fn_name}"
+            l_start = sym_data["line_start"]
+            l_end = sym_data["line_end"]
+
+            callees = set()
+            for callee_name, c_line in calls_found:
+                if l_start <= c_line <= l_end:
+                    callees.add(callee_name)
+
+            sym = SymbolInfo(
+                name=fn_name,
+                qualified_name=qname,
+                kind=kind,
+                file_path=rel_path,
+                line_start=l_start,
+                line_end=l_end,
+                parameters=sym_data["params"],
+                callers=[],
+                callees=sorted(callees),
+            )
+            self.symbols[qname] = sym
+            self.symbols_by_name.setdefault(fn_name, []).append(sym)
+            if callees:
+                self.call_graph[qname] = callees
+                for callee in callees:
+                    self.reverse_call_graph.setdefault(callee, set()).add(qname)
+                    self.reverse_call_graph.setdefault(
+                        f"{rel_path}:{callee}", set()
+                    ).add(qname)
+
+        for callee_name, c_line in calls_found:
+            self.reverse_call_graph.setdefault(callee_name, set()).add(
+                f"{rel_path}:L{c_line}"
+            )
+            self.reverse_call_graph.setdefault(f"{rel_path}:{callee_name}", set()).add(
+                f"{rel_path}:L{c_line}"
+            )
+
+        return True
+
+    def _index_non_python_regex(self, content: str, rel_path: str, ext: str):
+        """Extract symbols and function calls from non-Python files using structured regex fallback matching."""
         lines = content.splitlines()
         for i, line in enumerate(lines, 1):
             fn_name = None
@@ -271,7 +501,7 @@ class CodeGraphIndexer:
             # Check if line looks like beginning of multi-line function/method
             sig_candidate = line
             if (
-                any(kw in line for kw in ("function", "=>", "func", "class"))
+                any(kw in line for kw in ("function", "=>", "func", "class", "fn "))
                 or "(" in line
             ):
                 buf = [line]
@@ -336,6 +566,18 @@ class CodeGraphIndexer:
                 elif class_m:
                     fn_name = class_m.group(1)
                     kind = "class"
+            elif ext == ".rs":
+                rs_m = re.search(
+                    r"(?:pub\s+)?fn\s+([A-Za-z0-9_]+)\s*(?:<[^>]+>)?\s*\((.*?)\)",
+                    sig_candidate,
+                )
+                if rs_m:
+                    fn_name = rs_m.group(1)
+                    params = [
+                        p.strip().split(":")[0]
+                        for p in rs_m.group(2).split(",")
+                        if p.strip()
+                    ]
 
             if fn_name:
                 qname = f"{rel_path}:{fn_name}"
@@ -551,6 +793,188 @@ class CodeGraphIndexer:
     def get_symbols_by_name(self, name: str) -> list[SymbolInfo]:
         """Return all symbols matching a given name across all files in repository."""
         return self.symbols_by_name.get(name, [])
+
+    def find_call_chains(
+        self, source_func: str, sink_func: str, max_depth: int = 5
+    ) -> list[list[str]]:
+        """
+        Find inter-procedural call chains from source_func to sink_func up to max_depth.
+        Performs breadth-first path exploration across both local and cross-file qualified call graphs.
+        """
+        from collections import deque
+
+        # Resolve initial source nodes
+        sources: list[str] = []
+        if source_func in self.call_graph or source_func in self.symbols:
+            sources = [source_func]
+        else:
+            matching_syms = self.symbols_by_name.get(source_func, [])
+            if matching_syms:
+                sources = [s.qualified_name for s in matching_syms if s.qualified_name]
+            else:
+                for key in self.call_graph:
+                    if key.endswith(f":{source_func}") or key == source_func:
+                        sources.append(key)
+        if not sources:
+            sources = [source_func]
+
+        sink_bare = sink_func.split(":")[-1].split(".")[-1]
+        chains: list[list[str]] = []
+        queue: deque[list[str]] = deque([[src] for src in sources])
+        visited_paths: set[tuple[str, ...]] = set()
+
+        while queue and len(chains) < 20:
+            path = queue.popleft()
+            if len(path) > max_depth + 1:
+                continue
+
+            curr = path[-1]
+            curr_bare = curr.split(":")[-1].split(".")[-1]
+
+            if len(path) >= 2 and (
+                curr == sink_func
+                or curr_bare == sink_bare
+                or curr.endswith(f":{sink_bare}")
+            ):
+                chains.append(path)
+                continue
+
+            callees = set(self.call_graph.get(curr, set()))
+            if not callees and curr_bare in self.call_graph:
+                callees.update(self.call_graph.get(curr_bare, set()))
+
+            for callee in sorted(callees):
+                callee_bare = callee.split(":")[-1].split(".")[-1]
+
+                if (
+                    callee == sink_func
+                    or callee_bare == sink_bare
+                    or callee.endswith(f":{sink_bare}")
+                ):
+                    full_path = path + [callee]
+                    if tuple(full_path) not in visited_paths:
+                        visited_paths.add(tuple(full_path))
+                        chains.append(full_path)
+                    continue
+
+                next_nodes: list[str] = []
+                if callee in self.call_graph or callee in self.symbols:
+                    next_nodes.append(callee)
+                elif callee_bare in self.symbols_by_name:
+                    for ms in self.symbols_by_name[callee_bare]:
+                        if ms.qualified_name:
+                            next_nodes.append(ms.qualified_name)
+                else:
+                    next_nodes.append(callee)
+
+                for next_node in next_nodes:
+                    if next_node not in path and len(path) < max_depth:
+                        candidate_tuple = tuple(path + [next_node])
+                        if candidate_tuple not in visited_paths:
+                            visited_paths.add(candidate_tuple)
+                            queue.append(path + [next_node])
+
+        return chains
+
+    def find_incoming_chains(
+        self, sink_func: str, max_depth: int = 5
+    ) -> list[list[str]]:
+        """
+        Find all call chains leading into sink_func (backwards traversal along reverse_call_graph).
+        """
+        from collections import deque
+
+        sink_bare = sink_func.split(":")[-1].split(".")[-1]
+        sink_keys = set()
+        for key in self.reverse_call_graph:
+            k_bare = key.split(":")[-1].split(".")[-1]
+            if key == sink_func or k_bare == sink_bare or key.endswith(f":{sink_bare}"):
+                sink_keys.add(key)
+        if not sink_keys:
+            sink_keys = {sink_func}
+
+        chains: list[list[str]] = []
+        queue: deque[list[str]] = deque([[sk] for sk in sink_keys])
+        visited_paths: set[tuple[str, ...]] = set()
+
+        while queue and len(chains) < 20:
+            path = queue.popleft()
+            if len(path) > max_depth + 1:
+                continue
+
+            curr = path[-1]
+            curr_bare = curr.split(":")[-1].split(".")[-1]
+
+            callers = set(self.reverse_call_graph.get(curr, set()))
+            if not callers and curr_bare in self.reverse_call_graph:
+                callers.update(self.reverse_call_graph.get(curr_bare, set()))
+
+            valid_callers = [
+                c
+                for c in callers
+                if not any(c.endswith(f":L{i}") for i in range(10))
+            ]
+            if not valid_callers:
+                if len(path) > 1:
+                    chains.append(list(reversed(path)))
+                continue
+
+            for caller in sorted(valid_callers):
+                if caller not in path and len(path) < max_depth:
+                    tup = tuple(path + [caller])
+                    if tup not in visited_paths:
+                        visited_paths.add(tup)
+                        queue.append(path + [caller])
+
+        return chains
+
+    def format_taint_path(self, chain: list[str]) -> str:
+        """
+        Render a call chain or taint path into a human/agent-readable ASCII trace diagram.
+        """
+        if not chain:
+            return ""
+
+        lines = []
+        for i, node in enumerate(chain):
+            is_source = i == 0
+            is_sink = i == len(chain) - 1
+            sym = self.get_symbol_definition(node)
+            file_loc = (
+                f"{sym.file_path}:L{sym.line_start}"
+                if sym
+                else (node.replace(":", ":L") if ":" in node else node)
+            )
+            params = (
+                f"({', '.join(sym.parameters)})"
+                if sym and sym.parameters
+                else "(...)"
+            )
+            node_name = (
+                sym.name
+                if sym
+                else (node.split(":")[-1].split(".")[-1])
+            )
+
+            prefix = (
+                "[SOURCE] " if is_source else ("[SINK]   " if is_sink else "         ")
+            )
+            lines.append(f"  {prefix}{node_name}{params} in `{file_loc}`")
+
+            if not is_sink:
+                next_node = chain[i + 1]
+                next_sym = self.get_symbol_definition(next_node)
+                next_name = (
+                    next_sym.name
+                    if next_sym
+                    else (
+                        next_node.split(":")[-1].split(".")[-1]
+                    )
+                )
+                lines.append(f"            | calls `{next_name}()`")
+                lines.append("            v")
+
+        return "\n".join(lines)
 
     def index_diff(self, raw_diff: str):
         """

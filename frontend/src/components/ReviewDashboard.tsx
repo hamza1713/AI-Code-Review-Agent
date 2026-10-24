@@ -12,7 +12,8 @@ import { ScopeDisclaimer } from './ScopeDisclaimer';
 import { CompleteExecutiveReport } from './CompleteExecutiveReport';
 import { TraceVisualizer } from './TraceVisualizer';
 import { AnnotatedCodeViewer } from './AnnotatedCodeViewer';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Lock } from 'lucide-react';
+import { AIThreatRadar } from './AIThreatRadar';
 
 
 interface ReviewDashboardProps {
@@ -21,7 +22,7 @@ interface ReviewDashboardProps {
 }
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'radar' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
 
 
   const handleExportJSON = () => {
@@ -79,6 +80,18 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           >
             <LayoutGrid className="w-3.5 h-3.5" />
             <span>Full Overview</span>
+          </button>
+
+          <button
+            aria-pressed={activeTab === 'radar'} onClick={() => setActiveTab('radar')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'radar'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5 text-indigo-400" />
+            <span>AI Threat Radar</span>
           </button>
 
           <button
@@ -174,6 +187,9 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       {/* 3. Tab Contents */}
       {activeTab === 'all' && (
         <div className="space-y-4">
+          {/* AI-Era Zero-Trust Threat Radar */}
+          <AIThreatRadar data={data} />
+
           {/* Animated Interactive Code Annotation View */}
           <AnnotatedCodeViewer
             reviewedDiff={data.reviewed_diff}
@@ -200,6 +216,10 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'radar' && (
+        <AIThreatRadar data={data} />
       )}
 
       {activeTab === 'annotated' && (

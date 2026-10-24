@@ -317,6 +317,137 @@ class DiffParser:
 
         return subchunks
 
+    NOISE_FILE_PATTERNS = (
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "poetry.lock",
+        "Pipfile.lock",
+        "Cargo.lock",
+        "go.sum",
+        "composer.lock",
+        "flake.lock",
+        ".min.js",
+        ".min.css",
+        ".bundle.js",
+        ".bundle.css",
+        ".map",
+        ".svg",
+        ".lock",
+        ".lockb",
+        ".snap",
+        ".snapshot",
+    )
+
+    @classmethod
+    def filter_noise_files(cls, raw_diff: str) -> tuple[str, list[str]]:
+        """
+        Strips non-semantic generated assets, lockfiles, and minified bundles from diff text
+        prior to sending to LLMs to prevent context dilution and blind-spot truncation.
+        Returns (filtered_diff, omitted_files).
+        """
+        if not raw_diff or not raw_diff.strip():
+            return raw_diff, []
+
+        parsed = cls.parse_diff(raw_diff)
+        retained_blocks = []
+        omitted_files = []
+
+        for f in parsed.files:
+            fname = (f.target_file or f.source_file or "").lower()
+            if any(
+                fname.endswith(pat) or f"/{pat}" in f"/{fname}"
+                for pat in cls.NOISE_FILE_PATTERNS
+            ):
+                omitted_files.append(f.target_file or f.source_file)
+            else:
+                retained_blocks.append(f.raw_patch)
+
+        filtered_diff = "\n\n".join(retained_blocks) if retained_blocks else raw_diff
+        return filtered_diff, omitted_files
+
+    @classmethod
+    def rank_chunks_by_risk(
+        cls,
+        chunks: list[Any],
+        sast_findings: list[Any] | None = None,
+    ) -> list[Any]:
+        """
+        Rank diff chunks by risk score so security-critical and core business logic
+        are always prioritized for multi-stage review.
+        Supports both string diff chunks (list[str]) and structured chunk dicts (list[dict]).
+        """
+        sast_by_file: dict[str, int] = {}
+        if sast_findings:
+            for sf in sast_findings:
+                fp = getattr(sf, "file_path", "")
+                sev = getattr(sf, "severity", "MEDIUM")
+                weight = 20 if sev in ("CRITICAL", "HIGH") else 10
+                sast_by_file[fp] = sast_by_file.get(fp, 0) + weight
+
+        high_risk_keywords = {
+            "auth",
+            "login",
+            "security",
+            "crypto",
+            "token",
+            "session",
+            "password",
+            "secret",
+            "permission",
+            "rbac",
+            "admin",
+            "payment",
+            "billing",
+            "api",
+            "route",
+            "controller",
+            "db",
+            "sql",
+            "model",
+        }
+        low_risk_keywords = {"test", "spec", "mock", "fixture", "doc", "readme"}
+
+        ranked = []
+        for c in chunks:
+            if isinstance(c, str):
+                files = re.findall(r"^\+\+\+\s+b/(.*)$", c, re.MULTILINE)
+                if not files:
+                    files = re.findall(
+                        r"^diff --git\s+a/.*?\s+b/(.*)$", c, re.MULTILINE
+                    )
+                content = c
+            else:
+                files = c.get("files", [])
+                content = c.get("diff_content", "")
+
+            score = 0
+            for f in files:
+                f_clean = f.strip().replace("\\", "/")
+                f_lower = f_clean.lower()
+                score += sast_by_file.get(f_clean, 0)
+                base_name = f_clean.split("/")[-1]
+                if base_name in sast_by_file:
+                    score += sast_by_file[base_name]
+
+                if any(kw in f_lower for kw in high_risk_keywords):
+                    score += 8
+                if any(kw in f_lower for kw in low_risk_keywords):
+                    score -= 4
+
+            score += min(len(content) // 1000, 10)
+            final_score = max(score, 1)
+
+            if isinstance(c, str):
+                ranked.append((c, final_score))
+            else:
+                chunk_with_score = dict(c)
+                chunk_with_score["risk_score"] = final_score
+                ranked.append((chunk_with_score, final_score))
+
+        ranked.sort(key=lambda x: x[1], reverse=True)
+        return [item[0] for item in ranked]
+
     @classmethod
     def chunk_diff_adaptively(
         cls, raw_diff: str, max_tokens: int = 3000

@@ -767,6 +767,10 @@ class ReviewAPIResponse(BaseModel):
     input_snapshot_hash: str | None = None
     file_coverage: list[FileCoverage] = Field(default_factory=list)
     findings: list[SastFinding] = Field(default_factory=list)
+    reconciled_findings: list[SastFinding] = Field(
+        default_factory=list,
+        description="Typed, deduplicated findings from deterministic synthesis (authoritative for UI)",
+    )
     analysis_complete: bool = True
     analyzer_status: dict[str, str] = Field(default_factory=dict)
     analyzed_commit: str | None = None

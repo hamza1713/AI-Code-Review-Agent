@@ -83,6 +83,11 @@ _CWE_SEVERITY: dict[str, str] = {
     "CWE-208": "MEDIUM",  # observable timing discrepancy
     "CWE-703": "LOW",  # improper exception handling / silent swallow
     "CWE-390": "LOW",  # detection of error condition without action
+    "CWE-1357": "HIGH",  # dependency on untrusted / vulnerable component (slopsquatting / typosquatting)
+    "CWE-1076": "HIGH",  # unawaited async coroutine in condition check
+    "CWE-1164": "HIGH",  # hollow security / auth stub
+    "CWE-834": "MEDIUM",  # blocking synchronous call in async context
+    "CWE-1007": "HIGH",  # architectural contract / signature mismatch
 }
 
 # ── CWE correction rules (rule 6) — detect the real defect from evidence text ─

@@ -22,6 +22,7 @@ export interface SastFinding {
   snippet?: string;
   fix_recommendation: string;
   fingerprint?: string;
+  analyzer_source?: string;
   lifecycle_status?: FindingLifecycleStatus;
 }
 
@@ -33,6 +34,8 @@ export interface RuleViolation {
   line_number: number;
   description: string;
   suggested_fix: string;
+  snippet?: string;
+  fingerprint?: string;
 }
 
 export interface InlineComment {
@@ -44,6 +47,7 @@ export interface InlineComment {
   why?: string;
   suggestion_code?: string;
   fingerprint?: string;
+  analyzer_source?: string;
   lifecycle_status?: FindingLifecycleStatus;
 }
 
@@ -52,6 +56,48 @@ export interface CrossFileImpactSummary {
   is_python: boolean;
   message: string;
   impacted_callers: Record<string, string[]>;
+  taint_path?: string[];
+  taint_source?: string;
+  taint_sink?: string;
+}
+
+export interface SupplyChainAudit {
+  scanned_manifests: string[];
+  hallucinated_packages: string[];
+  typosquats: string[];
+  malicious_packages: string[];
+  is_clean: boolean;
+}
+
+export interface TrojanSourceAudit {
+  unicode_bidi_clean: boolean;
+  zero_width_clean: boolean;
+  canary_status: 'VERIFIED' | 'TAMPERED';
+  flagged_count: number;
+}
+
+export interface AICodeDefectsAudit {
+  unawaited_async: number;
+  blocking_sync_calls: number;
+  hollow_stubs: number;
+  contract_drift: number;
+}
+
+export interface AdversarialConsensusAudit {
+  primary_model: string;
+  critic_model: string;
+  agreement_score: number;
+  status: 'CONSENSUS_AGREED' | 'ADVERSARIAL_DIVERGENCE';
+  critic_verdict: string;
+  divergence_reasoning?: string;
+}
+
+export interface AIThreatAudit {
+  supply_chain: SupplyChainAudit;
+  trojan_source: TrojanSourceAudit;
+  ai_code_defects: AICodeDefectsAudit;
+  consensus?: AdversarialConsensusAudit;
+  receipt_hash?: string;
 }
 
 export interface TelemetryMetrics {
@@ -96,6 +142,7 @@ export interface ReviewAPIResponse {
   input_snapshot_hash?: string | null;
   file_coverage?: { path: string; status: string; reason: string; sha256?: string | null }[];
   findings: SastFinding[];
+  reconciled_findings?: SastFinding[];
   analysis_complete: boolean;
   analyzer_status: Record<string, string>;
   analyzed_commit?: string;
@@ -107,6 +154,7 @@ export interface ReviewAPIResponse {
   pattern_findings: SastFinding[];
   governance_violations: RuleViolation[];
   cross_file_impact: CrossFileImpactSummary;
+  ticket_compliance?: any | null;
   generated_unit_tests?: string | null;
   test_execution?: { executed: boolean; status: string; evidence_badge: string; summary_message: string } | null;
   inline_comments: InlineComment[];
@@ -114,9 +162,8 @@ export interface ReviewAPIResponse {
   trace?: TraceData | null;
   reviewed_diff?: string | null;
   scope_note: string;
+  ai_threat_audit?: AIThreatAudit | null;
 }
-
-
 
 export interface WebhookJob {
   job_id: string;
@@ -139,7 +186,6 @@ export interface WebhookJob {
   priority?: number | null;
 }
 
-
 export interface QueueMetrics {
   queued: number;
   processing: number;
@@ -151,7 +197,6 @@ export interface QueueMetrics {
   active_workers: number;
   avg_duration_seconds: number;
 }
-
 
 export interface HealthStatus {
   status: string;

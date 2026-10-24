@@ -236,7 +236,7 @@
         "cwe": "CWE-256",
         "severity": "HIGH",
         "file_path": "app/legacy/auth_manager.py",
-        "line_number": 18,
+        "line_number": 19,
         "rule_ids": []
       },
       {

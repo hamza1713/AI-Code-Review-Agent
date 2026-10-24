@@ -448,6 +448,58 @@ def get_job_result(job_id: str):
     return job.get("result") or {"message": "No result payload stored for this job"}
 
 
+@app.get("/jobs/{job_id}/sarif")
+def get_job_sarif(job_id: str):
+    """Retrieve OASIS SARIF 2.1.0 report for a completed review job."""
+    from code_review_agent.sarif_exporter import SarifExporter
+
+    job = queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    if job.get("status") != "COMPLETED":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job is not completed yet (current: {job.get('status')})",
+        )
+    result = job.get("result") or {}
+    sast_findings = (
+        result.get("reconciled_findings")
+        or result.get("findings")
+        or result.get("pattern_findings")
+        or []
+    )
+    inline_comments = result.get("inline_comments") or []
+    governance_violations = result.get("governance_violations") or []
+    sarif = SarifExporter.build_sarif(
+        sast_findings, inline_comments, governance_violations
+    )
+    return JSONResponse(sarif, media_type="application/sarif+json")
+
+
+@app.post("/api/review/sarif")
+async def api_review_sarif(request: Request):
+    """Convert an existing review result payload directly into OASIS SARIF 2.1.0 format."""
+    from code_review_agent.sarif_exporter import SarifExporter
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    sast_findings = (
+        body.get("reconciled_findings")
+        or body.get("findings")
+        or body.get("pattern_findings")
+        or []
+    )
+    inline_comments = body.get("inline_comments") or []
+    governance_violations = body.get("governance_violations") or []
+    sarif = SarifExporter.build_sarif(
+        sast_findings, inline_comments, governance_violations
+    )
+    return JSONResponse(sarif, media_type="application/sarif+json")
+
+
+
 class SuppressionCreateRequest(BaseModel):
     repo_id: str
     fingerprint: str
@@ -1028,9 +1080,9 @@ def reserve_review():
         ) from error
 
 
-async def execute_bounded(operation, payload):
+async def execute_bounded(operation, payload, event_callback=None):
     try:
-        return await run_job_async(operation, payload)
+        return await run_job_async(operation, payload, event_callback=event_callback)
     except ReviewBusyError as error:
         raise HTTPException(503, str(error), headers={"Retry-After": "5"}) from error
     except ReviewDeadlineError:
@@ -1187,14 +1239,34 @@ async def api_review_stream(
     payload = await read_review_input(request, raw_diff, pr_url, file, zip_file)
     reserve_review()
 
+    loop = asyncio.get_running_loop()
+    event_queue = asyncio.Queue()
+
+    def on_event(evt):
+        loop.call_soon_threadsafe(event_queue.put_nowait, evt)
+
     async def events():
-        # No stage completion or percentage is fabricated.
-        yield 'event: step\ndata: {"stage":"RUNNING","message":"Review worker requested; waiting for analysis."}\n\n'
+        yield 'event: step\ndata: {"stage":"QUEUED","current_stage":"QUEUED","stage_progress":0.05,"message":"Review worker initializing..."}\n\n'
+        job_task = asyncio.create_task(execute_bounded("review", payload, event_callback=on_event))
+
+        while not job_task.done():
+            try:
+                evt = await asyncio.wait_for(event_queue.get(), timeout=0.1)
+                yield f"event: step\ndata: {json.dumps(evt)}\n\n"
+            except asyncio.TimeoutError:
+                continue
+
+        while not event_queue.empty():
+            evt = event_queue.get_nowait()
+            yield f"event: step\ndata: {json.dumps(evt)}\n\n"
+
         try:
-            result = await execute_bounded("review", payload)
+            result = await job_task
             yield f"event: complete\ndata: {json.dumps(result)}\n\n"
         except HTTPException as error:
             yield f"event: error\ndata: {json.dumps({'error': error.detail})}\n\n"
+        except Exception as error:
+            yield f"event: error\ndata: {json.dumps({'error': str(error)})}\n\n"
 
     return StreamingResponse(
         events(),
