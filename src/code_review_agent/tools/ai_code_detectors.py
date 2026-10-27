@@ -59,6 +59,8 @@ class AICodeDefectScanner:
         cls,
         raw_diff: str,
         code_graph: CodeGraphIndexer | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> list[SastFinding]:
         """Scan diff for AI code generation failure modes."""
         if not raw_diff or not raw_diff.strip():

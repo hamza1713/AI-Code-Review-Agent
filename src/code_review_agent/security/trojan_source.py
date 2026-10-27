@@ -72,7 +72,12 @@ class TrojanSourceScanner:
         return True
 
     @classmethod
-    def scan_diff(cls, raw_diff: str) -> list[SastFinding]:
+    def scan_diff(
+        cls,
+        raw_diff: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> list[SastFinding]:
         """Scan diff lines for dangerous Unicode bidi overrides and invisible characters."""
         if not raw_diff or not raw_diff.strip():
             return []

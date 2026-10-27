@@ -253,7 +253,12 @@ class SupplyChainAndSlopsquatScanner:
         return True
 
     @classmethod
-    def scan_diff(cls, raw_diff: str) -> list[SastFinding]:
+    def scan_diff(
+        cls,
+        raw_diff: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> list[SastFinding]:
         """Scan unified git diff for supply-chain and dependency threats."""
         if not raw_diff or not raw_diff.strip():
             return []
