@@ -237,3 +237,52 @@ def findings(
         .fetchall()
     )
     return {"findings": [dict(row) for row in rows], "limit": limit, "offset": offset}
+
+
+class CircuitBreakerEvalRequest(BaseModel):
+    repo_id: str
+    window_days: int = Field(30, ge=1, le=365)
+    min_sample: int = Field(10, ge=1)
+    max_fpr: float = Field(0.10, ge=0.0, le=1.0)
+    provider: Literal["github", "gitlab", "bitbucket"] = "github"
+    host: str = "github.com"
+
+
+@router.post("/circuit-breaker/evaluate")
+def evaluate_circuit_breaker(req: CircuitBreakerEvalRequest):
+    validate_target(req.provider, req.host, req.repo_id)
+    store = FindingOutcomeStore()
+    engine = RepoCalibrationEngine(store)
+    actions = engine.evaluate_tricorder_circuit_breaker(
+        repo_id=req.repo_id,
+        window_days=req.window_days,
+        min_sample=req.min_sample,
+        max_fpr=req.max_fpr,
+        provider=req.provider,
+        host=req.host,
+    )
+    return {
+        "status": "success",
+        "repo_id": req.repo_id,
+        "evaluations_count": len(actions),
+        "probation_actions": actions,
+    }
+
+
+@router.get("/circuit-breaker/status")
+def get_circuit_breaker_status(
+    repo_id: str,
+    provider: str = "github",
+    host: str = "github.com",
+):
+    validate_target(provider, host, repo_id)
+    from code_review_agent.suppression_store import SuppressionStore
+
+    supp_store = SuppressionStore()
+    probations = supp_store.get_probation_rules(repo_id)
+    return {
+        "status": "success",
+        "repo_id": repo_id,
+        "active_probations_count": len(probations),
+        "probations": probations,
+    }

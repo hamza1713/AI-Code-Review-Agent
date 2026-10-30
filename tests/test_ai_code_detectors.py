@@ -87,3 +87,40 @@ class TestAICodeDetectors:
         assert len(contract_findings) >= 1
         assert "send_notification" in contract_findings[0].description
         assert "positional argument" in contract_findings[0].description
+
+    def test_does_not_flag_awaited_coroutine_in_if_condition(self):
+        diff = """diff --git a/app/routes.py b/app/routes.py
+--- a/app/routes.py
++++ b/app/routes.py
+@@ -1,4 +1,7 @@
++async def check_access(user_id):
++    return False
++
+ def handle_request(req):
++    if await check_access(req.user):
++        return "authorized"
+"""
+        findings = AICodeDefectScanner.scan_diff(diff)
+        async_findings = [f for f in findings if f.rule_id == "AI-ASYNC-001"]
+        assert len(async_findings) == 0
+
+    def test_does_not_flag_contract_drift_with_starred_args(self, tmp_path):
+        f_target = tmp_path / "service.py"
+        f_target.write_text(
+            """def send_notification(recipient, message):
+    return True
+""",
+            encoding="utf-8",
+        )
+        indexer = CodeGraphIndexer(repo_root=str(tmp_path))
+        indexer.index_repository(force_reindex=True)
+        diff = """diff --git a/app/controller.py b/app/controller.py
+--- a/app/controller.py
++++ b/app/controller.py
+@@ -1,2 +1,3 @@
+ def on_event(event):
++    send_notification(*event.args)
+"""
+        findings = AICodeDefectScanner.scan_diff(diff, code_graph=indexer)
+        contract_findings = [f for f in findings if f.rule_id == "AI-CONTRACT-001"]
+        assert len(contract_findings) == 0

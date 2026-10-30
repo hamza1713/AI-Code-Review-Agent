@@ -8,8 +8,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from code_review_agent.models import InlineComment, SastFinding
-
 
 class SarifExporter:
     """Generates standard SARIF v2.1.0 JSON reports from agent findings."""

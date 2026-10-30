@@ -215,7 +215,7 @@ class GeminiEmbedder(Embedder):
                 task_type=task_type,
             )
             raw_embeddings: list[Any] = response.get("embedding", [])
-            if raw_embeddings and isinstance(raw_embeddings[0], (float, int)):
+            if raw_embeddings and isinstance(raw_embeddings[0], float | int):
                 raw_embeddings = [raw_embeddings]
 
             for emb in raw_embeddings:

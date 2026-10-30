@@ -111,7 +111,7 @@ Return your evaluation as a JSON object with:
                 reasoning = data["reasoning"]
                 if (
                     isinstance(score, bool)
-                    or not isinstance(score, (int, float))
+                    or not isinstance(score, int | float)
                     or not 0 <= score <= 1
                 ):
                     raise ValueError("Invalid judge score")

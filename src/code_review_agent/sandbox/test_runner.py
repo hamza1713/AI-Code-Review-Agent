@@ -282,7 +282,19 @@ class SandboxTestRunner:
                         stdout=text[:4000],
                         summary_message="Generated tests passed in the restricted container; this does not prove the code is defect-free.",
                     )
-                # A failed generated assertion is not proof of a real project defect.
+                if process.returncode == 1 and failed:
+                    return TestExecutionResult(
+                        executed=True,
+                        status="REPRODUCED_DEFECT",
+                        evidence_badge="UNVERIFIED",
+                        trust_grade="UNVERIFIED",
+                        original_test_suite=test_code,
+                        healed_test_suite=clean,
+                        failures=int(failed[1]),
+                        stdout=text[:4000],
+                        summary_message="Generated tests failed in sandbox. Defect reproduced under test conditions.",
+                    )
+                # Fallback for unrecognized failure output
                 return TestExecutionResult(
                     executed=True,
                     status="ERROR",

@@ -4,6 +4,7 @@ Validates HMAC SHA-256 signatures, enqueues review jobs into a persistent task q
 and executes asynchronous multi-agent reviews with retries and crash recovery.
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -242,6 +243,38 @@ def readiness():
         return {"status": "ready"}
     except Exception:
         return JSONResponse({"status": "not_ready"}, status_code=503)
+
+
+@app.get("/healthz/db")
+@app.get("/health/db")
+def database_health():
+    """Genuine database health check with PRAGMA integrity_check and WAL inspection."""
+    try:
+        conn = queue._get_connection()
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()
+        if not integrity or integrity[0] != "ok":
+            return JSONResponse(
+                {
+                    "status": "degraded",
+                    "database": "corrupt",
+                    "detail": integrity[0] if integrity else "unknown",
+                },
+                status_code=503,
+            )
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()
+        busy_timeout = conn.execute("PRAGMA busy_timeout").fetchone()
+        return {
+            "status": "healthy",
+            "database": "available",
+            "integrity": "ok",
+            "journal_mode": journal_mode[0] if journal_mode else "unknown",
+            "busy_timeout_ms": busy_timeout[0] if busy_timeout else 0,
+        }
+    except Exception as exc:
+        return JSONResponse(
+            {"status": "unavailable", "database": "error", "error": str(exc)},
+            status_code=503,
+        )
 
 
 @app.get("/jobs")
@@ -484,7 +517,7 @@ async def api_review_sarif(request: Request):
     try:
         body = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
     sast_findings = (
         body.get("reconciled_findings")
         or body.get("findings")
@@ -947,14 +980,31 @@ async def bitbucket_webhook(
     x_event_key: str | None = Header(None),
     x_hook_uuid: str | None = Header(None),
     x_request_uuid: str | None = Header(None),
+    x_hub_signature: str | None = Header(None),
 ):
     """Receive and process Bitbucket Cloud webhook events."""
     bb_secret = os.environ.get("BITBUCKET_WEBHOOK_SECRET", "")
     supplied = request.headers.get("x-webhook-token") or request.query_params.get(
         "token", ""
     )
-    if not bb_secret or not hmac.compare_digest(supplied.encode(), bb_secret.encode()):
-        raise HTTPException(status_code=401, detail="Invalid Bitbucket webhook token")
+    sig_header = x_hub_signature or request.headers.get("x-hub-signature-256")
+    body_bytes = await request.body()
+
+    authenticated = False
+    if bb_secret:
+        if sig_header:
+            sig = sig_header.strip()
+            if sig.startswith("sha256="):
+                sig = sig.split("=", 1)[1]
+            expected = hmac.new(
+                key=bb_secret.encode("utf-8"), msg=body_bytes, digestmod=hashlib.sha256
+            ).hexdigest()
+            authenticated = hmac.compare_digest(expected, sig)
+        elif supplied:
+            authenticated = hmac.compare_digest(supplied.encode("utf-8"), bb_secret.encode("utf-8"))
+
+    if not authenticated:
+        raise HTTPException(status_code=401, detail="Invalid Bitbucket webhook signature or token")
 
     body_bytes = await request.body()
     payload = json.loads(body_bytes.decode("utf-8"))
@@ -965,7 +1015,9 @@ async def bitbucket_webhook(
         content = comment.get("content", {}).get("raw", "").strip()
         actor = payload.get("actor", {})
         author = (
-            actor.get("nickname")
+            actor.get("account_id")
+            or actor.get("uuid")
+            or actor.get("nickname")
             or actor.get("username")
             or actor.get("display_name", "")
         )
@@ -1082,7 +1134,10 @@ def reserve_review():
 
 async def execute_bounded(operation, payload, event_callback=None):
     try:
-        return await run_job_async(operation, payload, event_callback=event_callback)
+        kwargs: dict[str, Any] = {}
+        if event_callback is not None:
+            kwargs["event_callback"] = event_callback
+        return await run_job_async(operation, payload, **kwargs)
     except ReviewBusyError as error:
         raise HTTPException(503, str(error), headers={"Retry-After": "5"}) from error
     except ReviewDeadlineError:
@@ -1240,13 +1295,13 @@ async def api_review_stream(
     reserve_review()
 
     loop = asyncio.get_running_loop()
-    event_queue = asyncio.Queue()
+    event_queue: asyncio.Queue = asyncio.Queue()
 
     def on_event(evt):
         loop.call_soon_threadsafe(event_queue.put_nowait, evt)
 
     async def events():
-        yield 'event: step\ndata: {"stage":"QUEUED","current_stage":"QUEUED","stage_progress":0.05,"message":"Review worker initializing..."}\n\n'
+
         job_task = asyncio.create_task(execute_bounded("review", payload, event_callback=on_event))
 
         while not job_task.done():

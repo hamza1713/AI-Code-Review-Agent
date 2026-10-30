@@ -40,7 +40,7 @@ def reset_rate_limiter(monkeypatch):
     from code_review_agent.review_executor import ReviewWorkerError
     from code_review_agent.review_worker import execute
 
-    async def in_process(operation, payload):
+    async def in_process(operation, payload, **kwargs):
         try:
             return execute(operation, payload)
         except InputValidationError as error:

@@ -14,7 +14,7 @@ class TestTrojanSourceAndCanary:
 
     def test_detects_unicode_bidi_override_characters(self):
         # Insert Left-to-Right / Right-to-Left Override (\u202E) into code string
-        diff = f"""diff --git a/app/admin.py b/app/admin.py
+        diff = """diff --git a/app/admin.py b/app/admin.py
 --- a/app/admin.py
 +++ b/app/admin.py
 @@ -1,1 +1,2 @@
@@ -29,7 +29,7 @@ class TestTrojanSourceAndCanary:
 
     def test_detects_invisible_zero_width_characters(self):
         # Insert Zero Width Space (\u200B)
-        diff = f"""diff --git a/app/token.py b/app/token.py
+        diff = """diff --git a/app/token.py b/app/token.py
 --- a/app/token.py
 +++ b/app/token.py
 @@ -1,1 +1,2 @@

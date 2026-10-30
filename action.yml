@@ -2,6 +2,12 @@ name: 'AI Code Review Agent'
 description: 'Autonomous multi-agent PR review system powered by CrewAI Flows and Google Gemini'
 author: 'Hamza Ali'
 
+# Required GitHub Workflow Permissions:
+# permissions:
+#   contents: read
+#   pull-requests: write
+#   security-events: write
+
 inputs:
   gemini_api_key:
     description: 'Google Gemini API Key'
@@ -14,7 +20,6 @@ inputs:
     description: 'Gemini LLM model identifier'
     required: false
     default: 'gemini/gemini-3.1-flash-lite-preview'
-
   sarif_output:
     description: 'File path to save the SARIF report'
     required: false
@@ -24,15 +29,18 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a269eb4448574345517a6c986eb71b123bb0d034 # v5.4.0
       with:
         python-version: '3.11'
 
-    - name: Install Dependencies
+    - name: Install Review Agent Dependencies
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        # Install from action directory rather than executing arbitrary setup scripts from PR checkout
+        pip install --no-deps -e "${ACTION_PATH}" || pip install -e "${ACTION_PATH}"
 
     - name: Run AI Code Review Flow
       shell: bash
@@ -40,13 +48,16 @@ runs:
         GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
         LLM_MODEL: ${{ inputs.llm_model }}
+        SARIF_OUTPUT: ${{ inputs.sarif_output }}
+        REPO_NAME: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
         python -m code_review_agent.main \
-          --pr "${{ github.repository }}/pull/${{ github.event.pull_request.number }}" \
-          --sarif "${{ inputs.sarif_output }}"
+          --pr "${REPO_NAME}/pull/${PR_NUMBER}" \
+          --sarif "${SARIF_OUTPUT}"
 
     - name: Upload SARIF Security Report
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@6bb034414c761b3035773ea082901518b50904d0 # v3.28.11
       if: always()
       with:
         sarif_file: ${{ inputs.sarif_output }}

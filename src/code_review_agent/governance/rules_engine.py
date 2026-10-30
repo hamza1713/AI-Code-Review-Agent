@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from code_review_agent.config import logger
 from code_review_agent.diff_parser import DiffParser
@@ -43,6 +43,22 @@ class CustomRule(BaseModel):
     metadata: dict[str, Any] | None = Field(
         default=None, description="Optional custom metadata or tags"
     )
+
+
+    @field_validator("pattern")
+    @classmethod
+    def validate_safe_regex(cls, v: str) -> str:
+        if len(v) > 500:
+            raise ValueError("Regex pattern exceeds maximum safe length of 500 characters")
+        if re.search(r"\([^)]*[\+\*]\)[\+\*]", v):
+            raise ValueError(
+                f"Unsafe regex pattern detected with nested quantifiers (ReDoS risk): {v}"
+            )
+        try:
+            re.compile(v)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {e}") from e
+        return v
 
 
 class RemediationPolicy(BaseModel):
@@ -272,6 +288,9 @@ class RulesEngine:
                         continue
 
                     try:
+                        if len(rule.pattern) > 500 or re.search(r"\([^)]*[\+\*]\)[\+\*]", rule.pattern):
+                            logger.warning(f"Skipping rule {rule.id}: regex pattern violates ReDoS safety limits.")
+                            continue
                         if re.search(rule.pattern, code_part, re.IGNORECASE):
                             violations.append(
                                 RuleViolation(

@@ -293,7 +293,7 @@ class TestGeneratorTool(BaseTool):
 
         functions: list[FunctionMetadata] = []
         for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 func_name = node.name
                 is_async = isinstance(node, ast.AsyncFunctionDef)
                 docstring = ast.get_docstring(node)

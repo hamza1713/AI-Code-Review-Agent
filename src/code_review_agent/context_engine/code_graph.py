@@ -481,18 +481,25 @@ class CodeGraphIndexer:
                     ).add(qname)
 
         for callee_name, c_line in calls_found:
-            self.reverse_call_graph.setdefault(callee_name, set()).add(
-                f"{rel_path}:L{c_line}"
-            )
-            self.reverse_call_graph.setdefault(f"{rel_path}:{callee_name}", set()).add(
-                f"{rel_path}:L{c_line}"
-            )
+            enclosing = [
+                f"{rel_path}:{s['name']}"
+                for s in symbols_found
+                if s["line_start"] <= c_line <= s["line_end"]
+            ]
+            if not enclosing:
+                caller = f"{rel_path}:<top-level>"
+                self.reverse_call_graph.setdefault(callee_name, set()).add(caller)
+                self.reverse_call_graph.setdefault(
+                    f"{rel_path}:{callee_name}", set()
+                ).add(caller)
 
         return True
 
     def _index_non_python_regex(self, content: str, rel_path: str, ext: str):
         """Extract symbols and function calls from non-Python files using structured regex fallback matching."""
         lines = content.splitlines()
+        symbols_found: list[dict] = []
+        calls_found: list[tuple[str, int]] = []
         for i, line in enumerate(lines, 1):
             fn_name = None
             kind = "function"
@@ -580,21 +587,16 @@ class CodeGraphIndexer:
                     ]
 
             if fn_name:
-                qname = f"{rel_path}:{fn_name}"
                 block_end = self._find_block_end(lines, i - 1)
-                sym = SymbolInfo(
-                    name=fn_name,
-                    qualified_name=qname,
-                    kind=kind,
-                    file_path=rel_path,
-                    line_start=i,
-                    line_end=block_end,
-                    parameters=params,
-                    callers=[],
-                    callees=[],
+                symbols_found.append(
+                    {
+                        "name": fn_name,
+                        "kind": kind,
+                        "line_start": i,
+                        "line_end": block_end,
+                        "params": params,
+                    }
                 )
-                self.symbols[qname] = sym
-                self.symbols_by_name.setdefault(fn_name, []).append(sym)
 
             # Extract call expressions
             for call_m in re.finditer(r"\b([A-Za-z0-9_$]+)\s*\(", line):
@@ -614,13 +616,55 @@ class CodeGraphIndexer:
                     "new",
                     "super",
                     "this",
+                    "fmt",
                 ]:
-                    self.reverse_call_graph.setdefault(callee, set()).add(
-                        f"{rel_path}:L{i}"
-                    )
+                    calls_found.append((callee, i))
+
+        for sym_data in symbols_found:
+            fn_name = sym_data["name"]
+            kind = sym_data["kind"]
+            qname = f"{rel_path}:{fn_name}"
+            l_start = sym_data["line_start"]
+            l_end = sym_data["line_end"]
+
+            callees = set()
+            for callee_name, c_line in calls_found:
+                if l_start <= c_line <= l_end:
+                    callees.add(callee_name)
+
+            sym = SymbolInfo(
+                name=fn_name,
+                qualified_name=qname,
+                kind=kind,
+                file_path=rel_path,
+                line_start=l_start,
+                line_end=l_end,
+                parameters=sym_data["params"],
+                callers=[],
+                callees=sorted(callees),
+            )
+            self.symbols[qname] = sym
+            self.symbols_by_name.setdefault(fn_name, []).append(sym)
+            if callees:
+                self.call_graph[qname] = callees
+                for callee in callees:
+                    self.reverse_call_graph.setdefault(callee, set()).add(qname)
                     self.reverse_call_graph.setdefault(
                         f"{rel_path}:{callee}", set()
-                    ).add(f"{rel_path}:L{i}")
+                    ).add(qname)
+
+        for callee_name, c_line in calls_found:
+            enclosing = [
+                f"{rel_path}:{s['name']}"
+                for s in symbols_found
+                if s["line_start"] <= c_line <= s["line_end"]
+            ]
+            if not enclosing:
+                caller = f"{rel_path}:<top-level>"
+                self.reverse_call_graph.setdefault(callee_name, set()).add(caller)
+                self.reverse_call_graph.setdefault(
+                    f"{rel_path}:{callee_name}", set()
+                ).add(caller)
 
     def _extract_imports(self, tree: ast.AST, rel_path: str) -> dict[str, str]:
         """Extract explicit imports in a file to assist in qualified callee resolution."""
@@ -677,7 +721,7 @@ class CodeGraphIndexer:
                     node, rel_path, import_map, scope_prefix=f"{class_name}."
                 )
 
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 func_name = node.name
                 scoped_name = f"{scope_prefix}{func_name}"
                 qualified_name = f"{rel_path}:{scoped_name}"

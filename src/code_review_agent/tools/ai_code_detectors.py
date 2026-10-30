@@ -81,7 +81,7 @@ class AICodeDefectScanner:
                 continue
 
             added_line_numbers = {ln for ln, _ in added_lines_with_numbers}
-            snippet_by_line = {ln: text for ln, text in added_lines_with_numbers}
+            snippet_by_line = dict(added_lines_with_numbers)
 
             # Build post-image code blocks from each hunk with line mappings
             blocks_to_scan: list[tuple[ast.AST, dict[int, int]]] = []
@@ -137,7 +137,7 @@ class AICodeDefectScanner:
                 # Second pass: detect AI-specific defects
                 for node in ast.walk(tree):
                     # ── AI-ASYNC-001: Unawaited coroutine in conditions ──
-                    if isinstance(node, (ast.If, ast.While, ast.Assert)):
+                    if isinstance(node, ast.If | ast.While | ast.Assert):
                         cls._check_unawaited_coro(
                             node.test,
                             file_path,
@@ -160,7 +160,7 @@ class AICodeDefectScanner:
                         )
 
                     # ── AI-STUB-001: Hollow security/auth stubs ──
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                         cls._check_hollow_stubs(
                             node,
                             file_path,
@@ -196,8 +196,15 @@ class AICodeDefectScanner:
         findings: list[SastFinding],
     ):
         """Check if condition expression calls an async function without await."""
+        awaited_calls = {
+            node.value
+            for node in ast.walk(test_expr)
+            if isinstance(node, ast.Await) and isinstance(node.value, ast.Call)
+        }
         for sub_node in ast.walk(test_expr):
             if isinstance(sub_node, ast.Call):
+                if sub_node in awaited_calls:
+                    continue
                 func_name = None
                 if isinstance(sub_node.func, ast.Name):
                     func_name = sub_node.func.id
@@ -407,7 +414,8 @@ class AICodeDefectScanner:
                 if p not in ("self", "cls", "*args", "**kwargs")
             ]
             num_args = len(call_node.args)
-            if num_args > len(expected_params) and not any(
+            has_starred_arg = any(isinstance(a, ast.Starred) for a in call_node.args)
+            if not has_starred_arg and num_args > len(expected_params) and not any(
                 "*" in p for p in target_sym.parameters
             ):
                 rel_line = getattr(call_node, "lineno", 1)

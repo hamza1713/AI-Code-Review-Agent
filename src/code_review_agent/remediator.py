@@ -853,7 +853,12 @@ class AutoRemediator:
                 )
 
         if not original_content:
-            original_content = finding.snippet
+            return {
+                "status": "error",
+                "message": f"Cannot remediate: original file content for '{finding.file_path}' could not be retrieved from repository or workspace. Refusing to truncate file with isolated snippet.",
+                "fingerprint": finding.fingerprint,
+                "file_path": finding.file_path,
+            }
 
         # Blob SHA before patch
         blob_sha_before = hashlib.sha256(original_content.encode("utf-8")).hexdigest()
@@ -897,6 +902,19 @@ class AutoRemediator:
                 "message": f"Remediation patch produced no changes to '{finding.file_path}'.",
                 "fingerprint": finding.fingerprint,
             }
+
+        # Guardrail 5: Pre-commit syntax check to prevent committing broken code
+        if finding.file_path.endswith(".py"):
+            import ast
+            try:
+                ast.parse(patched_content, filename=finding.file_path)
+            except SyntaxError as syn_err:
+                return {
+                    "status": "error",
+                    "message": f"Remediation aborted: candidate patch introduced syntax error ({syn_err}) into '{finding.file_path}'.",
+                    "fingerprint": finding.fingerprint,
+                    "file_path": finding.file_path,
+                }
 
         repo_id = (
             f"{owner}/{repo}"

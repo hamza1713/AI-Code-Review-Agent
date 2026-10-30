@@ -138,7 +138,7 @@ class CodeReviewCrew:
                 t_desc = getattr(t, "description", "")
                 tool_descs.append(f"- {t.__class__.__name__} ('{t_name}'): {t_desc}")
             system += (
-                f"\n\nAvailable inspection tools:\n" + "\n".join(tool_descs) +
+                "\n\nAvailable inspection tools:\n" + "\n".join(tool_descs) +
                 "\n\nYou may invoke an available tool if you need deeper repository context before rendering your evaluation.\n"
                 "To call a tool, reply with ONLY a JSON block: {\"action\": \"call_tool\", \"tool\": \"<ToolClassName>\", \"arguments\": {<args>}}.\n"
                 "When you are ready with your final review, return ONLY the valid JSON matching the expected output schema."

@@ -357,7 +357,7 @@ class CommandRouter:
 
                     if effective == "apply" or isinstance(
                         err,
-                        (UnsafeDiffPathError, PermissionError, ReconciliationRequired),
+                        UnsafeDiffPathError | PermissionError | ReconciliationRequired,
                     ):
                         raise
                     logger.error(

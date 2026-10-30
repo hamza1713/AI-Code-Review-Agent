@@ -6,7 +6,11 @@ from code_review_agent.diff_parser import DiffParser
 from code_review_agent.models import InlineComment, ReviewAPIResponse
 
 
-def apply_finding_policy(response: ReviewAPIResponse) -> ReviewAPIResponse:
+def apply_finding_policy(
+    response: ReviewAPIResponse,
+    suppressed_fingerprints: set[str] | None = None,
+    probation_rules: set[str] | None = None,
+) -> ReviewAPIResponse:
     """Retain all candidates, expose rejection reasons, and build grounded comments."""
     parsed = DiffParser.parse_diff(response.reviewed_diff or "")
     changed = {
@@ -46,6 +50,17 @@ def apply_finding_policy(response: ReviewAPIResponse) -> ReviewAPIResponse:
             reasons.append("NOT_ACTIONABLE")
         if not response.analysis_complete:
             reasons.append("INCOMPLETE_ANALYSIS")
+        if suppressed_fingerprints and finding.fingerprint in suppressed_fingerprints:
+            reasons.append("USER_SUPPRESSED")
+        if probation_rules:
+            rule_key = getattr(finding, "rule_id", "") or ""
+            cat_key = f"category:{finding.category}"
+            if (
+                rule_key in probation_rules
+                or finding.category in probation_rules
+                or cat_key in probation_rules
+            ):
+                reasons.append("PROBATION_SUPPRESSED")
         if finding.evidence_grade == "REPRODUCED":
             evidence = finding.evidence_provenance
             if not (

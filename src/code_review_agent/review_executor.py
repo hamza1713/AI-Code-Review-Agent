@@ -164,7 +164,7 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None, event_callback
                             break
                         if event_callback and events_file.exists():
                             try:
-                                with open(events_file, "r", encoding="utf-8") as ef:
+                                with open(events_file, encoding="utf-8") as ef:
                                     ef.seek(events_pos)
                                     new_lines = ef.read()
                                     events_pos = ef.tell()

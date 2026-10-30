@@ -439,7 +439,7 @@ class SupplyChainAndSlopsquatScanner:
     ):
         for line_no, text in lines:
             cleaned = text.strip()
-            if not cleaned or cleaned.startswith("#") or cleaned.startswith("-"):
+            if not cleaned or cleaned.startswith(("#", "-")):
                 continue
             # Extract package name up to comparison operators or comments
             m = re.match(r"^([A-Za-z0-9_.\-]+)", cleaned)
@@ -523,7 +523,7 @@ class SupplyChainAndSlopsquatScanner:
     ):
         for line_no, text in lines:
             cleaned = text.strip()
-            if not (cleaned.startswith("import ") or cleaned.startswith("from ")):
+            if not cleaned.startswith(("import ", "from ")):
                 continue
 
             pkg_name = None

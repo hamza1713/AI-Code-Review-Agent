@@ -6,6 +6,7 @@ broken down by category and evidence grade (REPRODUCED vs HEURISTIC).
 Generates interactive Markdown reports and honest review trust footers.
 """
 
+import json
 import time
 from typing import Any
 
@@ -439,3 +440,165 @@ class RepoCalibrationEngine:
             f"({rep_detail}, Heuristic: **{heur_pct}** over rolling {window_days} days). "
             f"Audit reproductions with `/audit next` or flag false positives with `/fp <fingerprint>`."
         )
+
+
+    def evaluate_tricorder_circuit_breaker(
+        self,
+        repo_id: str,
+        window_days: int = 30,
+        min_sample: int = 10,
+        max_fpr: float = 0.10,
+        *,
+        provider: str = "github",
+        host: str = "github.com",
+        suppression_store: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Evaluates Google Tricorder-style circuit breaker across rules for the repository.
+        Any rule exceeding max_fpr (default 10%) across at least min_sample (default 10)
+        triaged evaluations is automatically placed on probation in SuppressionStore.
+        """
+        clean_repo = (repo_id or "").strip() or "default"
+        effective_days = max(1, window_days)
+        now = time.time()
+        start_time = now - (effective_days * 86400)
+
+        from code_review_agent.suppression_store import SuppressionStore
+
+        supp_store = suppression_store or SuppressionStore(
+            db_path=getattr(self.store, "db_path", None)
+        )
+
+        conn_getter = getattr(self.store, "_get_connection", None)
+        if conn_getter is None:
+            return []
+
+        rows = conn_getter().execute(
+            """
+            SELECT category, metadata_json, claim_title, outcome, audit_status
+            FROM finding_outcomes
+            WHERE provider = ? AND host = ? AND repo_id = ?
+              AND first_posted_at >= ? AND first_posted_at <= ?
+            """,
+            (provider, host, clean_repo.lower(), start_time, now),
+        ).fetchall()
+
+        rule_findings: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            data = dict(row)
+            meta = {}
+            try:
+                meta = json.loads(data.get("metadata_json") or "{}")
+            except Exception:
+                pass
+            rule_id = (
+                meta.get("rule_id")
+                or meta.get("rule")
+                or data.get("claim_title")
+                or data.get("category")
+                or "UNKNOWN"
+            ).strip()
+
+            rule_findings.setdefault(rule_id, []).append(data)
+            cat = (data.get("category") or "").strip()
+            if cat and cat != rule_id:
+                cat_key = f"category:{cat}"
+                rule_findings.setdefault(cat_key, []).append(data)
+
+        results: list[dict[str, Any]] = []
+        for target_id, items in sorted(rule_findings.items()):
+            triaged = 0
+            positives = 0
+            negatives = 0
+            for item in items:
+                outcome = item.get("outcome")
+                audit_status = item.get("audit_status")
+
+                is_triaged = (
+                    outcome
+                    in (
+                        CONFIRMED_REAL,
+                        FALSE_POSITIVE,
+                        INVALID_REPRODUCTION,
+                        IGNORED_MERGED,
+                    )
+                    or audit_status in (AUDIT_STATUS_VALID, AUDIT_STATUS_INVALID)
+                )
+                if not is_triaged:
+                    continue
+
+                triaged += 1
+                if (
+                    outcome in (FALSE_POSITIVE, INVALID_REPRODUCTION)
+                    or audit_status == AUDIT_STATUS_INVALID
+                ):
+                    negatives += 1
+                elif (
+                    outcome == CONFIRMED_REAL
+                    or audit_status == AUDIT_STATUS_VALID
+                ):
+                    positives += 1
+
+            if positives + negatives > 0:
+                fpr = negatives / (positives + negatives)
+            elif triaged > 0:
+                fpr = negatives / triaged
+            else:
+                fpr = 0.0
+
+            if triaged >= min_sample and fpr > max_fpr:
+                reason = (
+                    f"Tricorder FPR {fpr * 100:.1f}% exceeds threshold "
+                    f"{max_fpr * 100:.1f}% (n={triaged}, neg={negatives})"
+                )
+                supp_store.put_rule_on_probation(
+                    repo_id=clean_repo,
+                    rule_id=target_id,
+                    fpr=fpr,
+                    total=triaged,
+                    negative_signals=negatives,
+                    reason=reason,
+                )
+                results.append(
+                    {
+                        "rule_id": target_id,
+                        "status": "PROBATION",
+                        "action": "PROBATION_APPLIED",
+                        "false_positive_rate": fpr,
+                        "total_evaluations": triaged,
+                        "negative_signals": negatives,
+                        "reason": reason,
+                    }
+                )
+            elif triaged >= min_sample and fpr <= max_fpr:
+                was_on_probation = supp_store.is_rule_on_probation(clean_repo, target_id)
+                if was_on_probation:
+                    supp_store.remove_rule_from_probation(clean_repo, target_id)
+                    action = "PROBATION_LIFTED"
+                else:
+                    action = "NONE"
+                results.append(
+                    {
+                        "rule_id": target_id,
+                        "status": "HEALTHY",
+                        "action": action,
+                        "false_positive_rate": fpr,
+                        "total_evaluations": triaged,
+                        "negative_signals": negatives,
+                        "reason": f"Tricorder FPR {fpr * 100:.1f}% within threshold (n={triaged})",
+                    }
+                )
+            else:
+                results.append(
+                    {
+                        "rule_id": target_id,
+                        "status": "INSUFFICIENT_DATA",
+                        "action": "NONE",
+                        "false_positive_rate": fpr,
+                        "total_evaluations": triaged,
+                        "negative_signals": negatives,
+                        "reason": f"Sample size {triaged} below minimum {min_sample}",
+                    }
+                )
+
+        return results

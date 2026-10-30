@@ -1,5 +1,5 @@
-import urllib.request
 import json
+import urllib.request
 from pathlib import Path
 
 diff_text = Path("samples/synthetic_vulnerability_test.diff").read_text(encoding="utf-8")

@@ -1,6 +1,5 @@
-import json
+from code_review_agent.models import InlineComment, RuleViolation, SastFinding
 from code_review_agent.sarif_exporter import SarifExporter
-from code_review_agent.models import SastFinding, InlineComment, RuleViolation
 
 
 def test_sarif_exporter_valid_schema():

@@ -215,7 +215,7 @@ class CodeCompilationEvaluator:
             test_funcs = [
                 node.name
                 for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
                 and node.name.startswith("test_")
             ]
             return EvaluationResult(

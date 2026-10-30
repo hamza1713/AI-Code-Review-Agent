@@ -28,7 +28,7 @@ class LocalGitPlatformClient(GitPlatformClient):
 
     def _run_git(self, args: list[str]) -> str:
         """Run a git command in the repository directory."""
-        cmd = ["git"] + args
+        cmd = ["git", "-c", "core.hooksPath=/dev/null"] + args
         res = subprocess.run(
             cmd,
             cwd=str(self.repo_dir),

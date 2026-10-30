@@ -175,5 +175,22 @@ def main():
     print(json.dumps(result))
 
 
+def check_db_health(database):
+    path = Path(database).resolve()
+    if not path.is_file():
+        return {"status": "missing", "error": f"Database file {path} does not exist"}
+    with closing(sqlite3.connect(path)) as conn:
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()
+        busy_timeout = conn.execute("PRAGMA busy_timeout").fetchone()
+        is_ok = bool(integrity and integrity[0] == "ok")
+        return {
+            "status": "healthy" if is_ok else "corrupt",
+            "integrity": integrity[0] if integrity else "unknown",
+            "journal_mode": journal_mode[0] if journal_mode else "unknown",
+            "busy_timeout_ms": busy_timeout[0] if busy_timeout else 0,
+        }
+
+
 if __name__ == "__main__":
     main()

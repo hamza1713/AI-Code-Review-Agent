@@ -26,8 +26,8 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [copiedMermaid, setCopiedMermaid] = useState<boolean>(false);
 
-  const callersMap = impact.impacted_callers || {};
-  const modifiedFunctions = Object.keys(callersMap);
+  const callersMap = useMemo(() => impact.impacted_callers || {}, [impact.impacted_callers]);
+  const modifiedFunctions = useMemo(() => Object.keys(callersMap), [callersMap]);
   const hasCallers = modifiedFunctions.length > 0;
 
   // Compute total unique callers

@@ -101,6 +101,24 @@ class SuppressionStore:
                 CREATE INDEX IF NOT EXISTS idx_audit_lookup
                 ON suppression_audit_log(repo_id, fingerprint, timestamp);
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rule_probations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    repo_id TEXT NOT NULL,
+                    rule_id TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'PROBATION',
+                    false_positive_rate REAL NOT NULL,
+                    total_evaluations INTEGER NOT NULL,
+                    negative_signals INTEGER NOT NULL,
+                    reason TEXT DEFAULT '',
+                    updated_at REAL NOT NULL,
+                    UNIQUE(repo_id, rule_id)
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_rule_probations
+                ON rule_probations(repo_id, rule_id);
+            """)
             conn.commit()
 
     @staticmethod
@@ -379,3 +397,96 @@ class SuppressionStore:
 
             rows = conn.execute(query, tuple(params)).fetchall()
             return [dict(r) for r in rows]
+
+    def put_rule_on_probation(
+        self,
+        repo_id: str,
+        rule_id: str,
+        fpr: float,
+        total: int,
+        negative_signals: int,
+        reason: str = "",
+    ) -> bool:
+        """
+        Record a rule probation when false positive rate exceeds threshold (Tricorder model).
+        """
+        norm_repo = self.normalize_repo_id(repo_id)
+        rule_clean = rule_id.strip()
+        now = time.time()
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO rule_probations (
+                    repo_id, rule_id, status, false_positive_rate,
+                    total_evaluations, negative_signals, reason, updated_at
+                ) VALUES (?, ?, 'PROBATION', ?, ?, ?, ?, ?)
+                ON CONFLICT(repo_id, rule_id) DO UPDATE SET
+                    status = 'PROBATION',
+                    false_positive_rate = excluded.false_positive_rate,
+                    total_evaluations = excluded.total_evaluations,
+                    negative_signals = excluded.negative_signals,
+                    reason = excluded.reason,
+                    updated_at = excluded.updated_at;
+            """,
+                (norm_repo, rule_clean, fpr, total, negative_signals, reason, now),
+            )
+            conn.commit()
+        logger.warning(
+            f"⚠️ Rule '{rule_clean}' placed on PROBATION for repo '{norm_repo}' "
+            f"(FPR={fpr * 100:.1f}%, samples={total}, FP/negative={negative_signals})"
+        )
+        return True
+
+    def is_rule_on_probation(self, repo_id: str, rule_id: str) -> bool:
+        """Check if a specific rule is currently suppressed under probation."""
+        if not rule_id:
+            return False
+        norm_repo = self.normalize_repo_id(repo_id)
+        with self._get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT 1 FROM rule_probations
+                WHERE repo_id = ? AND rule_id = ? AND status = 'PROBATION';
+            """,
+                (norm_repo, rule_id.strip()),
+            ).fetchone()
+            return row is not None
+
+    def get_probation_rules(self, repo_id: str) -> dict[str, dict[str, Any]]:
+        """Retrieve all active rule probations for a repository."""
+        norm_repo = self.normalize_repo_id(repo_id)
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT rule_id, status, false_positive_rate, total_evaluations,
+                       negative_signals, reason, updated_at
+                FROM rule_probations
+                WHERE repo_id = ? AND status = 'PROBATION';
+            """,
+                (norm_repo,),
+            ).fetchall()
+            return {
+                r["rule_id"]: {
+                    "status": r["status"],
+                    "false_positive_rate": r["false_positive_rate"],
+                    "total_evaluations": r["total_evaluations"],
+                    "negative_signals": r["negative_signals"],
+                    "reason": r["reason"],
+                    "updated_at": r["updated_at"],
+                }
+                for r in rows
+            }
+
+    def remove_rule_from_probation(self, repo_id: str, rule_id: str) -> bool:
+        """Reinstate a rule from probation back to active status."""
+        norm_repo = self.normalize_repo_id(repo_id)
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM rule_probations
+                WHERE repo_id = ? AND rule_id = ?;
+            """,
+                (norm_repo, rule_id.strip()),
+            )
+            conn.commit()
+            return cursor.rowcount > 0

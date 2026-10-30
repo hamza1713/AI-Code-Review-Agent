@@ -161,7 +161,7 @@ class BanditRunner:
                             )
                         ):
                             continue
-                        if line.startswith("+") or line.startswith(" "):
+                        if line.startswith(("+", " ")):
                             clean_lines.append(line[1:])
                         else:
                             clean_lines.append(line)

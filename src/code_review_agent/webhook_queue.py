@@ -999,15 +999,23 @@ def execute_platform_review(payload, pr_identifier, job_id=None, claim_token=Non
     repo_key = f"{owner}/{repo}"
     suppressions = SuppressionStore()
     suppressed = suppressions.get_suppressed_fingerprints(repo_key)
+    probation_rules = set(suppressions.get_probation_rules(repo_key).keys())
     from code_review_agent.eval.runtime import validate_response
     from code_review_agent.review_policy import advisory_summary, apply_finding_policy
 
     validate_response(response)
-    apply_finding_policy(response)
+    apply_finding_policy(
+        response,
+        suppressed_fingerprints=suppressed,
+        probation_rules=probation_rules,
+    )
     event = "COMMENT"
     pilot = PilotStore(str(queue.db_path))
     pilot_repository = f"{ident.platform}:{host}/{repo_key}"
-    posting = os.getenv("REVIEW_ENABLE_POSTING", "false").lower() == "true"
+    shadow_mode = os.getenv("SHADOW_MODE", "false").lower() == "true"
+    posting = (not shadow_mode) and (
+        os.getenv("REVIEW_ENABLE_POSTING", "false").lower() == "true"
+    )
     pilot_run = pilot.record(
         pilot_repository,
         str(number),
@@ -1021,7 +1029,10 @@ def execute_platform_review(payload, pr_identifier, job_id=None, claim_token=Non
         raise ReconciliationRequired(
             "RECONCILIATION_REQUIRED: legacy non-advisory intent requires operator review"
         )
-    if os.getenv("REVIEW_ENABLE_POSTING", "false").lower() != "true":
+    if shadow_mode:
+        response.analyzer_status["publication"] = "SHADOW_RECORDED"
+        return response.model_dump()
+    if not posting:
         response.analyzer_status["publication"] = "DISABLED"
         return response.model_dump()
     if not response.analysis_complete:
@@ -1146,6 +1157,7 @@ def execute_platform_review(payload, pr_identifier, job_id=None, claim_token=Non
                 claim_description=finding.description,
                 file_path=finding.file_path,
                 line_number=finding.line_number,
+                metadata={"rule_id": finding.rule_id},
             )
             finding.finding_id = record["finding_id"]
             finding.pr_id = str(number)

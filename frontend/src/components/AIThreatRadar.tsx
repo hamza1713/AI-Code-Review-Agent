@@ -47,20 +47,19 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
   const isAIDefectsClean = aiDefectFindings.length === 0;
 
   // Cross-Model Consensus
-  const consensusAudit = data.ai_threat_audit?.consensus || {
-    primary_model: data.telemetry?.model_used || 'Gemini 2.5 Pro',
-    critic_model: 'Adversarial Critic (Claude Sonnet / o3-mini)',
-    agreement_score: data.confidence_score >= 80 ? 95 : 85,
-    status: (data.confidence_score >= 70 ? 'CONSENSUS_AGREED' : 'ADVERSARIAL_DIVERGENCE') as 'CONSENSUS_AGREED' | 'ADVERSARIAL_DIVERGENCE',
-    critic_verdict: data.verdict,
-  };
+  const consensusAudit = data.ai_threat_audit?.consensus || null;
 
   const handleDownloadSARIF = async () => {
     setDownloadingSarif(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('review_api_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const response = await fetch('/api/review/sarif', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data),
       });
 
@@ -120,7 +119,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
     }
   };
 
-  const snapshotHash = data.input_snapshot_hash || '7f9a12c8b43e5d01';
+  const snapshotHash = data.input_snapshot_hash || null;
 
   return (
     <div className="bg-[#10141e] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
@@ -272,7 +271,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* Card 4: Cross-Model Adversarial Consensus */}
+        {/* Card 4: Model Engine & Consensus */}
         <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-950/20 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -281,17 +280,19 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <span className="text-xs font-bold text-white">Model Consensus</span>
               </div>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-300 border-indigo-500/40">
-                {consensusAudit.agreement_score}% MATCH
+                {consensusAudit ? `${consensusAudit.agreement_score}% MATCH` : 'SINGLE ENGINE'}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Orthogonal cross-family verification pairing primary reviewer with an independent red-team critic.
+              {consensusAudit
+                ? 'Orthogonal cross-family verification pairing primary reviewer with an independent red-team critic.'
+                : 'Primary analyzer executed. Multi-model red-team critic consensus is available in enterprise configuration.'}
             </p>
           </div>
 
           <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-indigo-300 flex items-center justify-between">
-            <span>Critic: {consensusAudit.critic_verdict}</span>
-            <span className="text-emerald-400">✓ INDEPENDENT</span>
+            <span>Engine: {consensusAudit ? `Critic: ${consensusAudit.critic_verdict}` : (data.telemetry?.model_used || 'Gemini')}</span>
+            <span className="text-emerald-400">✓ {consensusAudit ? 'INDEPENDENT' : 'PRIMARY'}</span>
           </div>
         </div>
       </div>
@@ -301,9 +302,15 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
         <div className="flex items-center space-x-2 text-slate-300">
           <Fingerprint className="w-4 h-4 text-indigo-400" />
           <span className="font-semibold text-slate-200">Cryptographic Review Receipt:</span>
-          <code className="text-indigo-300 font-mono text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-            sha256:{snapshotHash.slice(0, 16)}...
-          </code>
+          {snapshotHash ? (
+            <code className="text-indigo-300 font-mono text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+              sha256:{snapshotHash.slice(0, 16)}...
+            </code>
+          ) : (
+            <span className="text-slate-400 font-mono text-[11px] italic bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+              Unsigned (Development Run)
+            </span>
+          )}
         </div>
         <div className="text-[11px] font-mono text-slate-400">
           OASIS SARIF 2.1.0 • GitHub Code Scanning Ready • Full Worktree Isolation

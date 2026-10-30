@@ -458,14 +458,17 @@ class SummarizedFindingsJSON(BaseModel):
         description="Explicit blocking reasons or security/governance violations preventing approval",
     )
     confidence: int = Field(
-        ..., description="Confidence score between 0 and 100 for merging the PR"
+        default=50,
+        ge=0,
+        le=100,
+        description="Confidence score between 0 and 100 for merging the PR",
     )
     confidence_breakdown: str | None = Field(
         default=None,
         description="Arithmetic breakdown explaining how the confidence score was derived",
     )
     findings: str = Field(
-        ...,
+        default="Code review completed.",
         description="Executive summary synthesizing code quality, security, and rule checks",
     )
     coverage_gaps: list[str] = Field(

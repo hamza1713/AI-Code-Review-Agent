@@ -8,6 +8,7 @@ Verifies that:
 """
 
 from unittest.mock import MagicMock
+
 from code_review_agent.crews.code_review_crew.crew import CodeReviewCrew
 from code_review_agent.llm_factory import LLMResponse, TokenUsage
 from code_review_agent.models import CodeQualityJSON

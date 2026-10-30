@@ -20,6 +20,26 @@ from code_review_agent.tools.test_generator import TestGeneratorTool
 mcp = FastMCP("ai-code-reviewer")
 
 
+def _sanitize_mcp_repo_root(repo_root: str | None) -> str:
+    """Confines MCP repo_root to the current workspace root, preventing arbitrary host filesystem traversal."""
+    if not repo_root:
+        return "."
+    from pathlib import Path
+
+    allowed_root = Path(".").resolve()
+    target_path = Path(repo_root).resolve()
+    if not target_path.is_relative_to(allowed_root):
+        logger.warning(
+            "MCP path traversal blocked: %s is outside allowed %s",
+            repo_root,
+            allowed_root,
+        )
+        raise PermissionError(
+            f"Access denied: {repo_root} is outside the allowed workspace."
+        )
+    return str(target_path)
+
+
 @mcp.tool()
 def review_diff(diff: str, repo_root: str | None = None) -> str:
     """
@@ -59,7 +79,8 @@ def check_governance_rules(diff: str, repo_root: str | None = None) -> str:
     Checks for forbidden print statements, wildcard imports, cyclomatic complexity, and file size limits.
     """
     try:
-        engine = RulesEngine(repo_root=repo_root)
+        safe_root = _sanitize_mcp_repo_root(repo_root)
+        engine = RulesEngine(repo_root=safe_root)
         violations = engine.evaluate_diff(diff)
         violations_json = [v.model_dump(mode="json") for v in violations]
         return json.dumps(
@@ -79,7 +100,8 @@ def find_impacted_callers(
     impacted by modifications to specified functions or classes.
     """
     try:
-        indexer = CodeGraphIndexer(repo_root=repo_root)
+        safe_root = _sanitize_mcp_repo_root(repo_root)
+        indexer = CodeGraphIndexer(repo_root=safe_root)
         indexer.index_repository()
         impact = indexer.get_impacted_callers(target_identifiers)
         return json.dumps({"impacted_callers": impact}, indent=2)
@@ -116,7 +138,8 @@ def query_semantic_context(
     Finds cross-file patterns, callers, and dependencies outside the current file.
     """
     try:
-        engine = SemanticContextEngine(repo_roots=[repo_root or "."])
+        safe_root = _sanitize_mcp_repo_root(repo_root)
+        engine = SemanticContextEngine(repo_roots=[safe_root])
         engine.index()
         results = engine.retrieve(diff=query, top_k=top_k)
         if not results:

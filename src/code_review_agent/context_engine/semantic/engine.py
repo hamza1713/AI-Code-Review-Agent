@@ -73,7 +73,7 @@ class SemanticContextEngine:
     ):
         if repo_roots is None:
             repo_roots = ["."]
-        elif isinstance(repo_roots, (str, Path)):
+        elif isinstance(repo_roots, str | Path):
             repo_roots = [str(repo_roots)]
         self.repo_roots = [str(Path(r).resolve()) for r in repo_roots]
 

@@ -124,23 +124,33 @@ code {
   opacity: 0;
 }
 
-/* Wavy Underlines for Flagged Code */
+/* Wavy Underlines & Suspicious Line Highlights for Flagged Code */
 .wavy-critical {
   text-decoration: underline wavy #f43f5e 2px;
   text-underline-offset: 3px;
-  background-color: rgba(244, 63, 94, 0.08);
+  background-color: rgba(244, 63, 94, 0.12);
 }
 
 .wavy-warning {
   text-decoration: underline wavy #f59e0b 2px;
   text-underline-offset: 3px;
-  background-color: rgba(245, 158, 11, 0.08);
+  background-color: rgba(245, 158, 11, 0.12);
 }
 
 .wavy-info {
   text-decoration: underline wavy #38bdf8 2px;
   text-underline-offset: 3px;
   background-color: rgba(56, 189, 248, 0.08);
+}
+
+.suspicious-line-critical {
+  background: linear-gradient(90deg, rgba(225, 29, 72, 0.28) 0%, rgba(159, 18, 57, 0.14) 40%, rgba(10, 12, 16, 0.1) 100%) !important;
+  box-shadow: inset 4px 0 0 0 #f43f5e, 0 0 16px rgba(244, 63, 94, 0.18);
+}
+
+.suspicious-line-warning {
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.24) 0%, rgba(180, 83, 9, 0.12) 40%, rgba(10, 12, 16, 0.1) 100%) !important;
+  box-shadow: inset 4px 0 0 0 #f59e0b, 0 0 14px rgba(245, 158, 11, 0.15);
 }
 
 /* Prism.js Syntax Highlighting Theme (Dark Slate/VS Code feel) */

@@ -23,7 +23,7 @@ def configured_operator(monkeypatch):
 
     rate_limiter.reset()
 
-    async def in_process(operation, payload):
+    async def in_process(operation, payload, **kwargs):
         return execute(operation, payload)
 
     monkeypatch.setattr("code_review_agent.webhook_server.run_job_async", in_process)

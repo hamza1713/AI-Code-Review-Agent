@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, FileCheck, MessageSquareCode, GitGraph, TestTube2, LayoutGrid, FileText } from 'lucide-react';
+import { ShieldAlert, FileCheck, MessageSquareCode, GitGraph, TestTube2, LayoutGrid, FileText, Sparkles, Lock } from 'lucide-react';
 import type { ReviewAPIResponse } from '../types/review';
 import { VerdictBanner } from './VerdictBanner';
 import { FindingsList } from './FindingsList';
@@ -8,13 +8,9 @@ import { InlineCommentsList } from './InlineCommentsList';
 import { CrossFileImpact } from './CrossFileImpact';
 import { GeneratedUnitTests } from './GeneratedUnitTests';
 import { TelemetryCard } from './TelemetryCard';
-import { ScopeDisclaimer } from './ScopeDisclaimer';
 import { CompleteExecutiveReport } from './CompleteExecutiveReport';
-import { TraceVisualizer } from './TraceVisualizer';
 import { AnnotatedCodeViewer } from './AnnotatedCodeViewer';
-import { Sparkles, Lock } from 'lucide-react';
 import { AIThreatRadar } from './AIThreatRadar';
-
 
 interface ReviewDashboardProps {
   data: ReviewAPIResponse;
@@ -23,7 +19,6 @@ interface ReviewDashboardProps {
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'radar' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
-
 
   const handleExportJSON = () => {
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -40,6 +35,9 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
   const securityCount = (data.findings ?? data.pattern_findings)?.length || 0;
   const govCount = data.governance_violations?.length || 0;
   const inlineCount = data.inline_comments?.length || 0;
+  const totalAnnotatedCount = securityCount + govCount + inlineCount;
+
+  const hasCoverageIssues = data.analysis_complete === false || (data.file_coverage ?? []).some(f => !['AVAILABLE', 'DELETED'].includes(f.status));
 
   return (
     <div className="space-y-4">
@@ -52,21 +50,41 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         onExportJSON={handleExportJSON}
       />
 
-      <section aria-label="Review coverage" className="rounded-xl border border-slate-800 p-4 text-sm text-slate-300 space-y-2">
-        <p>{data.analysis_complete === false ? 'Incomplete analysis — manual review required' : 'Analysis coverage'} · {data.reviewer_profile?.model ?? 'Reviewer identity unavailable'}</p>
-        {data.reviewer_profile_id && <p className="text-xs break-all">Reviewer: <code>{data.reviewer_profile_id}</code></p>}
-        {data.input_snapshot_hash && <p className="text-xs break-all">Input: <code>{data.input_snapshot_hash}</code></p>}
-        {(data.file_coverage ?? []).filter(file => !['AVAILABLE', 'DELETED'].includes(file.status)).map(file => (
-          <p key={file.path} className="text-amber-300"><code>{file.path}</code>: {file.status.toLowerCase().replaceAll('_', ' ')}{file.reason ? ` — ${file.reason}` : ''}</p>
-        ))}
+      {/* Coverage Status (rendered when coverage issues exist) */}
+      {hasCoverageIssues && (
+        <section aria-label="Review coverage" className="rounded-xl border border-amber-500/30 bg-amber-950/10 p-3 text-xs text-slate-300 space-y-1.5">
+          <div className="flex items-center gap-2 text-amber-300 font-semibold">
+            <span>Incomplete analysis — manual review required</span>
+            {data.reviewer_profile?.model && <span className="text-slate-400 font-normal">({data.reviewer_profile.model})</span>}
+          </div>
+          {data.reviewer_profile_id && <p className="text-[11px] text-slate-400 break-all font-mono">Reviewer: <code>{data.reviewer_profile_id}</code></p>}
+          {(data.file_coverage ?? []).filter(file => !['AVAILABLE', 'DELETED'].includes(file.status)).map(file => (
+            <p key={file.path} className="text-amber-300 font-mono text-[11px]">
+              <code>{file.path}</code>: {file.status.toLowerCase().replaceAll('_', ' ')}{file.reason ? ` — ${file.reason}` : ''}
+            </p>
+          ))}
+        </section>
+      )}
+
+      {/* Review Metrics */}
+      <section className="review-metrics" aria-label="Review counts">
+        <button className="review-metric" aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}>
+          <span>Security findings</span>
+          <strong className="text-rose-300">{securityCount}</strong>
+          <small>Explore risks and fixes →</small>
+        </button>
+        <button className="review-metric" aria-pressed={activeTab === 'governance'} onClick={() => setActiveTab('governance')}>
+          <span>Standards violations</span>
+          <strong className="text-amber-300">{govCount}</strong>
+          <small>Review team rules →</small>
+        </button>
+        <button className="review-metric" aria-pressed={activeTab === 'inline'} onClick={() => setActiveTab('inline')}>
+          <span>Inline suggestions</span>
+          <strong className="text-indigo-300">{inlineCount}</strong>
+          <small>See proposed changes →</small>
+        </button>
       </section>
 
-      <section className="review-metrics" aria-label="Review counts">
-        <button className="review-metric" aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}><span>Security findings</span><strong className="text-rose-300">{securityCount}</strong><small>Explore risks and fixes →</small></button>
-        <button className="review-metric" aria-pressed={activeTab === 'governance'} onClick={() => setActiveTab('governance')}><span>Standards violations</span><strong className="text-amber-300">{govCount}</strong><small>Review team rules →</small></button>
-        <button className="review-metric" aria-pressed={activeTab === 'inline'} onClick={() => setActiveTab('inline')}><span>Inline suggestions</span><strong className="text-indigo-300">{inlineCount}</strong><small>See proposed changes →</small></button>
-      </section>
-      <p className="text-xs text-slate-400">Counts are grouped by source. The same issue may appear in more than one group.</p>
       {/* 2. Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-[#12151c] p-1.5 rounded-xl border border-slate-800/80">
         <div className="flex flex-wrap items-center gap-1">
@@ -103,7 +121,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Annotated Code ({inlineCount})</span>
+            <span>Annotated Code ({totalAnnotatedCount})</span>
           </button>
 
           <button
@@ -194,6 +212,8 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           <AnnotatedCodeViewer
             reviewedDiff={data.reviewed_diff}
             inlineComments={data.inline_comments || []}
+            findings={data.findings ?? data.pattern_findings ?? []}
+            governanceViolations={data.governance_violations || []}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
@@ -226,6 +246,8 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         <AnnotatedCodeViewer
           reviewedDiff={data.reviewed_diff}
           inlineComments={data.inline_comments || []}
+          findings={data.findings ?? data.pattern_findings ?? []}
+          governanceViolations={data.governance_violations || []}
         />
       )}
 
@@ -253,12 +275,12 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           <AnnotatedCodeViewer
             reviewedDiff={data.reviewed_diff}
             inlineComments={data.inline_comments || []}
+            findings={data.findings ?? data.pattern_findings ?? []}
+            governanceViolations={data.governance_violations || []}
           />
           <InlineCommentsList comments={data.inline_comments || []} />
         </div>
       )}
-
-
 
       {activeTab === 'impact' && (
         <CrossFileImpact impact={data.cross_file_impact} />
@@ -268,20 +290,8 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
         <GeneratedUnitTests unitTests={data.generated_unit_tests} execution={data.test_execution} />
       )}
 
-      {/* 4. Trace Visualizer */}
-      <TraceVisualizer trace={data.trace} />
-
-      {/* 5. Telemetry */}
+      {/* Telemetry */}
       <TelemetryCard telemetry={data.telemetry} />
-
-      {/* 6. Scope Disclaimer */}
-      {data.analysis_complete === false && <p role="alert" className="rounded border border-amber-500 p-4">Analysis incomplete. Required analyzers failed; this review cannot approve the change.</p>}
-      {data.analyzer_status && <details><summary>Analysis completeness and verification</summary>
-        <ul>{Object.entries(data.analyzer_status).map(([name,status]) => <li key={name}>{name}: {status}</li>)}</ul>
-      </details>}
-      <ScopeDisclaimer note={data.scope_note} />
     </div>
   );
 };
-
-

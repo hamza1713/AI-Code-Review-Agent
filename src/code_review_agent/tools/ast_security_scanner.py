@@ -83,7 +83,7 @@ def evaluate_ast_constant(node: ast.AST, env: dict[str, Any]) -> Any | None:
     if isinstance(node, ast.UnaryOp):
         operand_val = evaluate_ast_constant(node.operand, env)
         if operand_val is not None:
-            if isinstance(node.op, ast.USub) and isinstance(operand_val, (int, float)):
+            if isinstance(node.op, ast.USub) and isinstance(operand_val, int | float):
                 return -operand_val
             if isinstance(node.op, ast.Invert) and isinstance(operand_val, int):
                 return ~operand_val
@@ -121,8 +121,8 @@ def evaluate_ast_constant(node: ast.AST, env: dict[str, Any]) -> Any | None:
             # Numeric addition
             if (
                 isinstance(node.op, ast.Add)
-                and isinstance(left_val, (int, float))
-                and isinstance(right_val, (int, float))
+                and isinstance(left_val, int | float)
+                and isinstance(right_val, int | float)
             ):
                 return left_val + right_val
 
@@ -130,7 +130,7 @@ def evaluate_ast_constant(node: ast.AST, env: dict[str, Any]) -> Any | None:
     # or ENC[::-1], a common secret-obfuscation trick.
     if isinstance(node, ast.Subscript):
         seq = evaluate_ast_constant(node.value, env)
-        if isinstance(seq, (str, bytes, list, tuple)):
+        if isinstance(seq, str | bytes | list | tuple):
             sl = node.slice
             try:
                 if isinstance(sl, ast.Slice):
@@ -176,7 +176,7 @@ def evaluate_ast_constant(node: ast.AST, env: dict[str, Any]) -> Any | None:
             elif method in ("b64decode", "b16decode", "b32decode", "urlsafe_b64decode"):
                 if node.args:
                     enc_val = evaluate_ast_constant(node.args[0], env)
-                    if isinstance(enc_val, (str, bytes)):
+                    if isinstance(enc_val, str | bytes):
                         import base64 as _b64
 
                         return getattr(_b64, method)(enc_val)
@@ -402,7 +402,7 @@ class ASTSecurityScanner:
 
         def _assign_scope(parent: ast.AST, scope: Any) -> None:
             for child in ast.iter_child_nodes(parent):
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
                     node_scope[id(child)] = (
                         scope  # the def keyword itself lives in the outer scope
                     )
@@ -480,7 +480,7 @@ class ASTSecurityScanner:
                             path_joins[(scope, name)] = node.lineno
 
                 # 4. SQL concatenation tracking: query = 'SELECT... ' + var or base_query + var
-                if isinstance(node.value, (ast.BinOp, ast.JoinedStr)) or (
+                if isinstance(node.value, ast.BinOp | ast.JoinedStr) or (
                     isinstance(node.value, ast.Call)
                     and isinstance(node.value.func, ast.Attribute)
                     and node.value.func.attr == "format"
@@ -492,7 +492,7 @@ class ASTSecurityScanner:
                             sql_concat_vars[(scope, name)] = node.lineno
 
                 # 5. Command concatenation tracking: cmd = 'ping ' + host
-                if isinstance(node.value, (ast.BinOp, ast.JoinedStr)):
+                if isinstance(node.value, ast.BinOp | ast.JoinedStr):
                     if cls._is_cmd_expression(
                         node.value, env, _names_in_scope(cmd_concat_vars, scope)
                     ):
@@ -736,7 +736,7 @@ class ASTSecurityScanner:
                     if isinstance(first_arg, ast.Name) and first_arg.id in sql_names:
                         is_insecure = True
                     elif isinstance(
-                        first_arg, (ast.BinOp, ast.JoinedStr)
+                        first_arg, ast.BinOp | ast.JoinedStr
                     ) and cls._is_sql_expression(first_arg, env, sql_names):
                         is_insecure = True
 
@@ -805,7 +805,7 @@ class ASTSecurityScanner:
                         ):
                             is_insecure = True
                         elif isinstance(
-                            first_arg, (ast.BinOp, ast.JoinedStr)
+                            first_arg, ast.BinOp | ast.JoinedStr
                         ) and cls._is_cmd_expression(first_arg, env, cmd_names):
                             is_insecure = True
 
@@ -915,7 +915,7 @@ class ASTSecurityScanner:
                         enclosing_fn = cls._enclosing_function_node(node, tree)
                         fn_name = (
                             enclosing_fn.name
-                            if isinstance(enclosing_fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            if isinstance(enclosing_fn, ast.FunctionDef | ast.AsyncFunctionDef)
                             else ""
                         )
 
@@ -1108,7 +1108,7 @@ class ASTSecurityScanner:
                         )
 
             # ── Sink 8: N+1 ORM / Database Query Loop ──
-            if isinstance(node, (ast.For, ast.While)):
+            if isinstance(node, ast.For | ast.While):
                 for subnode in ast.walk(node):
                     if subnode is not node and isinstance(subnode, ast.Call):
                         subfunc = cls._get_func_name(subnode.func)
@@ -1204,7 +1204,7 @@ class ASTSecurityScanner:
             used_fields: set = set()
 
             for item in class_node.body:
-                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
 
                 is_init = item.name == "__init__"
@@ -1229,7 +1229,7 @@ class ASTSecurityScanner:
                                     lock_fields[tgt.attr] = stmt.lineno
 
                     # Usage: with self._lock: or with self._lock as ...:
-                    if isinstance(stmt, (ast.With, ast.AsyncWith)):
+                    if isinstance(stmt, ast.With | ast.AsyncWith):
                         for with_item in stmt.items:
                             expr = with_item.context_expr
                             if (
@@ -1297,13 +1297,13 @@ class ASTSecurityScanner:
                 continue
 
             for item in class_node.body:
-                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
                 if item.name not in ("__call__", "get_instance", "instance"):
                     continue
 
                 has_lock = any(
-                    isinstance(stmt, (ast.With, ast.AsyncWith))
+                    isinstance(stmt, ast.With | ast.AsyncWith)
                     or (
                         isinstance(stmt, ast.Call)
                         and "acquire" in cls._get_func_name(stmt.func)
@@ -1330,7 +1330,7 @@ class ASTSecurityScanner:
                                 if isinstance(s, ast.Assign):
                                     for t in s.targets:
                                         if isinstance(
-                                            t, (ast.Subscript, ast.Attribute)
+                                            t, ast.Subscript | ast.Attribute
                                         ):
                                             sets_instance = True
                                             break
@@ -1419,7 +1419,7 @@ class ASTSecurityScanner:
 
         # 2. Repeated sort on list insertion (matching receiver)
         for func_node in ast.walk(tree):
-            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not isinstance(func_node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
 
             appended_receivers: set = set()
@@ -1522,7 +1522,7 @@ class ASTSecurityScanner:
     ) -> list[SastFinding]:
         findings: list[SastFinding] = []
         for func_node in ast.walk(tree):
-            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not isinstance(func_node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
             if func_node.returns is None:
                 continue
@@ -1592,7 +1592,7 @@ class ASTSecurityScanner:
         cls, target_node: ast.AST, tree: ast.AST
     ) -> ast.AST | None:
         for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 for child in ast.walk(node):
                     if child is target_node:
                         return node
@@ -1717,7 +1717,7 @@ class ASTSecurityScanner:
                 )
             return False
         if isinstance(node, ast.BinOp):
-            if isinstance(node.op, (ast.Add, ast.Mod)):
+            if isinstance(node.op, ast.Add | ast.Mod):
                 return cls._is_sql_expression(
                     node.left, env, sql_vars
                 ) or cls._is_sql_expression(node.right, env, sql_vars)
