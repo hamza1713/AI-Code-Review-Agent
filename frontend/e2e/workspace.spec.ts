@@ -11,6 +11,7 @@ const result = {
 async function connect(page: Page) {
   await page.route('**/jobs/metrics', route => route.fulfill({ json: { queued: 0, processing: 0, failed: 0, completed: 0 } }));
   await page.route('**/health', route => route.fulfill({ json: { status: 'healthy', queue: { queued: 0, processing: 0 } } }));
+  await page.route('**/api/review/stream', route => route.abort('connectionfailed'));
   await page.route('**/api/session', route => {
     if (!route.request().headers()['authorization']) {
       return route.fulfill({status:401,json:{detail:'Operator token required'}});

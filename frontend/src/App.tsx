@@ -7,10 +7,9 @@ import { PipelineProgress } from './components/PipelineProgress';
 import type { ReviewAPIResponse, HealthStatus } from './types/review';
 import { AlertTriangle, ShieldCheck, GitGraph, FileCheck2, ArrowUpRight, Loader2 } from 'lucide-react';
 
-// Lazy-loaded heavy views for optimized initial load and code-splitting
-const ReviewDashboard = lazy(() =>
-  import('./components/ReviewDashboard').then((m) => ({ default: m.ReviewDashboard }))
-);
+import { ReviewDashboard } from './components/ReviewDashboard';
+
+// Lazy-loaded secondary views for code-splitting
 const JobsQueueMonitor = lazy(() =>
   import('./components/JobsQueueMonitor').then((m) => ({ default: m.JobsQueueMonitor }))
 );
@@ -353,19 +352,10 @@ export function App() {
 
             {/* Results Dashboard when completed */}
             {!isLoading && reviewResult && (
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
-                    <span className="text-sm">Loading Review Dashboard...</span>
-                  </div>
-                }
-              >
-                <ReviewDashboard
-                  data={reviewResult}
-                  onReset={handleReset}
-                />
-              </Suspense>
+              <ReviewDashboard
+                data={reviewResult}
+                onReset={handleReset}
+              />
             )}
           </div>
 

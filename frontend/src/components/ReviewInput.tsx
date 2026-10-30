@@ -464,13 +464,14 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
           <button
             type="button"
+            aria-label="Review code"
             onClick={handleStartReview}
             disabled={isLoading}
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Review code</span>
-            <kbd className="hidden sm:inline-block text-[9px] font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
+            <kbd aria-hidden="true" className="hidden sm:inline-block text-[9px] font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
