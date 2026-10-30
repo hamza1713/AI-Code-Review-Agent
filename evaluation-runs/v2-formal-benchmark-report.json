@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-30T11:20:11Z",
+  "timestamp": "2026-10-30T12:06:07Z",
   "corpus_version": "v2",
   "eval_protocol": "EVALUATION_PROTOCOL_V2",
   "mode": "deterministic",
@@ -9,8 +9,8 @@
       "cases_captured": 20,
       "analysis_complete_count": 18,
       "total_findings_sourced": 26,
-      "duration_seconds": 98.89958000183105,
-      "mean_latency_seconds": 4.944979000091553
+      "duration_seconds": 66.45763635635376,
+      "mean_latency_seconds": 3.322881817817688
     }
   }
 }

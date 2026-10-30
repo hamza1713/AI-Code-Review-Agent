@@ -12,6 +12,12 @@
 
 **An advisory, evidence-first code review service that combines deterministic static analysis with a multi-agent LLM crew — and shows you exactly which line is a red flag, why, and how to fix it.**
 
+<br />
+
+<p align="center">
+  <img src="docs/images/05_live_annotated_code.png" alt="Live Annotated Source Review with Red-Flag Line Highlighting" width="900" />
+</p>
+
 </div>
 
 ---
@@ -22,7 +28,7 @@
 2. [Key Features](#key-features)
 3. [System Architecture](#system-architecture)
 4. [Review Pipeline (End-to-End Flow)](#review-pipeline-end-to-end-flow)
-5. [Web Workbench UI](#web-workbench-ui)
+5. [Web Workbench UI & Visual Walkthrough](#web-workbench-ui--visual-walkthrough)
 6. [Detection Coverage](#detection-coverage)
 7. [Trust, Safety & Reliability Controls](#trust-safety--reliability-controls)
 8. [Getting Started](#getting-started)
@@ -187,25 +193,111 @@ sequenceDiagram
 
 ---
 
-## Web Workbench UI
+## Web Workbench UI & Visual Walkthrough
 
-Built with **React 19, TypeScript 6, Vite 8, Tailwind CSS 4, Prism.js**, lazy-loaded views, and an operator-token login.
+The web workbench is built with **React 19, TypeScript 6, Vite 8, Tailwind CSS 4, Prism.js**, and Lucide icons. It delivers real-time SSE telemetry, interactive AST graphs, threat detection shields, and an evidence-first live annotated code review.
+
+### 1. Workspace & Diff Ingestion Hub
+
+The clean dark-mode interface allows developers and reviewers to submit code reviews through multiple input channels or instantly test realistic PR patterns using built-in presets.
+
+<p align="center">
+  <img src="docs/images/01_workspace_landing.png" alt="Workspace & Diff Ingestion Hub" width="900" />
+</p>
+
+- **Multi-Source Intake**: Paste unified diffs directly, link a live GitHub Pull Request (`https://github.com/org/repo/pull/123`), upload individual code files, or drop a full `.zip` codebase archive.
+- **Quick-Start Presets**: Instant single-click test fixtures for **SQLi & Auth PR** (vulnerable authentication flow), **Clean Refactor** (safe changes passing all verification gates), and **Governance PR** (forbidden production logging violations).
+- **Dual-Pane Clarity**: Clean developer framing with real-time backend connection status and session security.
+
+---
+
+### 2. Multi-Stage Zero-Trust Verification Pipeline
+
+During analysis, the backend streams granular state machine transitions over Server-Sent Events (`/api/review/stream`), giving developers full visibility into every deterministic check and reasoning stage.
+
+<p align="center">
+  <img src="docs/images/02_verification_pipeline.png" alt="Multi-Stage Zero-Trust Verification Pipeline" width="900" />
+</p>
+
+- **Sequential Provable Gates**:
+  1. `Diff Ingestion` — Normalizes unified patches, validates file bounds, and strips Trojan Source Unicode characters.
+  2. `Polyglot AST` — Runs Tree-Sitter parsing to construct the repository symbol table and compute modified blast radius.
+  3. `Threat & Supply Chain` — Scans package manifests for slopsquatting/typosquatting and executes regex + AST security rules.
+  4. `Adversarial Crew` — Orchestrates the multi-agent LLM reasoning crew with bounded tool loops and adversarial critic cross-examination.
+  5. `Sandbox Proof` — Evaluates generated regression tests in an isolated execution sandbox.
+  6. `Verdict & Attestation` — Reconciles findings, computes confidence scores, and produces cryptographically verifiable receipts.
+- **Live Elapsed Telemetry**: Real-time stage timers and progress bars keep developers informed without polling overhead.
+
+---
+
+### 3. AI-Era Zero-Trust Threat Radar & Review Controls
+
+A dedicated dashboard summarizing deterministic defenses against novel attack vectors introduced by AI coding tools and open-source supply chains.
+
+<p align="center">
+  <img src="docs/images/03_threat_radar.png" alt="AI-Era Zero-Trust Threat Radar & Review Controls" width="900" />
+</p>
+
+- **Supply Chain Defense**: Validates all declared dependencies against package registries to detect hallucinated ("slopsquatted") packages and Levenshtein typosquatting.
+- **Trojan Source Shield**: Pre-ingestion detection of bidirectional Unicode overrides (CVE-2021-42574) and zero-width characters that render code deceptively in code editors.
+- **AI Code Smell Detector**: Catches structural patterns typical of LLM-generated hallucinations, including unawaited async coroutines in conditional guards, blocking I/O calls inside `async def`, and hollow `TODO` or mock security stubs.
+- **Model Consensus & Engine Attribution**: Displays primary LLM engine attribution (e.g., `gemini-3.8-flash`) and adversarial critic consensus.
+- **Compliance & Portability**: 1-click **Export SARIF 2.1.0** button for native ingestion into GitHub Code Scanning alerts and GitLab security dashboards.
+
+---
+
+### 4. Cross-File Blast Radius & AST Impact Call Graph
+
+Traditional linters only see the changed line in isolation. AI Code Review Agent models inter-procedural call chains across the entire codebase to evaluate systemic risk.
+
+<p align="center">
+  <img src="docs/images/04_ast_call_graph.png" alt="Cross-File Blast Radius & AST Impact Call Graph" width="900" />
+</p>
+
+- **Tree-Sitter Symbol Resolution**: Automatically maps every modified symbol (e.g., `authenticate_user`) to all upstream callers and callers-of-callers across the workspace.
+- **Multi-Modal Visualization**:
+  - **Interactive Canvas**: Pan-and-zoom node graph highlighting modified symbols in teal and affected callers in purple with clickable path isolation.
+  - **Mermaid Export**: One-click generation of sequence and flowchart diagrams for PR documentation.
+  - **Hierarchical Tree**: Collapsible indentation view for deep call stacks.
+- **Taint Flow Tracking**: Flags dataflow paths where unvalidated external user inputs propagate into sensitive internal sinks.
+
+---
+
+### 5. Live Annotated Source Review with Red-Flag Gutter Badges
+
+The centerpiece of the code review experience: suspicious lines are highlighted directly within the source code with high-contrast visual cues and actionable explanations.
+
+<p align="center">
+  <img src="docs/images/05_live_annotated_code.png" alt="Live Annotated Source Review with Red-Flag Gutter Badges" width="900" />
+</p>
+
+- **High-Visibility Gutter Badges**: Pulsing `RED FLAG` badges for critical vulnerabilities (e.g. Line 15 SQL Injection `SEC-SQLI-001`, Line 17 Plaintext Password `SEC-AUTH-001`) and `WARN` badges for governance violations (Line 18 `default-no-print`).
+- **Color-Coded Line Highlighting**:
+  - **Crimson Highlight & Squiggly Underline**: Highlights vulnerable statements with a 4px red accent bar and prominent waving under-stroke.
+  - **Amber Highlight**: Highlights style and team governance breaches that require cleanup before merging.
+- **"Flagged Suspicious Lines" Quick-Jump Bar**: Direct jump buttons at the top of the viewer jump directly to each flagged line.
+- **Inline Rationale & Remediations**: Detailed cards explaining *why* the line was flagged as suspicious, alongside side-by-side diff comparisons and 1-click **Copy Secure Fix** buttons.
+- **View Controls**: Toggle between Unified and Split diff views, filter by severity (`All`, `Critical / Red Flag`, `Warning`, `Info`), and minimap overview.
+
+---
+
+### Workbench Views & Controls Summary
 
 | View / Tab | What it shows |
 | :--- | :--- |
 | **Review input** | Paste diff, GitHub PR URL, single file, or ZIP. Quick presets: *SQLi & Auth PR*, *Clean Refactor*, *Governance PR*. |
 | **Verdict banner** | `APPROVE` / `REQUEST CHANGES` / `ESCALATE` / `COMMENT`, confidence, summary, JSON export |
-| **Full Overview** | All panels in one page |
+| **Full Overview** | All panels in one unified triage dashboard |
 | **AI Threat Radar** | Supply chain, Trojan Source, AI-defect counts, model consensus, SARIF download |
-| **Annotated Code** | Live annotated source viewer (see below) |
-| **Complete Report** | Executive narrative report |
-| **Security / Governance / Inline Fixes** | Filterable finding lists with fingerprints and fixes |
-| **AST Call Graph** | Interactive SVG impact graph + Mermaid export |
-| **Generated Pytest** | Generated regression tests and execution status |
-| **Jobs** | Queue monitor (status, cancel, results) |
-| **Calibration** | False-positive rates, audit samples, circuit-breaker status |
+| **Annotated Code** | Live annotated source viewer with red-flag badges and inline secure diffs |
+| **Complete Report** | Executive narrative report and architectural recommendations |
+| **Security / Governance / Inline Fixes** | Filterable finding lists with stable fingerprints and 1-click remediation |
+| **AST Call Graph** | Interactive SVG/Canvas impact graph + Mermaid and Tree exports |
+| **Generated Pytest** | Automatically synthesized regression test suite and execution status |
+| **Jobs** | Durable SQLite queue monitor (status, cancel, results) |
+| **Calibration** | False-positive rates, developer feedback (`/fp`, `/confirm`), and circuit-breaker status |
 
-### Live Annotated Source Review
+### Gutter Indicators & Annotation Rules
 
 The code viewer ([`AnnotatedCodeViewer.tsx`](frontend/src/components/AnnotatedCodeViewer.tsx)) merges **security findings, governance violations, and inline comments** into one set of line annotations, so findings show up on the code even when bot comments are withheld.
 

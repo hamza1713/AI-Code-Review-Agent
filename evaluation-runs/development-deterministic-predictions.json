@@ -69,7 +69,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.719,
+        "duration_seconds": 1.656,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -112,7 +112,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.687,
+        "duration_seconds": 1.329,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -155,7 +155,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.719,
+        "duration_seconds": 1.344,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -251,7 +251,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 6.672,
+        "duration_seconds": 3.296,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -321,7 +321,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 3.921,
+        "duration_seconds": 2.296,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -364,7 +364,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.297,
+        "duration_seconds": 1.734,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -407,7 +407,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.735,
+        "duration_seconds": 1.672,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -503,7 +503,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 4.5,
+        "duration_seconds": 1.906,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -633,7 +633,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 3.515,
+        "duration_seconds": 1.532,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -707,7 +707,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.968,
+        "duration_seconds": 1.516,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -829,7 +829,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 4.688,
+        "duration_seconds": 2.469,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -872,7 +872,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 3.938,
+        "duration_seconds": 1.938,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1128,7 +1128,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 4.625,
+        "duration_seconds": 2.953,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1171,7 +1171,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.485,
+        "duration_seconds": 1.641,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1241,7 +1241,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.156,
+        "duration_seconds": 1.469,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1337,7 +1337,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 8.313,
+        "duration_seconds": 4.406,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1380,7 +1380,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.484,
+        "duration_seconds": 1.766,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1423,7 +1423,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.563,
+        "duration_seconds": 1.594,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1466,7 +1466,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.062,
+        "duration_seconds": 1.61,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1588,7 +1588,7 @@
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.406,
+        "duration_seconds": 3.125,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
