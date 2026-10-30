@@ -47,6 +47,7 @@ from code_review_agent.review_executor import (
     run_job_async,
 )
 from code_review_agent.review_service import RateLimitExceeded, rate_limiter
+from code_review_agent.tenancy import resolve_tenant_from_request, tenant_scope
 from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
 
 # Global persistent queue and worker instances
@@ -279,6 +280,7 @@ def database_health():
 
 @app.get("/jobs")
 def get_jobs(
+    request: Request,
     status: str | None = Query(
         None,
         description="Filter by job status: QUEUED, PROCESSING, COMPLETED, FAILED, RETRYING, CANCELLED",
@@ -286,8 +288,9 @@ def get_jobs(
     limit: int = Query(50, ge=1, le=200, description="Max jobs to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):
-    """List persistent webhook review jobs with pagination."""
-    return {"jobs": queue.list_jobs(status=status, limit=limit, offset=offset)}
+    """List persistent webhook review jobs with pagination and tenant isolation."""
+    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    return {"jobs": queue.list_jobs(status=status, limit=limit, offset=offset, tenant_id=tenant_id)}
 
 
 @app.get("/jobs/metrics")
@@ -354,20 +357,24 @@ def pilot_control(repository: str, request: PilotControlRequest):
 
 
 @app.get("/jobs/{job_id}")
-def get_job_detail(job_id: str):
-    """Retrieve details for a specific webhook job."""
-    job = queue.get_job(job_id)
+def get_job_detail(job_id: str, request: Request):
+    """Retrieve details for a specific webhook job with tenant isolation."""
+    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return job
 
 
 @app.post("/jobs/{job_id}/cancel")
-def cancel_job(job_id: str):
-    """Cancel an active or queued review job."""
-    success = queue.cancel_job(job_id, reason="Cancelled by user/operator via API")
+def cancel_job(job_id: str, request: Request):
+    """Cancel an active or queued review job with tenant isolation."""
+    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    success = queue.cancel_job(
+        job_id, reason="Cancelled by user/operator via API", tenant_id=tenant_id
+    )
     if not success:
-        job = queue.get_job(job_id)
+        job = queue.get_job(job_id, tenant_id=tenant_id)
         if not job:
             raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
         raise HTTPException(
@@ -465,9 +472,10 @@ def reconcile_job(job_id: str, req: ReconcileJobRequest | None = None):
 
 
 @app.get("/jobs/{job_id}/result")
-def get_job_result(job_id: str):
-    """Retrieve completed review result for a webhook job."""
-    job = queue.get_job(job_id)
+def get_job_result(job_id: str, request: Request):
+    """Retrieve completed review result for a webhook job with tenant isolation."""
+    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.get("status") != "COMPLETED":
@@ -482,11 +490,12 @@ def get_job_result(job_id: str):
 
 
 @app.get("/jobs/{job_id}/sarif")
-def get_job_sarif(job_id: str):
-    """Retrieve OASIS SARIF 2.1.0 report for a completed review job."""
+def get_job_sarif(job_id: str, request: Request):
+    """Retrieve OASIS SARIF 2.1.0 report for a completed review job with tenant isolation."""
     from code_review_agent.sarif_exporter import SarifExporter
 
-    job = queue.get_job(job_id)
+    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     if job.get("status") != "COMPLETED":
@@ -832,6 +841,7 @@ async def github_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
+            tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -946,6 +956,7 @@ async def gitlab_webhook(
                 pr_identifier=mr_identifier,
                 payload=payload,
                 idempotency_key=idempotency_key,
+                tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=mr_identifier),
             )
             return {
                 "status": "accepted",
@@ -1074,6 +1085,7 @@ async def bitbucket_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
+            tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -1261,6 +1273,10 @@ async def api_review(
 ):
     payload = await read_review_input(request, raw_diff, pr_url, file, zip_file)
     reserve_review()
+    tenant_id = resolve_tenant_from_request(
+        dict(request.headers),
+        repo_identifier=pr_url or payload.get("pr_url"),
+    )
     if request.headers.get("prefer") == "respond-async":
         try:
             job_id = queue.enqueue(
@@ -1268,6 +1284,7 @@ async def api_review(
                 payload=encode_inputs(payload),
                 max_retries=1,
                 job_kind="browser",
+                tenant_id=tenant_id,
             )
         except ValueError:
             raise HTTPException(
@@ -1280,7 +1297,8 @@ async def api_review(
             status_code=202,
             headers={"Location": f"/jobs/{job_id}/result"},
         )
-    return await execute_bounded("review", payload)
+    with tenant_scope(tenant_id):
+        return await execute_bounded("review", payload)
 
 
 @app.post("/api/review/stream")

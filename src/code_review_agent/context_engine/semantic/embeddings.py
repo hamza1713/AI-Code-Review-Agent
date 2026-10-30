@@ -178,28 +178,29 @@ class GeminiEmbedder(Embedder):
         if not key:
             raise ValueError("GEMINI_API_KEY is required for GeminiEmbedder.")
         try:
-            import google.generativeai as genai  # noqa: PLC0415
+            from google import genai
+            from google.genai import types
         except ImportError:
             raise ValueError(
-                "google-generativeai package is required for GeminiEmbedder."
+                "google-genai package is required for GeminiEmbedder."
             ) from None
-        genai.configure(api_key=key)
-        self._genai = genai
+        self._types = types
+        self._client = genai.Client(api_key=key)
         self.model_name = model_name or os.getenv(
-            "RAG_EMBEDDING_MODEL", "models/gemini-embedding-001"
+            "RAG_EMBEDDING_MODEL", "text-embedding-004"
         )
 
     def embed(self, text: str) -> list[float]:
-        return self._embed_batch([text], task_type="retrieval_document")[0]
+        return self._embed_batch([text], task_type="RETRIEVAL_DOCUMENT")[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed indexed documents (repository chunks)."""
-        return self._embed_batch(texts, task_type="retrieval_document")
+        return self._embed_batch(texts, task_type="RETRIEVAL_DOCUMENT")
 
     def embed_query(self, text: str) -> list[float]:
         """Embed a retrieval query (the PR change) — Gemini scores these better with
         the dedicated 'retrieval_query' task type than as a document."""
-        return self._embed_batch([text], task_type="retrieval_query")[0]
+        return self._embed_batch([text], task_type="RETRIEVAL_QUERY")[0]
 
     def _embed_batch(self, texts: list[str], task_type: str) -> list[list[float]]:
         if not texts:
@@ -209,14 +210,33 @@ class GeminiEmbedder(Embedder):
         chunk_size = 50
         for i in range(0, len(texts), chunk_size):
             batch = texts[i : i + chunk_size]
-            response = self._genai.embed_content(
-                model=self.model_name or "models/gemini-embedding-001",
-                content=batch,
-                task_type=task_type,
+            task_type_upper = (task_type or "RETRIEVAL_DOCUMENT").upper()
+            config = None
+            if hasattr(self._types, "EmbedContentConfig"):
+                try:
+                    config = self._types.EmbedContentConfig(task_type=task_type_upper)
+                except Exception:
+                    config = {"task_type": task_type_upper}
+
+            response = self._client.models.embed_content(
+                model=self.model_name or "text-embedding-004",
+                contents=batch,
+                config=config,
             )
-            raw_embeddings: list[Any] = response.get("embedding", [])
-            if raw_embeddings and isinstance(raw_embeddings[0], float | int):
-                raw_embeddings = [raw_embeddings]
+
+            raw_embeddings: list[Any] = []
+            if hasattr(response, "embeddings") and response.embeddings:
+                for item in response.embeddings:
+                    if hasattr(item, "values"):
+                        raw_embeddings.append(item.values)
+                    elif isinstance(item, list):
+                        raw_embeddings.append(item)
+            elif hasattr(response, "embedding") and response.embedding:
+                emb = response.embedding
+                if hasattr(emb, "values"):
+                    raw_embeddings.append(emb.values)
+                elif isinstance(emb, list):
+                    raw_embeddings.append(emb)
 
             for emb in raw_embeddings:
                 if isinstance(emb, list):

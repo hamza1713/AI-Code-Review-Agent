@@ -1,4 +1,4 @@
-"""JSON logging with credential redaction before formatting or exception rendering."""
+"""JSON logging with credential redaction and zero-code retention sanitization."""
 
 import json
 import logging
@@ -25,6 +25,20 @@ class RedactedJSONFormatter(logging.Formatter):
         message = re.sub(
             r"(?i)([?&](?:token|key|secret|password)=)[^&\s]+", r"\1[REDACTED]", message
         )
+
+        # Zero Code Retention (ZDR) log sanitization: redact raw diff hunks and code snippets
+        if os.getenv("ZERO_CODE_LOGGING", "true").lower() in ("1", "true", "yes"):
+            message = re.sub(
+                r"@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@[\s\S]*?(?=(?:\n\n|\Z))",
+                "[DIFF_HUNK_REDACTED_ZDR]",
+                message,
+            )
+            message = re.sub(
+                r"```[a-zA-Z]*\n[\s\S]*?```",
+                "[CODE_BLOCK_REDACTED_ZDR]",
+                message,
+            )
+
         return json.dumps(
             {
                 "time": datetime.now(timezone.utc).isoformat(),

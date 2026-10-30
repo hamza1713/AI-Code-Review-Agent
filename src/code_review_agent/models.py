@@ -631,6 +631,8 @@ class TelemetryMetrics(BaseModel):
 class ReviewState(BaseModel):
     """State tracked across the entire CrewAI Flow lifecycle."""
 
+    tenant_id: str = Field(default="default", description="Tenant identifier for multi-tenant isolation")
+    zdr_enforced: bool = Field(default=True, description="Whether Zero Data Retention is enforced")
     analysis_mode: Literal["deterministic", "model", "combined"] = "combined"
     evaluation_mode: bool = False
     context_verified: bool = False
@@ -764,6 +766,15 @@ class CrossFileImpactSummary(BaseModel):
 
 class ReviewAPIResponse(BaseModel):
     """Structured response returned by synchronous POST /api/review endpoint."""
+
+    tenant_id: str = Field(
+        default="default",
+        description="Tenant identifier for multi-tenant isolation and billing",
+    )
+    zdr_attestation: dict[str, Any] | None = Field(
+        default=None,
+        description="Zero Data Retention and ephemeral quarantine attestation",
+    )
 
     reviewer_profile: ReviewerProfile | None = None
     reviewer_profile_id: str | None = None

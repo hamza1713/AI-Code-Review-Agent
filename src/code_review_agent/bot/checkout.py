@@ -21,6 +21,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from code_review_agent.config import get_github_token, logger
+from code_review_agent.quarantine import get_quarantine_base_dir, secure_shred_directory
 
 
 def _run_git(args: list, timeout: float = 120.0) -> bool:
@@ -77,7 +78,7 @@ def temporary_pr_checkout(
     own working directory.
     """
     platform = (platform or "github").strip().lower()
-    tmp = tempfile.mkdtemp(prefix="cr_pr_")
+    tmp = tempfile.mkdtemp(prefix="cr_pr_", dir=str(get_quarantine_base_dir()))
     try:
         if os.getenv("BOT_CLONE_REPO", "true").strip().lower() in ("0", "false", "no"):
             logger.info(
@@ -132,4 +133,4 @@ def temporary_pr_checkout(
                 )
         yield tmp
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        secure_shred_directory(tmp)

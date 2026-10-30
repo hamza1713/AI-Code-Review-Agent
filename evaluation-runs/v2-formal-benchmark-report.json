@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-10-30T11:20:11Z",
+  "corpus_version": "v2",
+  "eval_protocol": "EVALUATION_PROTOCOL_V2",
+  "mode": "deterministic",
+  "splits": {
+    "development": {
+      "status": "CAPTURED_AWAITING_INDEPENDENT_LABELS",
+      "cases_captured": 20,
+      "analysis_complete_count": 18,
+      "total_findings_sourced": 26,
+      "duration_seconds": 98.89958000183105,
+      "mean_latency_seconds": 4.944979000091553
+    }
+  }
+}

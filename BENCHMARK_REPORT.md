@@ -50,3 +50,22 @@ Zero-denominator precision/recall are reported as 0, not evidence of perfect per
 | SEC-007 | Path Traversal Arbitrary File Read | SECURITY | 1 | 1 | 1 | 0 | 0 | ✅ REQUEST CHANGES |
 
 Reproduce: `python -m code_review_agent.benchmarks --publish`
+
+
+---
+
+# 🌐 Public PR Corpus V2 Empirical Benchmark (EVALUATION_PROTOCOL_V2)
+
+Empirical evaluation across frozen public repository pull requests (`samples/evaluation/public-pr-v2/`) with verified cryptographic source snapshots and RAG disabled.
+
+| Metric | Development Split | Held-Out Split |
+| :--- | :--- | :--- |
+| **Corpus Version** | v2.0 (Frozen) | v2.0 (Frozen) |
+| **Total Evaluated Cases** | 20 PRs | 100 PRs (Held-Out) |
+| **Analysis Completeness** | 18 / 20 (90.0%) | Pending Evaluation |
+| **Total Sourced Findings** | 26 findings | — |
+| **Mean Latency per PR** | 4.94s | — |
+| **Evaluation Mode** | Deterministic (Heuristic + AST) | Deterministic |
+| **Human Adjudication Status** | `UNREVIEWED` (Templates ready for blind human reviewers per protocol) | `UNREVIEWED` |
+
+*Reproduce via*: `uv run python scripts/run_public_pr_eval_v2.py --split development`

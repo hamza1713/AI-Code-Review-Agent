@@ -1,0 +1,1610 @@
+{
+  "corpus_manifest_sha256": "4a5bfdf0c41b0ab469d93077bc07e4592c61412e2d143ef202924cae099c573a",
+  "schema_version": 2,
+  "corpus_version": "public-pr-v2",
+  "mode": "deterministic",
+  "split": "development",
+  "reviewer_profile": {
+    "schema_version": 1,
+    "application_commit": "unreleased-working-tree",
+    "model": "gemini/gemini-3.8-flash",
+    "generation_settings": {
+      "max_tokens": 4096,
+      "temperature": null
+    },
+    "prompt_hashes": {
+      "agents.yaml": "072a97c2f0897da7114d19650057c43186156f7f17363b7e8b56081a3d3b6025",
+      "tasks.yaml": "5d1359be1e84bbfdad879cb6788527f576745193e01149da4fce59d997e36cf1",
+      "flow": "7df786425c10d433acb74bee84318995087638cd7abc22f33863d89c903c0e60"
+    },
+    "scanner_versions": {
+      "bandit": "1.9.4",
+      "ruff": "0.16.9",
+      "semgrep": "UNAVAILABLE",
+      "pydantic": "2.12.5"
+    },
+    "configuration": {
+      "python_runtime": "3.12.5",
+      "pricing_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected_provider_model": "gemini-3.8-flash",
+      "ollama_model_digest": null,
+      "source_tree_sha256": "8373a44766f396e7d958eaecb4613c17834234eb81e47ad945e05fdb5b838a2f",
+      "rules_sha256": "e8f3c56fa56a9c947959fe9354fe6ebeaf21635133506d7f7b680fd958d00b9c",
+      "team_memory_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rag_enabled": "false",
+      "rag_model": "",
+      "rag_embedder": "hashing",
+      "rag_dimension": "512",
+      "rag_extra_roots_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ollama_endpoint_sha256": "7866d63830422cd421667c95360eaf1d8819f6f603bd2d479450e06cf01cb023",
+      "experimental_tests": "false",
+      "review_pipeline": "fixed-stages-v1",
+      "scanner_settings": "full-source-isolated-v1"
+    }
+  },
+  "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+  "cases": [
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 1.719,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5757",
+      "sha256": "d2770867372fa7203b32452dd9eef874505ffcd4def07fff2becd64d8645fda8",
+      "input_snapshot_hash": "eaa325970c80f89267d55b60effb0a5f8a7f13b28c5317d8ee9319eee6c38b8c"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 1.687,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5649",
+      "sha256": "992ed18f997e22daf862e8768ca8eaf0a6612d04514d316dab49cf9a1161ebc5",
+      "input_snapshot_hash": "b9d6dd6382a915aedc39daee5c4d8206ceee9c21a3508843bcf56b3c3925b743"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 1.719,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5648",
+      "sha256": "12bbc311937b13f1c3f6e5a5f2839d93ac9cbd322605b96701178453c425e696",
+      "input_snapshot_hash": "b818a1e70b975cb9566f38a15dd596392411b0df0a14afb816ee6fdda047afc1"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_basic.py",
+          "line_number": 1518,
+          "snippet": "    assert r.text == expect_base",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "af82f413729194f7",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_basic.py",
+          "line_number": 1526,
+          "snippet": "    assert r.text == expect_xyz",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "6aded6f9b95c9855",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 6.672,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 3,
+        "rule_violations_count": 0,
+        "inline_comments_count": 3,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5634",
+      "sha256": "2699629b1724efc3e2590b7e7b219d73b33e67737a644bc46ab9edc88b10ada1",
+      "input_snapshot_hash": "fbc055ecb3bdaa057c2ccf4368254ee01a0ed561d28dfe379c1428cb3414052a"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_cli.py",
+          "line_number": 556,
+          "snippet": "    assert not load_dotenv(\"non-existent-file\", load_defaults=False)",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "e53c178203e11900",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 3.921,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 1,
+        "rule_violations_count": 0,
+        "inline_comments_count": 1,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5630",
+      "sha256": "7b9e206984176881947a29d7ae25b5682e1f2a883c3593ddbc74bcb4ebdaa430",
+      "input_snapshot_hash": "44534f911a0a0c3db5d8aab4cfe9a07d162e9986679d9d66418d705a758163a1"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.297,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "flask-5599",
+      "sha256": "0f18381fc4a36df2bc3c1aa8c2056cc06b077d28859371babcb5353d6f8b5e82",
+      "input_snapshot_hash": "045e44173072db6375d3df10cd1e53f2f83c53a48421530338b5b90701e90ce8"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.735,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3699",
+      "sha256": "acf37a9389ad53fb8ce90681ad2a26c96a5959dfb73a6692f78949959d6c6be3",
+      "input_snapshot_hash": "837590868085ed55c637ed3830174988551bda69074dc2dd6e5d7f6c2e25eac7"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_content.py",
+          "line_number": 492,
+          "snippet": "    assert \"\u00e7a va\" in response.text, (",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "5280996554174f77",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_content.py",
+          "line_number": 501,
+          "snippet": "    assert response.text == '{\"cl\u00e9\":\"valeur\",\"liste\":[1,2,3]}', (",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "1eb0f4adb1f87242",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 4.5,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 2,
+        "rule_violations_count": 0,
+        "inline_comments_count": 2,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3651",
+      "sha256": "b2d0d74dfcb705f2ef14910d509127e34049e16cef772f8f6bb516329d857fad",
+      "input_snapshot_hash": "8a8884ef212358dbe345727b600109df16864755ff592ece4ac490b0bc21c0d2"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "SEC-DESER-001",
+          "cwe": "CWE-502",
+          "category": "SECURITY",
+          "name": "Insecure Deserialization Pattern (Pickle): Deserializing untrusted data with python pickle can lead to arbitrary code ex",
+          "description": "Insecure Deserialization Pattern (Pickle): Deserializing untrusted data with python pickle can lead to arbitrary code ex",
+          "severity": "HIGH",
+          "file_path": "tests/models/test_requests.py",
+          "line_number": 1,
+          "snippet": "pickle.loads(",
+          "fix_recommendation": "Use safe serialization formats like JSON: `json.loads(data)`",
+          "analyzer_source": "regex",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "INCOMPLETE_ANALYSIS",
+            "NOT_CHANGED_LINE",
+            "UNGROUNDED_EVIDENCE"
+          ],
+          "blocking": true,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "regex"
+            ]
+          },
+          "fingerprint": "bd95974c20c306a4",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_requests.py",
+          "line_number": 233,
+          "snippet": "    assert str(request.url) == \"http://example.com\"",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "INCOMPLETE_ANALYSIS"
+          ],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "3de8ffb702c43b2e",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_requests.py",
+          "line_number": 238,
+          "snippet": "    assert str(request.url) == \"http://example.com?a=1&b=2\"",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "INCOMPLETE_ANALYSIS"
+          ],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "d114e373094eef93",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": false,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "FAILED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 3.515,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 4,
+        "rule_violations_count": 0,
+        "inline_comments_count": 4,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3440",
+      "sha256": "86c862b4befac0f7871fbeffdbec0226d62ee4d15c57159641765eb8d8bf1fcc",
+      "input_snapshot_hash": "e91d3d7236c74ff757e0d4c36ceec48bcbd849c5a6af20d4e52fca7f4be6eb3f"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "SEC-TLS-001",
+          "cwe": "CWE-295",
+          "category": "SECURITY",
+          "name": "Disabled TLS Certificate Verification: TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-mid",
+          "description": "Disabled TLS Certificate Verification: TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-mid",
+          "severity": "HIGH",
+          "file_path": "httpx/_config.py",
+          "line_number": 1,
+          "snippet": "check_hostname = False",
+          "fix_recommendation": "Keep TLS verification enabled: `ssl.create_default_context(check_hostname=True)`",
+          "analyzer_source": "regex",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "INCOMPLETE_ANALYSIS",
+            "NOT_CHANGED_LINE",
+            "UNGROUNDED_EVIDENCE"
+          ],
+          "blocking": true,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "regex"
+            ]
+          },
+          "fingerprint": "2b0d55000253f9c7",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": false,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "FAILED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.968,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 1,
+        "rule_violations_count": 0,
+        "inline_comments_count": 1,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3418",
+      "sha256": "14b8d963e6e15311b631d5dde4918028173682b7d6274989324b2d4eb4c6d218",
+      "input_snapshot_hash": "92b7d9a8bc28e788835d9028a471315fa44754adebd2e78f3ae28009376426bc"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_headers.py",
+          "line_number": 190,
+          "snippet": "    assert repr(headers_class) == f\"Headers({as_dict!r})\"",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "607f729749f030a9",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_headers.py",
+          "line_number": 214,
+          "snippet": "    assert all(link in all_links for link in expected)",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "edb5c01396b68126",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_headers.py",
+          "line_number": 219,
+          "snippet": "    assert all_links == {}",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "c4c5c4594999474c",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 4.688,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 3,
+        "rule_violations_count": 0,
+        "inline_comments_count": 3,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3387",
+      "sha256": "ef34f060dccce2d86b8d7044044b1d62236bc7a37d3f314e60a5d92241537e74",
+      "input_snapshot_hash": "a6684241a2fa5b0c9f1c06260ff032fcb84f11ab3d9f925426922d9c8d8d0650"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 3.938,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3378",
+      "sha256": "93e1855a210f4f802098bb75622443b5bdbe174e3cd8241b97b43d6b66e47fca",
+      "input_snapshot_hash": "2af9425352de39a179e86c0feda80fc7574f5d3dbf67203773807567f2e7cd37"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/client/test_auth.py",
+          "line_number": 746,
+          "snippet": "    assert response.json() == {\"auth\": '{\"auth\":\"xyz\"}'}",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "cbf285461f288f18",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/client/test_auth.py",
+          "line_number": 762,
+          "snippet": "    assert response.json() == {\"auth\": '{\"auth\":\"xyz\"}'}",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "DUPLICATE_IDENTITY"
+          ],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "cbf285461f288f18",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_requests.py",
+          "line_number": 65,
+          "snippet": "    assert request.content == b'{\"test\":123}'",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "3db65978284f0563",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_requests.py",
+          "line_number": 186,
+          "snippet": "    assert pickle_request.content == b'{\"test\":123}'",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "22c90885473d6ea7",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/models/test_responses.py",
+          "line_number": 84,
+          "snippet": "    assert str(response.json()) == \"{'hello': 'world'}\"",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "ab3a14c6834c3887",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_content.py",
+          "line_number": 180,
+          "snippet": "    assert sync_content == b'{\"Hello\":\"world!\"}'",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "61d9968706874d5f",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_content.py",
+          "line_number": 495,
+          "snippet": "    assert (",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "c100b4e83721ddd1",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_content.py",
+          "line_number": 506,
+          "snippet": "    assert (",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "WITHHELD",
+          "publication_reasons": [
+            "DUPLICATE_IDENTITY"
+          ],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "c100b4e83721ddd1",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 4.625,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 11,
+        "rule_violations_count": 0,
+        "inline_comments_count": 11,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3367",
+      "sha256": "81bfd10a829d0508892f5376c6df57e7b63dfaf09321474120c3e5a05a30a52c",
+      "input_snapshot_hash": "615267bd3144440f36a13d03eb4b092fd614599a87c298a8bc88923692014c31"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.485,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3370",
+      "sha256": "c1e7846e9d8cade7c50b1dc18adc95e50a1be042a22627c96defee364ce0d890",
+      "input_snapshot_hash": "7d90ce738bbcde0bcb961927e1a7534eaa25b1ea93bc94e7cf650647e25cd5b4"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "httpx/_decoders.py",
+          "line_number": 180,
+          "snippet": "        assert zstandard is not None",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "1cf06459ef056a4f",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.156,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 1,
+        "rule_violations_count": 0,
+        "inline_comments_count": 1,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "httpx-3343",
+      "sha256": "4aeb9fb8b708fc385c592f79dcff84a4828f1109061357c8afab244aa5891e36",
+      "input_snapshot_hash": "f7cfe708f85a3ad9c81a30042afb23de8f3412ac77df1001938ca6b981698121"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "BANDIT-B113",
+          "cwe": "CWE-400",
+          "category": "SECURITY",
+          "name": "[Bandit] request_without_timeout: Call to requests without timeout",
+          "description": "[Bandit] request_without_timeout: Call to requests without timeout",
+          "severity": "MEDIUM",
+          "file_path": "tests/test_requests.py",
+          "line_number": 1094,
+          "snippet": "            r = requests.post(",
+          "fix_recommendation": "Remediate according to Bandit B113 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b113_request_without_timeout.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "4aa9a43ee8dd8fa9",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "BANDIT-B101",
+          "cwe": "CWE-703",
+          "category": "SECURITY",
+          "name": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "description": "[Bandit] assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+          "severity": "LOW",
+          "file_path": "tests/test_requests.py",
+          "line_number": 1098,
+          "snippet": "        assert r.status_code == 200",
+          "fix_recommendation": "Remediate according to Bandit B101 guidelines (https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html)",
+          "analyzer_source": "bandit",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "bandit"
+            ]
+          },
+          "fingerprint": "e4ee4ec6c58b2e80",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 8.313,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 3,
+        "rule_violations_count": 0,
+        "inline_comments_count": 3,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "requests-7502",
+      "sha256": "dcfe943874846f1eae4220380bb7f8fe79e102373e8143079d65d8b8b511c407",
+      "input_snapshot_hash": "f55401bc3022ae56ee9c8c1e68156f6c441ff1f84b20af27de37b0694af94514"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 1.484,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "requests-7440",
+      "sha256": "b3189c0b0e73ed8f3d1b3fbcd539b1906c4b36d12b1cb010a3eec513dafb28c2",
+      "input_snapshot_hash": "025edb8f0aadc9d17428904dec1a6469eda8ce2b73334d2e740ed914f2a8cecf"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 1.563,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "requests-7429",
+      "sha256": "14c159fa5ea41341f4f8a450f7930a248a2cabbbf38e086e4d1deb9cc5fe144d",
+      "input_snapshot_hash": "d7fb63cbd49caf0c672f1785e1b4274fea3157ed6f10dc0cbd80cd3195d3a25a"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.062,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 0,
+        "rule_violations_count": 0,
+        "inline_comments_count": 0,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "requests-7376",
+      "sha256": "b151d061237d9a5ac0978ee86802bb48cf8d4f008792a005682461f60e7c9647",
+      "input_snapshot_hash": "34be1d5c945677f4ff1edf63d5079ec93cc6a7a00b9ee0e8c4e7c705bb968fba"
+    },
+    {
+      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "findings": [
+        {
+          "rule_id": "SEC-CRYPTO-001",
+          "cwe": "CWE-327",
+          "category": "SECURITY",
+          "name": "'hashlib.md5' selects a cryptographically broken hash algorithm (MD5). MD5 and SHA-1 are vulnerable to collisions and un",
+          "description": "'hashlib.md5' selects a cryptographically broken hash algorithm (MD5). MD5 and SHA-1 are vulnerable to collisions and un",
+          "severity": "MEDIUM",
+          "file_path": "src/requests/auth.py",
+          "line_number": 148,
+          "snippet": "                return hashlib.md5(x, usedforsecurity=False).hexdigest()",
+          "fix_recommendation": "Use SHA-256 (hashlib.sha256) or SHA-3 for security-sensitive hashing.",
+          "analyzer_source": "ast",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "ast"
+            ]
+          },
+          "fingerprint": "a0e6ad411b503d4c",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "SEC-CRYPTO-001",
+          "cwe": "CWE-327",
+          "category": "SECURITY",
+          "name": "'hashlib.sha1' selects a cryptographically broken hash algorithm (SHA-1). MD5 and SHA-1 are vulnerable to collisions and",
+          "description": "'hashlib.sha1' selects a cryptographically broken hash algorithm (SHA-1). MD5 and SHA-1 are vulnerable to collisions and",
+          "severity": "MEDIUM",
+          "file_path": "src/requests/auth.py",
+          "line_number": 156,
+          "snippet": "                return hashlib.sha1(x, usedforsecurity=False).hexdigest()",
+          "fix_recommendation": "Use SHA-256 (hashlib.sha256) or SHA-3 for security-sensitive hashing.",
+          "analyzer_source": "ast",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "ast"
+            ]
+          },
+          "fingerprint": "874c6a91f14fd195",
+          "lifecycle_status": "NEW"
+        },
+        {
+          "rule_id": "SEC-CRYPTO-001",
+          "cwe": "CWE-327",
+          "category": "SECURITY",
+          "name": "'hashlib.sha1' selects a cryptographically broken hash algorithm (SHA-1). MD5 and SHA-1 are vulnerable to collisions and",
+          "description": "'hashlib.sha1' selects a cryptographically broken hash algorithm (SHA-1). MD5 and SHA-1 are vulnerable to collisions and",
+          "severity": "MEDIUM",
+          "file_path": "src/requests/auth.py",
+          "line_number": 205,
+          "snippet": "        cnonce = hashlib.sha1(s, usedforsecurity=False).hexdigest()[:16]",
+          "fix_recommendation": "Use SHA-256 (hashlib.sha256) or SHA-3 for security-sensitive hashing.",
+          "analyzer_source": "ast",
+          "finding_id": null,
+          "pr_id": null,
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
+          "blocking": false,
+          "evidence_grade": "HEURISTIC",
+          "evidence_provenance": {
+            "sources": [
+              "ast"
+            ]
+          },
+          "fingerprint": "579c83dda315f848",
+          "lifecycle_status": "NEW"
+        }
+      ],
+      "analysis_complete": true,
+      "analyzer_status": {
+        "source_coverage": "COMPLETED",
+        "ast": "COMPLETED",
+        "patterns": "COMPLETED_HEURISTIC",
+        "supply_chain": "COMPLETED",
+        "ai_code_defects": "COMPLETED",
+        "trojan_source": "COMPLETED",
+        "bandit": "COMPLETED",
+        "ruff": "COMPLETED",
+        "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+        "static_analysis": "COMPLETED",
+        "governance": "COMPLETED",
+        "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+        "sandbox": "SKIPPED_DISABLED",
+        "self_healing": "SKIPPED_DISABLED",
+        "synthesis": "COMPLETED",
+        "output_invariants": "COMPLETED",
+        "response_invariants": "COMPLETED",
+        "finding_policy": "COMPLETED"
+      },
+      "telemetry": {
+        "duration_seconds": 2.406,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": null,
+        "token_usage_source": "UNAVAILABLE",
+        "cost_source": "UNAVAILABLE",
+        "pricing_as_of": null,
+        "model_used": "gemini/gemini-3.8-flash",
+        "sast_findings_count": 3,
+        "rule_violations_count": 0,
+        "inline_comments_count": 3,
+        "final_verdict": "# Pull Request Review Report\n\n"
+      },
+      "id": "requests-7310",
+      "sha256": "179bcf9de7996639615b48dbca16cc2011fa3154042142b6a89f290585b5ec6f",
+      "input_snapshot_hash": "09b2c5a1313542de97256a36765bfd028a8a04321add3281975fd1341cb5884f"
+    }
+  ]
+}

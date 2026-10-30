@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from code_review_agent.config import logger
+from code_review_agent.tenancy import get_current_tenant, normalize_tenant_id
 
 
 def is_transient_error(error: Any) -> bool:
@@ -215,12 +216,19 @@ class WebhookJobQueue:
                 conn.execute(
                     "ALTER TABLE webhook_jobs ADD COLUMN stage_progress REAL NOT NULL DEFAULT 0.0;"
                 )
+            if "tenant_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE webhook_jobs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';"
+                )
 
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_idempotency ON webhook_jobs(idempotency_key);"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_webhook_status ON webhook_jobs(status, created_at);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_tenant ON webhook_jobs(tenant_id, status, created_at);"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_webhook_claim ON webhook_jobs(status, scheduled_at, priority DESC, created_at ASC);"
@@ -327,6 +335,7 @@ class WebhookJobQueue:
         idempotency_key: str | None = None,
         priority: int = 50,
         scheduled_at: float | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """
         Enqueue a new pull request review job into persistent storage.
@@ -362,14 +371,15 @@ class WebhookJobQueue:
                 raise ValueError("Review queue capacity reached")
 
             job_id = f"job_{uuid.uuid4().hex[:12]}"
+            active_tenant = normalize_tenant_id(tenant_id or get_current_tenant())
             conn.execute(
                 """
                 INSERT INTO webhook_jobs (
                     job_id, pr_identifier, payload_json, status, attempts, max_retries,
                     created_at, updated_at, job_kind, idempotency_key, priority, scheduled_at,
-                    current_stage, stage_progress
+                    current_stage, stage_progress, tenant_id
                 )
-                VALUES (?, ?, ?, 'QUEUED', 0, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', 0.0)
+                VALUES (?, ?, ?, 'QUEUED', 0, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', 0.0, ?)
                 """,
                 (
                     job_id,
@@ -382,6 +392,7 @@ class WebhookJobQueue:
                     idempotency_key,
                     priority,
                     sched_time,
+                    active_tenant,
                 ),
             )
             conn.commit()
@@ -559,23 +570,31 @@ class WebhookJobQueue:
             )
             return True
 
-    def cancel_job(self, job_id: str, reason: str = "Cancelled by operator") -> bool:
-        """Cancel an eligible job in QUEUED, RETRYING, or PROCESSING state."""
+    def cancel_job(
+        self,
+        job_id: str,
+        reason: str = "Cancelled by operator",
+        tenant_id: str | None = None,
+    ) -> bool:
+        """Cancel an eligible job in QUEUED, RETRYING, or PROCESSING state with tenant isolation."""
         now = time.time()
+        query = """
+            UPDATE webhook_jobs
+            SET status = 'CANCELLED',
+                last_error = ?,
+                locked_at = NULL,
+                lease_expires_at = NULL,
+                updated_at = ?
+            WHERE job_id = ? AND status IN ('QUEUED', 'RETRYING', 'PROCESSING')
+        """
+        params: list[Any] = [reason, now, job_id]
+        if tenant_id and tenant_id != "*":
+            query += " AND tenant_id = ?"
+            params.append(normalize_tenant_id(tenant_id))
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE webhook_jobs
-                SET status = 'CANCELLED',
-                    last_error = ?,
-                    locked_at = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = ?
-                WHERE job_id = ? AND status IN ('QUEUED', 'RETRYING', 'PROCESSING')
-                """,
-                (reason, now, job_id),
-            )
+            cursor.execute(query, params)
             count = cursor.rowcount
             conn.commit()
             if count > 0:
@@ -596,15 +615,15 @@ class WebhookJobQueue:
             )
             return cursor.rowcount
 
-    def get_job(self, job_id: str) -> dict[str, Any] | None:
-        """Retrieve details of a single job including parsed review result."""
+    def get_job(self, job_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
+        """Retrieve details of a single job including parsed review result with optional tenant isolation."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
                 SELECT job_id, pr_identifier, status, attempts, max_retries, last_error,
                        created_at, updated_at, review_result_json, job_kind, worker_id,
-                       priority, scheduled_at, current_stage, stage_progress
+                       priority, scheduled_at, current_stage, stage_progress, tenant_id
                 FROM webhook_jobs
                 WHERE job_id = ?
                 """,
@@ -614,26 +633,39 @@ class WebhookJobQueue:
             if not row:
                 return None
             res = dict(row)
+            if tenant_id and tenant_id != "*":
+                if res.get("tenant_id") and res["tenant_id"] != normalize_tenant_id(tenant_id):
+                    return None
             result_json = res.pop("review_result_json", None)
             res["result"] = json.loads(result_json) if result_json else None
             return res
 
     def list_jobs(
-        self, status: str | None = None, limit: int | None = None, offset: int = 0
+        self,
+        status: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        tenant_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List jobs matching an optional status filter including parsed review result."""
+        """List jobs matching an optional status filter and tenant namespace."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             query = """
                 SELECT job_id, pr_identifier, status, attempts, max_retries, last_error,
                        created_at, updated_at, review_result_json, job_kind, worker_id,
-                       priority, scheduled_at, current_stage, stage_progress
+                       priority, scheduled_at, current_stage, stage_progress, tenant_id
                 FROM webhook_jobs
             """
             params: list[Any] = []
+            where_clauses: list[str] = []
             if status:
-                query += " WHERE status = ?"
+                where_clauses.append("status = ?")
                 params.append(status)
+            if tenant_id and tenant_id != "*":
+                where_clauses.append("tenant_id = ?")
+                params.append(normalize_tenant_id(tenant_id))
+            if where_clauses:
+                query += " WHERE " + " AND ".join(where_clauses)
             if limit is not None:
                 query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
                 params.extend([limit, offset])
@@ -809,6 +841,8 @@ class WebhookWorker:
 
         thread = threading.Thread(target=heartbeat, daemon=True)
         thread.start()
+        from code_review_agent.tenancy import set_current_tenant
+        set_current_tenant(job.get("tenant_id") or "default")
         try:
             if self.handler:
                 result = self.handler(job["payload"])
