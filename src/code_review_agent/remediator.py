@@ -4,6 +4,8 @@ Extracts code suggestions, aligns whitespace/indentation, patches target files,
 and commits fixes directly to pull request branches across Git platforms.
 """
 
+import contextlib
+import difflib
 import hashlib
 import os
 import re
@@ -119,10 +121,79 @@ class AutoRemediator:
         if inline_code_match:
             return inline_code_match.group(1).strip()
 
-        # Fallback to single backticked code
+        # ── Deterministic snippet-based remediation synthesis ──
+        if snippet and snippet.strip():
+            snip = snippet.strip()
+            # 1. SQL injection via f-string (multi-variable safe)
+            f_sql = re.search(
+                r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*f[\"']|(?:query|sql|stmt)\s*=\s*f[\"'])(.*?)(?:SELECT|INSERT|UPDATE|DELETE)(.*?)[\"']",
+                snip,
+                re.IGNORECASE,
+            )
+            if f_sql or ("SELECT" in snip and "{" in snip and "}" in snip):
+                raw_exprs = re.findall(r"\{([^}]+)\}", snip)
+                if raw_exprs and all(
+                    re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", expr.strip())
+                    for expr in raw_exprs
+                ):
+                    vars_found = [expr.strip() for expr in raw_exprs]
+                    clean_stmt = re.sub(r"\{[^}]+\}", "%s", snip)
+                    clean_stmt = re.sub(r"['\"]%s['\"]", "%s", clean_stmt)
+                    clean_stmt = (
+                        clean_stmt.replace('(f"', '("')
+                        .replace("(f'", "('")
+                        .replace('= f"', '= "')
+                        .replace("= f'", "= '")
+                    )
+                    params_tuple = (
+                        f"({vars_found[0]},)"
+                        if len(vars_found) == 1
+                        else f"({', '.join(vars_found)})"
+                    )
+                    if (
+                        "db.query(" in clean_stmt
+                        or "db.execute(" in clean_stmt
+                        or "cursor.execute(" in clean_stmt
+                    ):
+                        clean_stmt = re.sub(r"\)\s*$", f", {params_tuple})", clean_stmt)
+                    else:
+                        clean_stmt += f"\n# Pass {params_tuple} to query execution"
+                    return clean_stmt
+
+            # 2. Plaintext password comparison
+            if re.search(
+                r"password\s*==\s*user\.password|user\.password\s*==\s*password", snip
+            ):
+                return "bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))"
+
+            # 3. Standalone hardcoded secret / API key assignment
+            secret_m = re.fullmatch(
+                r"([A-Za-z_][A-Za-z0-9_]*(?:key|secret|token|password))\s*=\s*['\"][^'\"]+['\"]",
+                snip,
+                re.IGNORECASE,
+            )
+            if secret_m:
+                var = secret_m.group(1)
+                env_name = var.upper()
+                return f"{var} = os.getenv('{env_name}')"
+
+            # 4. Print statements
+            if re.search(r"\bprint\s*\(", snip):
+                return re.sub(r"\bprint\s*\(", "logger.info(", snip)
+
+            # 5. OS command injection (only safe when command is already a list literal)
+            if "shell=True" in snip and re.search(
+                r"subprocess\.(?:run|call|Popen|check_output|check_call)\s*\(\s*\[",
+                snip,
+            ):
+                return re.sub(r"shell\s*=\s*True", "shell=False, check=True", snip)
+
+        # Fallback to single backticked code (after deterministic snippet synthesis)
         single_backtick = re.search(r"`([^`]+)`", clean)
         if single_backtick:
-            return single_backtick.group(1).strip()
+            candidate = single_backtick.group(1).strip()
+            if any(tok in candidate for tok in ("(", "=", ".", "::", "->")):
+                return candidate
 
         # Check for code after colon (e.g. "Use parameterized queries: db.query(...)")
         code_call_match = re.search(
@@ -162,56 +233,8 @@ class AutoRemediator:
             if not candidate.startswith("-") and not candidate.startswith("*"):
                 return candidate
 
-        # ── Deterministic snippet-based remediation synthesis ──
         if snippet and snippet.strip():
             snip = snippet.strip()
-            # 1. SQL injection via f-string
-            f_sql = re.search(
-                r"(?:(?:db\.(?:query|execute)|cursor\.execute)\s*\(\s*f[\"']|(?:query|sql|stmt)\s*=\s*f[\"'])(.*?)(?:SELECT|INSERT|UPDATE|DELETE)(.*?)[\"']",
-                snip,
-                re.IGNORECASE,
-            )
-            if f_sql or ("SELECT" in snip and "{" in snip and "}" in snip):
-                # Extract variable inside {}
-                var_match = re.search(r"\{([A-Za-z0-9_]+)\}", snip)
-                var_name = var_match.group(1) if var_match else "param"
-                clean_stmt = re.sub(r"\{[A-Za-z0-9_]+\}", "%s", snip)
-                clean_stmt = re.sub(r"['\"]%s['\"]", "%s", clean_stmt)
-                clean_stmt = clean_stmt.replace('= f"', '= "').replace("= f'", "= '")
-                if (
-                    "db.query(" in clean_stmt
-                    or "db.execute(" in clean_stmt
-                    or "cursor.execute(" in clean_stmt
-                ):
-                    clean_stmt = re.sub(r"\)\s*$", f", ({var_name},))", clean_stmt)
-                else:
-                    clean_stmt += f"\n# Pass ({var_name},) to query execution"
-                return clean_stmt
-
-            # 2. Plaintext password comparison
-            if re.search(
-                r"password\s*==\s*user\.password|user\.password\s*==\s*password", snip
-            ):
-                return "bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))"
-
-            # 3. Hardcoded secret / API key
-            secret_m = re.search(
-                r"([A-Za-z0-9_]*key|[A-Za-z0-9_]*secret|[A-Za-z0-9_]*token|[A-Za-z0-9_]*password)\s*=\s*['\"][^'\"]+['\"]",
-                snip,
-                re.IGNORECASE,
-            )
-            if secret_m:
-                var = secret_m.group(1)
-                env_name = var.upper()
-                return f"{var} = os.getenv('{env_name}')"
-
-            # 4. Print statements
-            if re.search(r"\bprint\s*\(", snip):
-                return re.sub(r"\bprint\s*\(", "logger.info(", snip)
-
-            # 5. OS command injection
-            if "shell=True" in snip:
-                return snip.replace("shell=True", "shell=False, check=True")
 
             # 6. Insecure pickle
             if "pickle.loads(" in snip:
@@ -430,6 +453,16 @@ class AutoRemediator:
         return patched
 
     @classmethod
+    @contextlib.contextmanager
+    def _open_db(cls):
+        conn = cls._get_db_connection()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    @classmethod
     def _get_db_connection(cls) -> sqlite3.Connection:
         db_path = Path(os.getenv("QUEUE_DB_PATH", "webhook_jobs.db")).resolve()
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -459,7 +492,7 @@ class AutoRemediator:
     @classmethod
     def record_remediation_audit(cls, manifest: RollbackManifest):
         """Persist remediation audit record and rollback manifest to SQLite WAL."""
-        with cls._get_db_connection() as conn:
+        with cls._open_db() as conn:
             conn.execute(
                 """
                 INSERT OR IGNORE INTO remediation_audit_trail (
@@ -511,7 +544,7 @@ class AutoRemediator:
     @classmethod
     def get_remediation_manifest(cls, remediation_id: str) -> dict[str, Any] | None:
         """Retrieve remediation rollback manifest by remediation ID."""
-        with cls._get_db_connection() as conn:
+        with cls._open_db() as conn:
             row = conn.execute(
                 "SELECT * FROM remediation_audit_trail WHERE remediation_id = ?",
                 (remediation_id,),
@@ -521,7 +554,7 @@ class AutoRemediator:
     @classmethod
     def list_remediations(cls, repo_id: str | None = None) -> list[dict[str, Any]]:
         """List historical remediation manifests, optionally filtered by repository."""
-        with cls._get_db_connection() as conn:
+        with cls._open_db() as conn:
             if repo_id:
                 norm_repo = SuppressionStore.normalize_repo_id(repo_id)
                 rows = conn.execute(
@@ -594,7 +627,15 @@ class AutoRemediator:
         if not current_content and repo_root:
             loc = safe_diff_path(Path(repo_root), file_path)
             if loc.exists():
-                current_content = loc.read_text(encoding="utf-8", errors="replace")
+                try:
+                    current_content = loc.read_text(
+                        encoding="utf-8", errors="strict"
+                    )
+                except UnicodeDecodeError:
+                    return {
+                        "status": "error",
+                        "message": f"Cannot rollback binary or non-UTF-8 file '{file_path}'.",
+                    }
 
         if not current_content:
             return {
@@ -650,7 +691,7 @@ class AutoRemediator:
             ),
         )
 
-        with cls._get_db_connection() as conn:
+        with cls._open_db() as conn:
             conn.execute(
                 "UPDATE remediation_audit_trail SET status = 'ROLLED_BACK' WHERE remediation_id = ?",
                 (remediation_id,),
@@ -676,21 +717,20 @@ class AutoRemediator:
         reviewed_head: str | None = None,
         actor: str = "ai-code-review[bot]",
         structured_patch: StructuredPatch | None = None,
-        bypass_policy: bool = False,
         *,
         job_id: str | None = None,
         claim_token: str | None = None,
     ) -> dict[str, Any]:
         """
         Execute full auto-remediation pipeline with Phase 5 Trust and Safety guardrails:
-        1. Resolve platform client and fetch PR diff & metadata
-        2. Enforce strict branch guardrails (reject main, master, release/*, prod/*)
-        3. Enforce Stale Head SHA check (current_head == reviewed_head)
+        1. Resolve platform client, PR metadata, and block fork PR targets
+        2. Enforce strict branch guardrails (require resolved PR head branch; reject base/protected branches)
+        3. Enforce Stale Head SHA check (mandatory reviewed_head == current_head)
         4. Enforce opt-in governance policy in .code-review.yaml
-        5. Verify and apply structured patch format
+        5. Verify and apply structured patch format (with strict UTF-8, syntax, and post-patch SAST checks)
         6. Commit changes to PR branch
         7. Record rollback manifest and audit trail in SQLite WAL
-        8. Record finding suppression in SuppressionStore
+        8. Record pending remediation outcome in FindingOutcomeStore
         """
         from code_review_agent.access_policy import (
             require_remediation_enabled,
@@ -726,7 +766,7 @@ class AutoRemediator:
                 )
         resolved_client = client
         owner, repo, pull_number = None, None, None
-        branch = "feature-remediation"
+        branch: str | None = None
 
         if not (owner and repo and pull_number):
             try:
@@ -752,10 +792,36 @@ class AutoRemediator:
                 pr_meta = resolved_client.fetch_pull_request_metadata(
                     owner, repo, pull_number
                 )
-                if pr_meta and pr_meta.head_ref:
-                    branch = pr_meta.head_ref
+                if pr_meta and isinstance(pr_meta.head_ref, str) and pr_meta.head_ref.strip():
+                    branch = pr_meta.head_ref.strip()
             except Exception as e:
                 logger.warning(f"Could not fetch PR metadata: {e}")
+
+        is_fork = getattr(pr_meta, "is_fork", False) is True
+        if not is_fork and pr_meta:
+            head_repo = getattr(pr_meta, "head_repository", "")
+            base_repo = getattr(pr_meta, "base_repository", "")
+            if isinstance(head_repo, str) and head_repo.strip():
+                expected_base = (
+                    base_repo.strip()
+                    if isinstance(base_repo, str) and base_repo.strip()
+                    else (f"{owner}/{repo}" if owner and repo else "")
+                )
+                if expected_base and head_repo.strip().lower() != expected_base.lower():
+                    is_fork = True
+        if is_fork:
+            return {
+                "status": "error",
+                "message": "Fork PR guardrail violation: automated remediation commits are blocked on fork pull requests.",
+                "fingerprint": fingerprint,
+            }
+
+        if not branch:
+            return {
+                "status": "error",
+                "message": "Strict branch guardrail violation: PR head branch could not be resolved.",
+                "fingerprint": fingerprint,
+            }
 
         # Guardrail 1: Strict Branch Guardrails
         if cls.is_branch_protected(branch) or (
@@ -772,8 +838,23 @@ class AutoRemediator:
             }
 
         # Guardrail 2: Stale Head SHA Check
-        if reviewed_head and pr_meta and pr_meta.head_sha:
+        if (
+            pr_meta
+            and isinstance(pr_meta.head_sha, str)
+            and pr_meta.head_sha.strip()
+        ):
             current_head = pr_meta.head_sha.strip().lower()
+            if not isinstance(reviewed_head, str) or not reviewed_head.strip():
+                return {
+                    "status": "error",
+                    "message": (
+                        "Stale Head SHA check failed: reviewed_head is required to verify "
+                        f"PR head '{current_head[:8]}'. Remediation aborted."
+                    ),
+                    "fingerprint": fingerprint,
+                    "current_head": current_head,
+                    "reviewed_head": reviewed_head,
+                }
             expected_head = reviewed_head.strip().lower()
             if current_head != expected_head:
                 return {
@@ -791,7 +872,7 @@ class AutoRemediator:
         env_allow_policy = os.getenv(
             "REMEDIATION_ALLOW_DIRECT_COMMITS", "false"
         ).lower() in ("true", "1")
-        if not bypass_policy and not env_allow_policy:
+        if not env_allow_policy:
             from code_review_agent.governance.rules_engine import RulesEngine
 
             rules_engine = RulesEngine(repo_root=repo_root)
@@ -848,9 +929,16 @@ class AutoRemediator:
         if not original_content and repo_root:
             local_file = safe_diff_path(Path(repo_root), finding.file_path)
             if local_file.exists():
-                original_content = local_file.read_text(
-                    encoding="utf-8", errors="replace"
-                )
+                try:
+                    original_content = local_file.read_text(
+                        encoding="utf-8", errors="strict"
+                    )
+                except UnicodeDecodeError:
+                    return {
+                        "status": "error",
+                        "message": f"Cannot remediate binary or non-UTF-8 file '{finding.file_path}'.",
+                        "fingerprint": finding.fingerprint,
+                    }
 
         if not original_content:
             return {
@@ -887,14 +975,6 @@ class AutoRemediator:
                 "fingerprint": finding.fingerprint,
                 "file_path": finding.file_path,
             }
-        except Exception:
-            # Fallback to standard patch if structured format encountered edge layout
-            patched_content = cls.apply_code_patch(
-                original_content=original_content,
-                snippet=finding.snippet,
-                replacement=patch_code,
-                target_line=finding.line_number,
-            )
 
         if patched_content == original_content:
             return {
@@ -912,6 +992,46 @@ class AutoRemediator:
                 return {
                     "status": "error",
                     "message": f"Remediation aborted: candidate patch introduced syntax error ({syn_err}) into '{finding.file_path}'.",
+                    "fingerprint": finding.fingerprint,
+                    "file_path": finding.file_path,
+                }
+
+        diff_lines = list(
+            difflib.unified_diff(
+                original_content.splitlines(),
+                patched_content.splitlines(),
+                fromfile=f"a/{finding.file_path}",
+                tofile=f"b/{finding.file_path}",
+                lineterm="",
+            )
+        )
+        post_diff = (
+            f"diff --git a/{finding.file_path} b/{finding.file_path}\n"
+            + "\n".join(diff_lines)
+            + "\n"
+            if diff_lines
+            else ""
+        )
+        if post_diff:
+            post_findings = SastEngine.scan_diff(post_diff)
+            norm_target = finding.file_path.replace("\\", "/").lstrip("./")
+            blocking = [
+                pf
+                for pf in post_findings
+                if pf.file_path.replace("\\", "/").lstrip("./") == norm_target
+                and (
+                    pf.rule_id == finding.rule_id
+                    or str(pf.severity).upper() in {"HIGH", "CRITICAL"}
+                )
+            ]
+            if blocking:
+                first = blocking[0]
+                return {
+                    "status": "error",
+                    "message": (
+                        "Remediation aborted: post-patch SAST verification flagged "
+                        f"{first.rule_id} ({first.severity}) in '{finding.file_path}'."
+                    ),
                     "fingerprint": finding.fingerprint,
                     "file_path": finding.file_path,
                 }
@@ -1000,7 +1120,8 @@ class AutoRemediator:
         # A committed fix is a lifecycle signal, never proof of a defect.
         try:
             from code_review_agent.calibration import (
-                CONFIRMED_REAL,
+                PENDING,
+                SOURCE_REMEDIATION_APPLIED,
                 FindingOutcomeStore,
             )
 
@@ -1008,8 +1129,8 @@ class AutoRemediator:
             outcome_store.update_outcome(
                 repo_id=repo_id,
                 fingerprint=finding.fingerprint,
-                outcome=CONFIRMED_REAL,
-                source="apply_remediation",
+                outcome=PENDING,
+                source=SOURCE_REMEDIATION_APPLIED,
                 pr_id=str(pull_number),
                 actor=actor,
                 reason=f"Remediation committed via 1-click /apply: {commit_sha_after[:8]}",

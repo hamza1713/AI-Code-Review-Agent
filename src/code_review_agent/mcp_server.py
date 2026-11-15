@@ -48,7 +48,8 @@ def review_diff(diff: str, repo_root: str | None = None) -> str:
     confidence score, security findings, governance violations, and empirical test evidence badges.
     """
     try:
-        response = ReviewService.execute_review(raw_diff=diff)
+        safe_root = _sanitize_mcp_repo_root(repo_root) if repo_root else None
+        response = ReviewService.execute_review(raw_diff=diff, repo_root=safe_root)
         result_dict = response.model_dump(mode="json")
         return json.dumps(result_dict, indent=2)
     except Exception as e:

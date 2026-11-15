@@ -47,7 +47,7 @@ from code_review_agent.review_executor import (
     run_job_async,
 )
 from code_review_agent.review_service import RateLimitExceeded, rate_limiter
-from code_review_agent.tenancy import resolve_tenant_from_request, tenant_scope
+from code_review_agent.tenancy import resolve_request_tenant, tenant_scope
 from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
 
 # Global persistent queue and worker instances
@@ -289,7 +289,7 @@ def get_jobs(
     offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):
     """List persistent webhook review jobs with pagination and tenant isolation."""
-    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    tenant_id = resolve_request_tenant(dict(request.headers))
     return {"jobs": queue.list_jobs(status=status, limit=limit, offset=offset, tenant_id=tenant_id)}
 
 
@@ -359,7 +359,7 @@ def pilot_control(repository: str, request: PilotControlRequest):
 @app.get("/jobs/{job_id}")
 def get_job_detail(job_id: str, request: Request):
     """Retrieve details for a specific webhook job with tenant isolation."""
-    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    tenant_id = resolve_request_tenant(dict(request.headers))
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -369,7 +369,7 @@ def get_job_detail(job_id: str, request: Request):
 @app.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str, request: Request):
     """Cancel an active or queued review job with tenant isolation."""
-    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    tenant_id = resolve_request_tenant(dict(request.headers))
     success = queue.cancel_job(
         job_id, reason="Cancelled by user/operator via API", tenant_id=tenant_id
     )
@@ -474,7 +474,7 @@ def reconcile_job(job_id: str, req: ReconcileJobRequest | None = None):
 @app.get("/jobs/{job_id}/result")
 def get_job_result(job_id: str, request: Request):
     """Retrieve completed review result for a webhook job with tenant isolation."""
-    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    tenant_id = resolve_request_tenant(dict(request.headers))
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -494,7 +494,7 @@ def get_job_sarif(job_id: str, request: Request):
     """Retrieve OASIS SARIF 2.1.0 report for a completed review job with tenant isolation."""
     from code_review_agent.sarif_exporter import SarifExporter
 
-    tenant_id = resolve_tenant_from_request(dict(request.headers))
+    tenant_id = resolve_request_tenant(dict(request.headers))
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -841,7 +841,7 @@ async def github_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
-            tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=pr_identifier),
+            tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -956,7 +956,7 @@ async def gitlab_webhook(
                 pr_identifier=mr_identifier,
                 payload=payload,
                 idempotency_key=idempotency_key,
-                tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=mr_identifier),
+                tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=mr_identifier),
             )
             return {
                 "status": "accepted",
@@ -1085,7 +1085,7 @@ async def bitbucket_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
-            tenant_id=resolve_tenant_from_request(dict(request.headers), repo_identifier=pr_identifier),
+            tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -1273,7 +1273,7 @@ async def api_review(
 ):
     payload = await read_review_input(request, raw_diff, pr_url, file, zip_file)
     reserve_review()
-    tenant_id = resolve_tenant_from_request(
+    tenant_id = resolve_request_tenant(
         dict(request.headers),
         repo_identifier=pr_url or payload.get("pr_url"),
     )
@@ -1370,26 +1370,19 @@ def get_cache_stats():
     }
 
 
-# Static file serving and UI routes (Prefers React Vite build in frontend/dist, fallbacks to static/)
+# Static file serving and UI routes (React Vite build in frontend/dist or REVIEW_STATIC_DIR)
 repo_root = Path(__file__).resolve().parent.parent.parent
 dist_dir = Path(os.getenv("REVIEW_STATIC_DIR", str(repo_root / "frontend" / "dist")))
-legacy_static_dir = Path(__file__).resolve().parent / "static"
 
 if dist_dir.exists() and (dist_dir / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(dist_dir / "assets")), name="assets")
 
-if legacy_static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(legacy_static_dir)), name="static")
-
 
 @app.get("/", response_class=FileResponse)
 async def serve_ui_root():
-    """Serve the single-page Code Review Web UI (Vite React or legacy static)."""
+    """Serve the single-page Code Review Web UI (Vite React bundle)."""
     if dist_dir.exists() and (dist_dir / "index.html").exists():
         return FileResponse(str(dist_dir / "index.html"))
-    index_file = legacy_static_dir / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
     return HTMLResponse(
         "<h1>AI Code Review Agent</h1><h2>Submit Code for Review</h2><p>UI static files not found.</p>"
     )
@@ -1400,9 +1393,6 @@ async def serve_ui():
     """Serve the single-page Code Review Web UI at /ui."""
     if dist_dir.exists() and (dist_dir / "index.html").exists():
         return FileResponse(str(dist_dir / "index.html"))
-    index_file = legacy_static_dir / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
     return HTMLResponse(
         "<h1>AI Code Review Agent</h1><h2>Submit Code for Review</h2><p>UI static files not found.</p>"
     )

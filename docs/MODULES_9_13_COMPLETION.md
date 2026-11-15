@@ -7,7 +7,7 @@ This is an engineering checkpoint. Hosted CI, attributed release approval, paid 
 - HTTPX transports normalize Gemini, OpenAI, Anthropic, Groq and Ollama responses into typed text/model/request/finish/usage results. `.call()` remains compatible.
 - Every outbound attempt rechecks repository/model approval. Calls are bounded to 60 seconds including one transient retry; simple review uses 45 seconds and the worker deadline bounds the whole review.
 - Quality/security run concurrently with separate copied consent contexts. Schemas are validated before synthesis; synthesis cannot invent findings. The provider instance is retained across stages.
-- No autonomous model tools, CrewAI dependency, ChromaDB dependency or hidden LiteLLM judge fallback. Production restrictions on generated execution, remote embeddings, remediation and publication remain enforced.
+- No autonomous model tools, CrewAI dependency, ChromaDB dependency or hidden LiteLLM judge fallback *(amended in M14: bounded 4-call read-only tool inspection loop re-enabled with exact normalized lookup and argument filtering; see [`MODULES_14_16_COMPLETION.md`](MODULES_14_16_COMPLETION.md))*. Production restrictions on generated execution, remote embeddings, remediation and publication remain enforced.
 - Invalid/refused/truncated output makes analysis incomplete and preserves deterministic evidence.
 
 ## M10: verified full-source analysis

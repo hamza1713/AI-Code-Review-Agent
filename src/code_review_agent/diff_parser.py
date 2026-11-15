@@ -408,7 +408,7 @@ class DiffParser:
         }
         low_risk_keywords = {"test", "spec", "mock", "fixture", "doc", "readme"}
 
-        ranked = []
+        ranked: list[tuple[Any, int]] = []
         for c in chunks:
             if isinstance(c, str):
                 files = re.findall(r"^\+\+\+\s+b/(.*)$", c, re.MULTILINE)

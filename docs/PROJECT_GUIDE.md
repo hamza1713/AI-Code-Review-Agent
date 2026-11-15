@@ -1919,7 +1919,7 @@ To prevent sensitive intellectual property or credentials from leaking into LLM 
 | `GITLAB_WEBHOOK_SECRET` | *(empty)* | Secret token expected in `X-Gitlab-Token` header. | Required for GitLab | **CRITICAL** (Secret) |
 | `BITBUCKET_WEBHOOK_SECRET`| *(empty)* | Secret token expected in Bitbucket webhook URL `?token=`. | Required for Bitbucket| **CRITICAL** (Secret) |
 | `SERPER_API_KEY` | *(empty)* | API key for Google search tool used by agents for CVE lookups. | Optional | Medium (Secret) |
-| `RAG_ENABLED` | `true` | Toggles Layer 1 Semantic Context Engine retrieval. | Optional | Low |
+| `RAG_ENABLED` | `false` | Opt-in toggle for Layer 1 Semantic Context Engine retrieval. | Optional | Low |
 | `RAG_EMBEDDER` | `hashing` | Embedder strategy: `hashing` (offline, 0-dep), `gemini`, `sentence-transformers`.| Optional | Low |
 | `RAG_EMBEDDING_DIM` | `512` | Vector dimensionality for `HashingEmbedder`. | Optional | Low |
 | `RAG_REPO_ROOTS` | *(empty)* | Comma-separated extra repository paths for multi-repo cross-service RAG. | Optional | Low |
@@ -2025,7 +2025,7 @@ docker compose down
 
 #### Production Topology Constraints
 > [!IMPORTANT]
-> **Ephemeral Cloud Runtimes are Retired**: As documented in `render.yaml` ("*Retired: ephemeral Render deployments are not supported for production*"), running on ephemeral containers that discard disk storage on restart will wipe out the SQLite task queue (`webhook_jobs.db`), active suppressions, and calibration logs. Production deployments MUST use persistent volumes (`web-data:/app/data`).
+> **Ephemeral Cloud Runtimes are Retired**: Running on ephemeral containers that discard disk storage on restart will wipe out the SQLite task queue (`webhook_jobs.db`), active suppressions, and calibration logs. Production deployments MUST use persistent volumes (`/data` via `docker-compose.yml`).
 
 ---
 
@@ -2553,10 +2553,10 @@ Categorized Question Competencies:
 * **Deep Technical Defense**: In `deploy/Caddyfile`, Caddy automatically manages TLS certificates, redirects HTTP to HTTPS, sets security headers (`HSTS`, `X-Content-Type-Options: nosniff`), and proxies traffic to `web:8000`. Unlike Nginx, Caddy handles certificate renewal internally without requiring external cron jobs or Docker socket mounts.
 * **Source Code Citations**: [`deploy/Caddyfile`](file:///c:/Users/Hamza%20Ali/Desktop/Code%20Review/deploy/Caddyfile), [`docker-compose.yml`](file:///c:/Users/Hamza%20Ali/Desktop/Code%20Review/docker-compose.yml).
 
-#### Q45: "Why did you retire ephemeral Render deployments in render.yaml?" `[Difficulty: Medium]`
+#### Q45: "Why did you retire ephemeral PaaS deployments (e.g., legacy Render blueprint)?" `[Difficulty: Medium]`
 * **30-Second Concise Answer**: Ephemeral instances discard their local filesystem upon every deployment or sleep cycle, which destroys SQLite databases, losing queue state, suppressions, and calibration history.
-* **Deep Technical Defense**: As noted in `render.yaml`, hosting an SQLite WAL database on ephemeral container platforms without dedicated, persistent network-attached storage results in catastrophic data loss on process restart. We officially support dedicated Docker host deployments with Docker Compose where the `/app/data` volume is pinned to host storage.
-* **Source Code Citations**: [`render.yaml`](file:///c:/Users/Hamza%20Ali/Desktop/Code%20Review/render.yaml).
+* **Deep Technical Defense**: Hosting an SQLite WAL database on ephemeral container platforms without dedicated, persistent network-attached storage results in catastrophic data loss on process restart. We retired and removed the legacy Render blueprint in M16 and officially support dedicated Docker host deployments with Docker Compose where the `/data` volume is pinned to persistent storage.
+* **Source Code Citations**: [`docker-compose.yml`](file:///c:/Users/Hamza%20Ali/Desktop/Code%20Review/docker-compose.yml), [`Dockerfile`](file:///c:/Users/Hamza%20Ali/Desktop/Code%20Review/Dockerfile).
 
 #### Q46: "How does your GitHub Action packaging work in action.yml?" `[Difficulty: Easy]`
 * **30-Second Concise Answer**: `action.yml` defines a composite action that checks out code, sets up Python 3.12, installs the agent via `uv`, runs the review against the PR diff, and exports SARIF reports directly into GitHub Code Scanning.

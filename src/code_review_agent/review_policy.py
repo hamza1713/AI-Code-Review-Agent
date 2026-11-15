@@ -6,6 +6,26 @@ from code_review_agent.diff_parser import DiffParser
 from code_review_agent.models import InlineComment, ReviewAPIResponse
 
 
+def _extract_inline_suggestion_code(fix_recommendation: str) -> str | None:
+    """Extract optional 1-click code suggestion from markdown fences or code spans."""
+    text = (fix_recommendation or "").strip()
+    if not text:
+        return None
+    fenced = re.search(
+        r"```(?:suggestion|[a-zA-Z0-9_+-]+)?\r?\n(.*?)\r?\n```",
+        text,
+        re.DOTALL,
+    )
+    if fenced:
+        code = fenced.group(1).strip()
+        return code or None
+    for span in reversed(re.findall(r"`([^`\n]{3,})`", text)):
+        cand = span.strip()
+        if any(tok in cand for tok in ("(", "=", ".", "::", "->")):
+            return cand
+    return None
+
+
 def apply_finding_policy(
     response: ReviewAPIResponse,
     suppressed_fingerprints: set[str] | None = None,
@@ -19,6 +39,12 @@ def apply_finding_policy(
         for line, content in DiffParser.extract_added_lines_with_numbers(file)
     }
     seen = set()
+    existing_comments_by_fp: dict[str, InlineComment] = {}
+    existing_comments_by_loc: dict[tuple[str, int], InlineComment] = {}
+    for ic in response.inline_comments or []:
+        if ic.fingerprint:
+            existing_comments_by_fp.setdefault(ic.fingerprint, ic)
+        existing_comments_by_loc.setdefault((ic.path, ic.line), ic)
     comments = []
     for finding in response.findings:
         reasons = []
@@ -79,6 +105,22 @@ def apply_finding_policy(
             continue
         if finding.publication_status != "PUBLISHED":
             finding.publication_status = "ELIGIBLE"
+        existing = (
+            existing_comments_by_fp.get(finding.fingerprint)
+            if finding.fingerprint
+            else None
+        ) or existing_comments_by_loc.get((finding.file_path, finding.line_number))
+        why = (
+            existing.why
+            if existing and existing.why
+            else finding.evidence_provenance.get("why")
+        )
+        suggestion_code = (
+            existing.suggestion_code
+            if existing and existing.suggestion_code
+            else finding.evidence_provenance.get("suggestion_code")
+            or _extract_inline_suggestion_code(finding.fix_recommendation)
+        )
         comments.append(
             InlineComment(
                 path=finding.file_path,
@@ -87,6 +129,8 @@ def apply_finding_policy(
                 comment_body=f"[{finding.severity}] {finding.description}\n\n"
                 f"Evidence ({finding.evidence_grade}): `{snippet}`\n\n"
                 f"Suggested action: {finding.fix_recommendation}\n\n`{finding.fingerprint}`",
+                why=why,
+                suggestion_code=suggestion_code,
             )
         )
     response.inline_comments = comments

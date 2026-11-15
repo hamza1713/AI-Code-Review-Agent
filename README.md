@@ -426,12 +426,15 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 | `REVIEW_ALLOWED_REPOSITORIES` | — | `provider:host/owner/repo` allowlist |
 | `REVIEW_ENABLE_POSTING` | `false` | Allow posting PR comments |
 | `REVIEW_ENABLE_REMEDIATION` | `false` | Allow `/review apply` patch commits |
+| `REVIEW_ENABLE_ADVERSARIAL_VERIFIER` | `false` | Opt-in cross-model adversarial critic stage |
+| `REVIEW_ENABLE_TICKET_COMPLIANCE` | `false` | Opt-in ticket acceptance criteria stage |
 | `REVIEW_ENABLE_EXPERIMENTAL_TESTS` | `false` | Allow sandboxed pytest execution |
 | `REVIEW_SANDBOX_IMAGE` | — | Immutable sandbox image digest |
+| `REVIEW_MULTI_TENANT` | `false` | Honor `X-Tenant-ID` header (`false` uses `"default"` single-operator tenancy) |
 | `SHADOW_MODE` | `false` | Review without posting |
 | `QUEUE_DB_PATH` | — | SQLite queue location |
 | `MAX_CONCURRENT_REVIEWS` / `MAX_QUEUE_CAPACITY` | `2` / `100` (compose) | Back-pressure limits |
-| `RAG_ENABLED` / `RAG_EMBEDDER` | `true` / `hashing` | Semantic context (`hashing`, `gemini`, `sentence-transformers`) |
+| `RAG_ENABLED` / `RAG_EMBEDDER` | `false` / `hashing` | Opt-in semantic context (`hashing`, `gemini`, `sentence-transformers`) |
 | `RAG_REPO_ROOTS` | — | Extra repos for cross-repo context |
 | `BOT_ALLOWED_ASSOCIATIONS` | `OWNER,MEMBER,COLLABORATOR` | Who can run cost-bearing commands |
 | `BOT_CLONE_REPO` | `true` | Clone PR repo into an isolated temp dir for context |
@@ -561,13 +564,15 @@ rules:
 | **Deterministic scanner regression** | [`samples/benchmarks/`](samples/benchmarks/), [`benchmarks.py`](src/code_review_agent/benchmarks.py) | 14 synthetic seeded-defect diffs; precision / recall / F1 / verdict accuracy |
 | **Public PR corpus v1 / v2** | [`samples/evaluation/`](samples/evaluation/) | Frozen real Flask PRs with licenses and head snapshots |
 | **Deterministic evaluators** | [`eval/deterministic_evaluators.py`](src/code_review_agent/eval/deterministic_evaluators.py) | Line validity, suggestion compilation, grounding |
-| **LLM-as-judge** | [`eval/custom_metrics.py`](src/code_review_agent/eval/custom_metrics.py), `tests/eval/` | Traceability and quality (DeepEval, optional `eval` extra) |
+| **LLM-as-judge** | [`eval/custom_metrics.py`](src/code_review_agent/eval/custom_metrics.py), `tests/eval/` | Custom G-Eval and pairwise judges via `LLMFactory` (optional `eval` extra) |
 
 ```bash
 uv run eval-benchmarks --publish      # regenerates BENCHMARK_REPORT.md
 ```
 
-Latest deterministic run ([`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md)): **14 cases, 18 TP, 0 FP, 0 FN** (precision/recall/F1 = 100%).
+Latest deterministic runs ([`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md)):
+- **Synthetic regression suite**: **14 cases, 18 TP, 0 FP, 0 FN** (precision/recall/F1 = 100%).
+- **Public PR Corpus V2 (dev split)**: **20/20 (100.0%)** complete deterministic capture (**24** sourced findings, **3.72s** mean PR latency; human adjudication `UNREVIEWED`).
 
 > [!WARNING]
 > These are **synthetic regression fixtures**, not a product-quality study. They prove the scanners still catch known patterns; they do not measure real-world precision or recall. See [`docs/EVALUATION_PROTOCOL_V2.md`](docs/EVALUATION_PROTOCOL_V2.md) for the planned real-PR methodology.
@@ -581,7 +586,7 @@ uv run pytest                          # fast suite (excludes `slow`)
 uv run pytest -o addopts='' tests/     # full suite including slow tests
 uv run pytest -m deterministic_eval    # zero-cost deterministic evals
 uv run ruff check src tests scripts    # lint
-uv run mypy src/code_review_agent/models.py   # type-check (CI checks a production boundary list)
+uv run mypy --ignore-missing-imports src/code_review_agent  # type-check full package
 
 npm --prefix frontend run lint         # oxlint --deny-warnings
 npm --prefix frontend run build        # tsc + vite production build
@@ -595,7 +600,7 @@ Pytest markers: `slow`, `sandbox_integration`, `eval`, `deterministic_eval`.
 | Job | Checks |
 | :--- | :--- |
 | `python` | Full test suite on Python 3.10, 3.11, 3.12, 3.13 |
-| `static` | Ruff, mypy on the production boundary, `pip-audit --strict` |
+| `static` | Ruff, mypy (`src/code_review_agent`), `pip-audit --strict` |
 | `secrets` | Gitleaks scan |
 | `image-and-recovery` | Image build/smoke and recovery drill |
 
@@ -627,7 +632,7 @@ Container hardening: read-only root FS, non-root user, all capabilities dropped,
 
 ### Other targets
 
-- **Render**: [`render.yaml`](render.yaml)
+- **Standalone Docker / Compose**: [`Dockerfile`](Dockerfile) with persistent `/data` volume via [`docker-compose.yml`](docker-compose.yml) (legacy ephemeral Render blueprint retired in M16)
 - **Single image**: [`Dockerfile`](Dockerfile) (multi-stage: builds the React UI, then the Python service)
 
 Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_OPERATION.md`](docs/SECURE_OPERATION.md), [`docs/PILOT_RUNBOOK.md`](docs/PILOT_RUNBOOK.md).
@@ -642,7 +647,7 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 ├── .env.example                   # Annotated configuration template
 ├── .github/workflows/             # CI + self-review workflow
 ├── action.yml                     # Reusable GitHub Action
-├── Dockerfile · docker-compose.yml · render.yaml · deploy/Caddyfile
+├── Dockerfile · docker-compose.yml · deploy/Caddyfile
 ├── BENCHMARK_REPORT.md            # Generated scanner regression report
 ├── docs/                          # Architecture, operations, security, evaluation docs
 ├── samples/
@@ -707,7 +712,8 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 | [`docs/RELEASE_GATES.md`](docs/RELEASE_GATES.md) | Release criteria |
 | [`docs/EVALUATION_PROTOCOL_V2.md`](docs/EVALUATION_PROTOCOL_V2.md) | Evaluation methodology |
 | [`docs/SKILLS.md`](docs/SKILLS.md) | Agent skills and prompts |
-| [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md) | Production-readiness audit |
+| [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md) | Security & production-readiness audit (`K1–K17` closed) |
+| [`docs/PRODUCTION_MODULE_PLAN.md`](docs/PRODUCTION_MODULE_PLAN.md) · [`docs/MODULES_14_16_COMPLETION.md`](docs/MODULES_14_16_COMPLETION.md) | Module roadmap (`M0–M17`) & stabilization checkpoints |
 
 ---
 
@@ -728,6 +734,7 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 - [x] **Phase 1 — Grounded analysis:** bounded agent tool loop, Tree-Sitter code graph, risk-ranked diff chunking, AI-era detectors.
 - [x] **Phase 2 — Trust & operations:** shadow mode, Tricorder-style circuit breaker, calibration feedback loop, telemetry persistence and tracing.
 - [x] **Workbench UX:** SSE progress, unified annotated viewer with red-flag highlighting and "why" rationale, SARIF export; removed noisy trace/disclaimer panels.
+- [x] **Stabilization & audit closure (M14–M16):** closed audit items `K1–K17`, hardened `CodeReviewCrew` tool loop, migrated to `tree-sitter-language-pack`, widened `mypy` CI gate, and cleaned legacy Render/static artifacts.
 - [ ] **Phase 3 — Measured quality:** human-labelled golden set, published precision/recall/acceptance rate, CI regression gates on eval metrics.
 - [ ] **Phase 4 — Scale:** distributed queue, remote isolated sandboxes, multi-tenant RBAC, compliance evidence (SOC 2 / GDPR retention).
 

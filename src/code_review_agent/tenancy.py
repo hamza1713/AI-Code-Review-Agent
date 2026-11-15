@@ -4,6 +4,7 @@ Enforces tenant namespacing across webhooks, API requests, SQLite/PostgreSQL
 job queues, finding suppressions, and telemetry stores.
 """
 
+import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -80,6 +81,21 @@ def resolve_tenant_from_request(
             return normalize_tenant_id(owner)
 
     return "default"
+
+
+def multi_tenant_enabled() -> bool:
+    """Return True only when explicit multi-tenant isolation is enabled."""
+    return os.getenv("REVIEW_MULTI_TENANT", "false").lower() == "true"
+
+
+def resolve_request_tenant(
+    headers: dict[str, Any] | None = None,
+    repo_identifier: str | None = None,
+) -> str:
+    """Resolve HTTP request tenant when multi-tenancy is enabled; otherwise 'default'."""
+    if not multi_tenant_enabled():
+        return "default"
+    return resolve_tenant_from_request(headers, repo_identifier=repo_identifier)
 
 
 class TenantConfig:

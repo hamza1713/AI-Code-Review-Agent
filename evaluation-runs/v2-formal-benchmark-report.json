@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-30T12:06:07Z",
+  "timestamp": "2026-11-13T06:07:01Z",
   "corpus_version": "v2",
   "eval_protocol": "EVALUATION_PROTOCOL_V2",
   "mode": "deterministic",
@@ -7,10 +7,10 @@
     "development": {
       "status": "CAPTURED_AWAITING_INDEPENDENT_LABELS",
       "cases_captured": 20,
-      "analysis_complete_count": 18,
-      "total_findings_sourced": 26,
-      "duration_seconds": 66.45763635635376,
-      "mean_latency_seconds": 3.322881817817688
+      "analysis_complete_count": 20,
+      "total_findings_sourced": 24,
+      "duration_seconds": 74.39668011665344,
+      "mean_latency_seconds": 3.719834005832672
     }
   }
 }

@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-05  
 **Auditor:** Senior Production & Security Engineering Agent (Antigravity)  
-**Status:** PHASE A READ-ONLY AUDIT COMPLETE (Awaiting Owner Review for Phase B)  
+**Status:** PHASE B COMPLETE — All K1–K17 Findings Resolved (M14–M16)  
 **Repository:** `hamza1713/AI-Code-Review-Agent`  
 
 ---
@@ -306,12 +306,23 @@ Findings are sorted strictly by severity according to the production rubric:
 
 ---
 
-## 4. Documentation & Claim Mismatches
+## 4. Phase B Closure Status (`K1–K17`, M14–M16)
 
-1. **Test Count Parity:** `README.md:512` claims *"pytest suite - 690+ tests, 0 failures"*. The suite currently collects and passes **709 tests** (692 fast + 12 slow + 5 skipped = 709).
-2. **AST Patching vs. Text Replacement:** `README.md:340, 650` and `remediator.py:685` describe "AST patch". The actual patching engine in `StructuredPatch` and `apply_code_patch` uses string line matching and regex.
-3. **Action Description Autonomy:** `action.yml:2` claims "Autonomous", conflicting with Design Principle 5 ("advisory, never autonomous").
-4. **Docstring Step 8 Discrepancy:** `remediator.py:693` claims *"8. Record finding suppression in SuppressionStore"*. The code actually calls `FindingOutcomeStore.update_outcome()` and does not suppress the finding.
+All Phase A audit findings (`K1–K17`) and documentation claim mismatches have been closed and covered by regression suites:
+
+| IDs | Area | Resolution & Verification | Status |
+| :--- | :--- | :--- | :--- |
+| **K1–K12, K15** | `remediator.py` | Removed snippet-only full-file overwrite, added AST + `SastEngine.scan_diff` verification, deterministic template precedence, multi-var SQLi & literal secret & non-list `shell=True` safeguards, mandatory `reviewed_head`, removed `apply_code_patch` & `"feature-remediation"` fallbacks, enforced `is_fork`/`head_repository` fork guards, `PENDING` + `SOURCE_REMEDIATION_APPLIED`, strict UTF-8 decoding, `_open_db()` connection closing, updated docstrings, and removed `bypass_policy`. Verified in `tests/test_phase5_trust_and_safety.py`, `tests/test_auto_remediator.py`, and `tests/test_m14_m15_regressions.py`. | **RESOLVED** |
+| **K13** | `AnnotatedCodeViewer.tsx` | Verified `highlightSyntax` HTML-escapes raw fallback content via `escapeHtml()` (`frontend/src/components/AnnotatedCodeViewer.tsx:58,482`) prior to `dangerouslySetInnerHTML`. | **RESOLVED** |
+| **K14** | `bot/command_router.py` | Verified `/apply` actor attribution resolves the invoking operator rather than defaulting to PR author. | **RESOLVED** |
+| **K16** | `action.yml` | Updated action description to reflect advisory scope with human merge authority. | **RESOLVED** |
+| **K17** | `mcp_server.py` | Enforced workspace-bounded `_sanitize_mcp_repo_root` on MCP tool inputs (`tests/test_mcp_server.py`). | **RESOLVED** |
+
+### Resolved Documentation & Claim Mismatches
+
+1. **Test Count & CI Gate Parity:** Updated `README.md`, `.github/workflows/ci.yml` (`uv run mypy --ignore-missing-imports src/code_review_agent`), and `docs/MODULES_14_16_COMPLETION.md`.
+2. **Structured Text Matching vs. AST Patch:** Clarified `StructuredPatch` text/regex coordinate matching and Step 8 `FindingOutcomeStore` behavior in `remediator.py` docstrings.
+3. **Action Description & Opt-In Flags:** Updated `action.yml` advisory description and synced `.env.example` / `README.md` defaults (`RAG_ENABLED=false`, `REVIEW_MULTI_TENANT=false`, `REVIEW_ENABLE_ADVERSARIAL_VERIFIER=false`, `REVIEW_ENABLE_TICKET_COMPLIANCE=false`, and `custom_metrics.py` without unused `deepeval`).
 
 ---
 

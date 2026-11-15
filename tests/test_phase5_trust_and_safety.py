@@ -135,29 +135,33 @@ class TestRemediationSafetyEngine:
             is False
         )
 
-    def test_apply_remediation_blocks_protected_branch(self, test_db_path):
+    def test_apply_remediation_blocks_protected_branch(self, test_db_path, monkeypatch):
+        monkeypatch.setenv("REMEDIATION_ALLOW_DIRECT_COMMITS", "true")
         mock_client = MagicMock()
         mock_pr_meta = MagicMock()
         mock_pr_meta.head_ref = "main"
         mock_pr_meta.head_sha = "abc12345"
+        mock_pr_meta.is_fork = False
         mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
 
         result = AutoRemediator.apply_remediation(
             pr_identifier="org/repo#10",
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
-            bypass_policy=True,
+            reviewed_head="abc12345",
         )
 
         assert result["status"] == "error"
         assert "Strict branch guardrail violation" in result["message"]
         assert result["branch"] == "main"
 
-    def test_apply_remediation_stale_head_sha_check(self, test_db_path):
+    def test_apply_remediation_stale_head_sha_check(self, test_db_path, monkeypatch):
+        monkeypatch.setenv("REMEDIATION_ALLOW_DIRECT_COMMITS", "true")
         mock_client = MagicMock()
         mock_pr_meta = MagicMock()
         mock_pr_meta.head_ref = "feature/security-fix"
         mock_pr_meta.head_sha = "current_head_new_commit_456"
+        mock_pr_meta.is_fork = False
         mock_client.fetch_pull_request_metadata.return_value = mock_pr_meta
 
         result = AutoRemediator.apply_remediation(
@@ -165,7 +169,6 @@ class TestRemediationSafetyEngine:
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
             reviewed_head="old_reviewed_commit_123",
-            bypass_policy=True,
         )
 
         assert result["status"] == "error"
@@ -709,9 +712,11 @@ class TestPhase5DeepEdgeCasesAndRegressions:
     def test_default_and_empty_branch_guardrail(self, protected_name):
         assert AutoRemediator.is_branch_protected(protected_name) is True
 
-    def test_apply_remediation_blocks_pr_base_ref(self, test_db_path):
+    def test_apply_remediation_blocks_pr_base_ref(self, test_db_path, monkeypatch):
+        monkeypatch.setenv("REMEDIATION_ALLOW_DIRECT_COMMITS", "true")
         mock_client = MagicMock()
         mock_pr_meta = MagicMock()
+        mock_pr_meta.is_fork = False
         mock_pr_meta.head_ref = "develop"
         mock_pr_meta.base_ref = "develop"  # Target branch is same
         mock_pr_meta.head_sha = "abc12345"
@@ -721,7 +726,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
             pr_identifier="org/repo#12",
             fingerprint="9a4b2f1e00112233",
             client=mock_client,
-            bypass_policy=True,
+            reviewed_head="abc12345",
         )
         assert result["status"] == "error"
         assert "Strict branch guardrail violation" in result["message"]
@@ -753,11 +758,13 @@ class TestPhase5DeepEdgeCasesAndRegressions:
         assert "replacement text was not found" in res["message"]
 
     def test_apply_remediation_idempotent_skips_duplicate_commit(
-        self, test_db_path, tmp_path, queued_claim
+        self, test_db_path, tmp_path, queued_claim, monkeypatch
     ):
+        monkeypatch.setenv("REMEDIATION_ALLOW_DIRECT_COMMITS", "true")
         claim = queued_claim("org/repo#20")
         mock_client = MagicMock()
         mock_pr_meta = MagicMock()
+        mock_pr_meta.is_fork = False
         mock_pr_meta.head_ref = "feature/idempotent-fix"
         mock_pr_meta.base_ref = "main"
         mock_pr_meta.head_sha = "sha_head_100"
@@ -793,7 +800,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
                 pr_identifier="org/repo#20",
                 fingerprint=fp,
                 client=mock_client,
-                bypass_policy=True,
+                reviewed_head="sha_head_100",
                 **claim,
             )
             assert res1["status"] == "success"
@@ -805,7 +812,7 @@ class TestPhase5DeepEdgeCasesAndRegressions:
                 pr_identifier="org/repo#20",
                 fingerprint=fp,
                 client=mock_client,
-                bypass_policy=True,
+                reviewed_head="sha_head_100",
                 **claim,
             )
             assert res2["status"] == "success"

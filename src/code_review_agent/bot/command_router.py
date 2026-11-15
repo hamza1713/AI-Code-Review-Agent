@@ -1759,7 +1759,12 @@ class CommandRouter:
             if owner and repo and pull_number
             else (pr_metadata.get("html_url") or "local")
         )
-        actor_name = pr_metadata.get("author") or kwargs.get("sender") or "maintainer"
+        actor_name = (
+            kwargs.get("actor")
+            or kwargs.get("sender")
+            or pr_metadata.get("author")
+            or "maintainer"
+        )
         reviewed_head_sha = pr_metadata.get("head_sha")
         result = AutoRemediator.apply_remediation(
             pr_identifier=pr_ident,

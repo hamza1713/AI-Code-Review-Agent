@@ -14,8 +14,8 @@
     },
     "prompt_hashes": {
       "agents.yaml": "072a97c2f0897da7114d19650057c43186156f7f17363b7e8b56081a3d3b6025",
-      "tasks.yaml": "5d1359be1e84bbfdad879cb6788527f576745193e01149da4fce59d997e36cf1",
-      "flow": "7df786425c10d433acb74bee84318995087638cd7abc22f33863d89c903c0e60"
+      "tasks.yaml": "45e35a3c226170b2b5a072d4b34f4121e4f13b386588b220dfadff4623748538",
+      "flow": "4b44dd44ae0fb17538fd0e14b94338099d3d4e87679237a5353de8314705c5db"
     },
     "scanner_versions": {
       "bandit": "1.9.4",
@@ -28,7 +28,7 @@
       "pricing_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "expected_provider_model": "gemini-3.8-flash",
       "ollama_model_digest": null,
-      "source_tree_sha256": "8373a44766f396e7d958eaecb4613c17834234eb81e47ad945e05fdb5b838a2f",
+      "source_tree_sha256": "6c50f416c2ab3e47552e61b6d71ef1ee983d0b7d4ffd4c1cf31402300fd1efb9",
       "rules_sha256": "e8f3c56fa56a9c947959fe9354fe6ebeaf21635133506d7f7b680fd958d00b9c",
       "team_memory_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "rag_enabled": "false",
@@ -42,10 +42,10 @@
       "scanner_settings": "full-source-isolated-v1"
     }
   },
-  "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+  "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
   "cases": [
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -64,12 +64,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.656,
+        "duration_seconds": 4.125,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -88,7 +89,7 @@
       "input_snapshot_hash": "eaa325970c80f89267d55b60effb0a5f8a7f13b28c5317d8ee9319eee6c38b8c"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -107,12 +108,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.329,
+        "duration_seconds": 2.422,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -131,7 +133,7 @@
       "input_snapshot_hash": "b9d6dd6382a915aedc39daee5c4d8206ceee9c21a3508843bcf56b3c3925b743"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -150,12 +152,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.344,
+        "duration_seconds": 3.609,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -174,7 +177,7 @@
       "input_snapshot_hash": "b818a1e70b975cb9566f38a15dd596392411b0df0a14afb816ee6fdda047afc1"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -246,12 +249,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 3.296,
+        "duration_seconds": 5.125,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -270,7 +274,7 @@
       "input_snapshot_hash": "fbc055ecb3bdaa057c2ccf4368254ee01a0ed561d28dfe379c1428cb3414052a"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -316,12 +320,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.296,
+        "duration_seconds": 3.515,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -340,7 +345,7 @@
       "input_snapshot_hash": "44534f911a0a0c3db5d8aab4cfe9a07d162e9986679d9d66418d705a758163a1"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -359,12 +364,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.734,
+        "duration_seconds": 2.453,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -383,7 +389,7 @@
       "input_snapshot_hash": "045e44173072db6375d3df10cd1e53f2f83c53a48421530338b5b90701e90ce8"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -402,12 +408,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.672,
+        "duration_seconds": 2.547,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -426,7 +433,7 @@
       "input_snapshot_hash": "837590868085ed55c637ed3830174988551bda69074dc2dd6e5d7f6c2e25eac7"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -498,12 +505,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.906,
+        "duration_seconds": 2.953,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -522,38 +530,8 @@
       "input_snapshot_hash": "8a8884ef212358dbe345727b600109df16864755ff592ece4ac490b0bc21c0d2"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
-        {
-          "rule_id": "SEC-DESER-001",
-          "cwe": "CWE-502",
-          "category": "SECURITY",
-          "name": "Insecure Deserialization Pattern (Pickle): Deserializing untrusted data with python pickle can lead to arbitrary code ex",
-          "description": "Insecure Deserialization Pattern (Pickle): Deserializing untrusted data with python pickle can lead to arbitrary code ex",
-          "severity": "HIGH",
-          "file_path": "tests/models/test_requests.py",
-          "line_number": 1,
-          "snippet": "pickle.loads(",
-          "fix_recommendation": "Use safe serialization formats like JSON: `json.loads(data)`",
-          "analyzer_source": "regex",
-          "finding_id": null,
-          "pr_id": null,
-          "publication_status": "WITHHELD",
-          "publication_reasons": [
-            "INCOMPLETE_ANALYSIS",
-            "NOT_CHANGED_LINE",
-            "UNGROUNDED_EVIDENCE"
-          ],
-          "blocking": true,
-          "evidence_grade": "HEURISTIC",
-          "evidence_provenance": {
-            "sources": [
-              "regex"
-            ]
-          },
-          "fingerprint": "bd95974c20c306a4",
-          "lifecycle_status": "NEW"
-        },
         {
           "rule_id": "BANDIT-B101",
           "cwe": "CWE-703",
@@ -568,10 +546,8 @@
           "analyzer_source": "bandit",
           "finding_id": null,
           "pr_id": null,
-          "publication_status": "WITHHELD",
-          "publication_reasons": [
-            "INCOMPLETE_ANALYSIS"
-          ],
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
           "blocking": false,
           "evidence_grade": "HEURISTIC",
           "evidence_provenance": {
@@ -596,10 +572,8 @@
           "analyzer_source": "bandit",
           "finding_id": null,
           "pr_id": null,
-          "publication_status": "WITHHELD",
-          "publication_reasons": [
-            "INCOMPLETE_ANALYSIS"
-          ],
+          "publication_status": "ELIGIBLE",
+          "publication_reasons": [],
           "blocking": false,
           "evidence_grade": "HEURISTIC",
           "evidence_provenance": {
@@ -611,7 +585,7 @@
           "lifecycle_status": "NEW"
         }
       ],
-      "analysis_complete": false,
+      "analysis_complete": true,
       "analyzer_status": {
         "source_coverage": "COMPLETED",
         "ast": "COMPLETED",
@@ -628,12 +602,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
-        "response_invariants": "FAILED",
+        "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.532,
+        "duration_seconds": 1.782,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -642,9 +617,9 @@
         "cost_source": "UNAVAILABLE",
         "pricing_as_of": null,
         "model_used": "gemini/gemini-3.8-flash",
-        "sast_findings_count": 4,
+        "sast_findings_count": 3,
         "rule_violations_count": 0,
-        "inline_comments_count": 4,
+        "inline_comments_count": 3,
         "final_verdict": "# Pull Request Review Report\n\n"
       },
       "id": "httpx-3440",
@@ -652,40 +627,9 @@
       "input_snapshot_hash": "e91d3d7236c74ff757e0d4c36ceec48bcbd849c5a6af20d4e52fca7f4be6eb3f"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
-      "findings": [
-        {
-          "rule_id": "SEC-TLS-001",
-          "cwe": "CWE-295",
-          "category": "SECURITY",
-          "name": "Disabled TLS Certificate Verification: TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-mid",
-          "description": "Disabled TLS Certificate Verification: TLS/SSL certificate or hostname verification is disabled, allowing man-in-the-mid",
-          "severity": "HIGH",
-          "file_path": "httpx/_config.py",
-          "line_number": 1,
-          "snippet": "check_hostname = False",
-          "fix_recommendation": "Keep TLS verification enabled: `ssl.create_default_context(check_hostname=True)`",
-          "analyzer_source": "regex",
-          "finding_id": null,
-          "pr_id": null,
-          "publication_status": "WITHHELD",
-          "publication_reasons": [
-            "INCOMPLETE_ANALYSIS",
-            "NOT_CHANGED_LINE",
-            "UNGROUNDED_EVIDENCE"
-          ],
-          "blocking": true,
-          "evidence_grade": "HEURISTIC",
-          "evidence_provenance": {
-            "sources": [
-              "regex"
-            ]
-          },
-          "fingerprint": "2b0d55000253f9c7",
-          "lifecycle_status": "NEW"
-        }
-      ],
-      "analysis_complete": false,
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
+      "findings": [],
+      "analysis_complete": true,
       "analyzer_status": {
         "source_coverage": "COMPLETED",
         "ast": "COMPLETED",
@@ -702,12 +646,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
-        "response_invariants": "FAILED",
+        "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.516,
+        "duration_seconds": 1.875,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -716,9 +661,9 @@
         "cost_source": "UNAVAILABLE",
         "pricing_as_of": null,
         "model_used": "gemini/gemini-3.8-flash",
-        "sast_findings_count": 1,
+        "sast_findings_count": 0,
         "rule_violations_count": 0,
-        "inline_comments_count": 1,
+        "inline_comments_count": 0,
         "final_verdict": "# Pull Request Review Report\n\n"
       },
       "id": "httpx-3418",
@@ -726,7 +671,7 @@
       "input_snapshot_hash": "92b7d9a8bc28e788835d9028a471315fa44754adebd2e78f3ae28009376426bc"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -824,12 +769,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.469,
+        "duration_seconds": 3.094,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -848,7 +794,7 @@
       "input_snapshot_hash": "a6684241a2fa5b0c9f1c06260ff032fcb84f11ab3d9f925426922d9c8d8d0650"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -867,12 +813,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.938,
+        "duration_seconds": 2.953,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -891,7 +838,7 @@
       "input_snapshot_hash": "2af9425352de39a179e86c0feda80fc7574f5d3dbf67203773807567f2e7cd37"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -1123,12 +1070,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 2.953,
+        "duration_seconds": 4.86,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1147,7 +1095,7 @@
       "input_snapshot_hash": "615267bd3144440f36a13d03eb4b092fd614599a87c298a8bc88923692014c31"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -1166,12 +1114,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.641,
+        "duration_seconds": 2.39,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1190,7 +1139,7 @@
       "input_snapshot_hash": "7d90ce738bbcde0bcb961927e1a7534eaa25b1ea93bc94e7cf650647e25cd5b4"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B101",
@@ -1236,12 +1185,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.469,
+        "duration_seconds": 2.562,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1260,7 +1210,7 @@
       "input_snapshot_hash": "f7cfe708f85a3ad9c81a30042afb23de8f3412ac77df1001938ca6b981698121"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "BANDIT-B113",
@@ -1332,12 +1282,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 4.406,
+        "duration_seconds": 5.656,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1356,7 +1307,7 @@
       "input_snapshot_hash": "f55401bc3022ae56ee9c8c1e68156f6c441ff1f84b20af27de37b0694af94514"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -1375,12 +1326,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.766,
+        "duration_seconds": 2.313,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1399,7 +1351,7 @@
       "input_snapshot_hash": "025edb8f0aadc9d17428904dec1a6469eda8ce2b73334d2e740ed914f2a8cecf"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -1418,12 +1370,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.594,
+        "duration_seconds": 2.485,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1442,7 +1395,7 @@
       "input_snapshot_hash": "d7fb63cbd49caf0c672f1785e1b4274fea3157ed6f10dc0cbd80cd3195d3a25a"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [],
       "analysis_complete": true,
       "analyzer_status": {
@@ -1461,12 +1414,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 1.61,
+        "duration_seconds": 2.359,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -1485,7 +1439,7 @@
       "input_snapshot_hash": "34be1d5c945677f4ff1edf63d5079ec93cc6a7a00b9ee0e8c4e7c705bb968fba"
     },
     {
-      "reviewer_profile_id": "1c8c55f2e33b4fb0ac295b6ab68fb97f02ed08b6e4a3d4559fb25f22d5228d31",
+      "reviewer_profile_id": "1f9a964121063b1765b86b693ee7c15f579957c2793e8d00702725ee36a48955",
       "findings": [
         {
           "rule_id": "SEC-CRYPTO-001",
@@ -1583,12 +1537,13 @@
         "sandbox": "SKIPPED_DISABLED",
         "self_healing": "SKIPPED_DISABLED",
         "synthesis": "COMPLETED",
+        "adversarial_verifier": "SKIPPED_DISABLED",
         "output_invariants": "COMPLETED",
         "response_invariants": "COMPLETED",
         "finding_policy": "COMPLETED"
       },
       "telemetry": {
-        "duration_seconds": 3.125,
+        "duration_seconds": 2.609,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,

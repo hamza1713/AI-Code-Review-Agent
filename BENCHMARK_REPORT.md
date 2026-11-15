@@ -18,7 +18,7 @@ Zero-denominator precision/recall are reported as 0, not evidence of perfect per
 | **Overall Recall** | 100.0% |
 | **Overall F1-Score** | 100.0% |
 | **Verdict Accuracy** | 100.0% |
-| **Execution Duration** | 15.036s |
+| **Execution Duration** | 35.577s |
 
 ### 📊 Breakdown by Domain Category
 
@@ -62,9 +62,9 @@ Empirical evaluation across frozen public repository pull requests (`samples/eva
 | :--- | :--- | :--- |
 | **Corpus Version** | v2.0 (Frozen) | v2.0 (Frozen) |
 | **Total Evaluated Cases** | 20 PRs | 100 PRs (Held-Out) |
-| **Analysis Completeness** | 18 / 20 (90.0%) | Pending Evaluation |
-| **Total Sourced Findings** | 26 findings | — |
-| **Mean Latency per PR** | 4.94s | — |
+| **Analysis Completeness** | 20 / 20 (100.0%) | Pending Evaluation |
+| **Total Sourced Findings** | 24 findings | — |
+| **Mean Latency per PR** | 3.72s | — |
 | **Evaluation Mode** | Deterministic (Heuristic + AST) | Deterministic |
 | **Human Adjudication Status** | `UNREVIEWED` (Templates ready for blind human reviewers per protocol) | `UNREVIEWED` |
 

@@ -19,7 +19,7 @@ from code_review_agent.diff_parser import DiffParser
 from code_review_agent.models import CodeGraphSummary, SymbolInfo
 
 try:
-    import tree_sitter_languages
+    import tree_sitter_language_pack
 
     _TREE_SITTER_AVAILABLE = True
 except ImportError:
@@ -310,7 +310,7 @@ class CodeGraphIndexer:
         if not ts_lang:
             return False
 
-        parser = tree_sitter_languages.get_parser(ts_lang)
+        parser = tree_sitter_language_pack.get_parser(ts_lang)
         code_bytes = content.encode("utf-8", errors="ignore")
         tree = parser.parse(code_bytes)
 

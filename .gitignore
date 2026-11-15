@@ -30,7 +30,7 @@ MANIFEST
 # Node & Frontend artifacts
 node_modules/
 frontend/node_modules/
-# frontend/dist/ (tracked so Python backend can serve React UI on Render without Node)
+# frontend/dist/ (tracked so Python backend can serve React UI without Node)
 
 # SQLite databases & runtime queue
 *.db
@@ -52,7 +52,6 @@ flow_state.json
 result.dill
 *.html
 !frontend/index.html
-!src/code_review_agent/static/index.html
 *.sarif
 telemetry_metrics.json
 
@@ -74,13 +73,13 @@ frontend/playwright-report/
 
 # Local verification workspaces
 /.cache/
-
 /.uv-cache/
 /production_test_tmp*/
 /production-tests.log
 /.pytest-production/
+/.pytest_temp/
+/.deepeval/
 /review_pytest_tmp*/
-
 /.release-tools/
 /.mypy_cache/
 
@@ -92,10 +91,6 @@ frontend/playwright-report/
 # CI / production run artifacts (regenerated on every test run)
 production-audit.json
 production-*.log
-
-# Stale runtime state files
-telemetry_metrics.json
-flow_state.json
 
 # Local audit cache
 /.audit-cache/

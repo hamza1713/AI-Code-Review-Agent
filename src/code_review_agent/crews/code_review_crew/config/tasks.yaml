@@ -162,7 +162,9 @@ summarize_findings:
     Assemble consolidated 'inline_comments' with exact file path, line number,
     side ('RIGHT' or 'LEFT'), severity ('CRITICAL'|'WARNING'|'INFO'), a terse
     technical 'comment_body', a 1-sentence plain-English 'why' explanation of
-    the causal mechanism, and 1-click replacement 'suggestion_code'.
+    the causal mechanism, and 1-click replacement 'suggestion_code'. Copy selected
+    inline comments verbatim from the validated upstream 'inline_suggestions' or
+    'inline_security_comments' without altering any field.
 
     Using [automated-unit-test-generator]:
     Provide 'suggested_unit_tests' with a complete pytest test suite. Tests must
@@ -185,8 +187,8 @@ summarize_findings:
       security, and governance rule checks from BOTH upstream agents.
     - 'coverage_gaps': An array of strings describing potential gaps or areas
       NOT covered by upstream analysis (never stated as findings).
-    - 'fix': A list of objects each with 'description', 'solutions', and
-      'explanation' for each required fix, ordered by severity.
+    - 'fix': A list of objects each with 'file_path', 'line_number', 'description',
+      'solutions', and 'explanation' for each required fix, ordered by severity.
     - 'recommendations': A list of strings with additional architectural or
       best-practice suggestions.
     - 'inline_comments': A list of objects each with 'path', 'line', 'side',

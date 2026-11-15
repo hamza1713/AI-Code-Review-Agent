@@ -178,9 +178,10 @@ class TelemetryTracker:
         Record telemetry execution metrics into SQLite with WAL mode and multi-process lock retry.
         Resolves F-16 multi-worker concurrency bottleneck.
         """
-        db_file = Path(
-            db_path or os.getenv("QUEUE_DB_PATH", "webhook_jobs.db")
-        ).resolve()
+        db_target: str | Path = (
+            db_path or os.getenv("QUEUE_DB_PATH") or "webhook_jobs.db"
+        )
+        db_file = Path(db_target).resolve()
         db_file.parent.mkdir(parents=True, exist_ok=True)
         run_id = uuid.uuid4().hex
         now = time.time()
@@ -293,7 +294,7 @@ def trace_span(name: str, attributes: dict[str, Any] | None = None):
     """
     span = None
     try:
-        from opentelemetry import trace
+        from opentelemetry import trace  # type: ignore[import-not-found]
 
         tracer = trace.get_tracer("code_review_agent")
         span = tracer.start_span(name)

@@ -301,3 +301,40 @@ def api_endpoint(user_input):
         assert "🚨 Inter-Procedural Call Chain" in result
         assert "[SOURCE]" in result
         assert "[SINK]" in result
+
+
+def test_tree_sitter_polyglot_parsing_does_not_fall_back_to_regex(tmp_path):
+    """Non-skipping regression: TS/JS/Go must parse via tree-sitter-language-pack without regex fallback."""
+    from unittest.mock import patch
+
+    import code_review_agent.context_engine.code_graph as code_graph_mod
+
+    assert code_graph_mod._TREE_SITTER_AVAILABLE is True
+
+    (tmp_path / "service.ts").write_text(
+        "export function greetUser(name: string): string { return name; }\n"
+        "class UserSvc { fetch() { return greetUser('a'); } }\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "helper.js").write_text(
+        "function calcSum(a, b) { return a + b; }\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "handler.go").write_text(
+        "package main\nfunc HandleReq(x int) int { return x }\n",
+        encoding="utf-8",
+    )
+
+    indexer = CodeGraphIndexer(repo_root=str(tmp_path))
+    with patch.object(
+        CodeGraphIndexer,
+        "_index_non_python_regex",
+        side_effect=AssertionError("Tree-Sitter should handle TS/JS/Go without regex fallback"),
+    ):
+        summary = indexer.index_repository(force_reindex=True)
+
+    assert summary.files_indexed == 3
+    assert "service.ts:greetUser" in indexer.symbols
+    assert "service.ts:UserSvc" in indexer.symbols
+    assert "helper.js:calcSum" in indexer.symbols
+    assert "handler.go:HandleReq" in indexer.symbols

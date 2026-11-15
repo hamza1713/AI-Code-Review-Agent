@@ -7,6 +7,7 @@ to be formally promoted into the reconciled findings table with analyzer_source=
 import re
 from typing import Any
 
+from code_review_agent.diff_parser import DiffParser
 from code_review_agent.models import Fix, SastFinding, SummarizedFindingsJSON
 
 _SEV_RE = re.compile(r"\b(CRITICAL|HIGH|MEDIUM|LOW|INFO)\b", re.IGNORECASE)
@@ -64,6 +65,7 @@ def extract_crew_cwe(text: str) -> str:
 def parse_crew_advisory_findings(
     summarized: Any,
     file_hint: str = "unknown",
+    raw_diff: str | None = None,
 ) -> list[SastFinding]:
     """
     Convert the Tech Lead advisory fix items and blocking reasons into SastFinding objects.
@@ -75,15 +77,63 @@ def parse_crew_advisory_findings(
     if not summarized:
         return findings
 
+    changed_lines: dict[tuple[str, int], str] = {}
+    changed_by_file: dict[str, list[tuple[int, str]]] = {}
+    if raw_diff:
+        parsed_pr = DiffParser.parse_diff(raw_diff)
+        for fd in parsed_pr.files:
+            added = DiffParser.extract_added_lines_with_numbers(fd)
+            changed_by_file[fd.target_file] = added
+            for ln, code in added:
+                changed_lines[(fd.target_file, ln)] = code
+
+    def _hydrate_evidence(
+        target_file: str,
+        explicit_line: int | None,
+        *texts: str,
+    ) -> tuple[int, str]:
+        if explicit_line and (target_file, explicit_line) in changed_lines:
+            return explicit_line, changed_lines[(target_file, explicit_line)].strip()
+        file_lines = changed_by_file.get(target_file) or []
+        if explicit_line is None and file_lines:
+            combined = " ".join(t for t in texts if t)
+            tokens = {
+                tok
+                for tok in re.findall(r"\b[A-Za-z_]\w{2,}\b", combined)
+                if len(tok) >= 3
+            }
+            best: tuple[int, str] | None = None
+            best_score = 0
+            for ln, code in file_lines:
+                score = sum(1 for tok in tokens if tok in code)
+                if score > best_score:
+                    best_score = score
+                    best = (ln, code.strip())
+            if best and best_score > 0:
+                return best
+            if len(file_lines) == 1:
+                ln, code = file_lines[0]
+                return ln, code.strip()
+        return explicit_line or 1, changed_lines.get((target_file, explicit_line or 1), "").strip()
+
     fixes: list[Any] = []
     blocking_reasons: list[str] = []
+    inline_meta: dict[tuple[str, int], tuple[str | None, str | None]] = {}
 
     if isinstance(summarized, SummarizedFindingsJSON):
         fixes = summarized.fix or []
         blocking_reasons = summarized.blocking_reasons or []
+        for ic in summarized.inline_comments or []:
+            inline_meta.setdefault((ic.path, ic.line), (ic.why, ic.suggestion_code))
     elif isinstance(summarized, dict):
         fixes = summarized.get("fix", []) or []
         blocking_reasons = summarized.get("blocking_reasons", []) or []
+        for ic in summarized.get("inline_comments", []) or []:
+            if isinstance(ic, dict) and ic.get("path") and ic.get("line"):
+                inline_meta.setdefault(
+                    (ic["path"], int(ic["line"])),
+                    (ic.get("why"), ic.get("suggestion_code")),
+                )
 
     for item in fixes:
         if isinstance(item, Fix):
@@ -91,19 +141,20 @@ def parse_crew_advisory_findings(
             sol = item.solutions
             expl = item.explanation
             fp = item.file_path or file_hint
-            line = item.line_number or 1
+            raw_line = item.line_number
         elif isinstance(item, dict):
             desc = item.get("description", "")
             sol = item.get("solutions", "")
             expl = item.get("explanation", "")
             fp = item.get("file_path") or file_hint
-            line = item.get("line_number") or 1
+            raw_line = item.get("line_number")
         else:
             continue
 
         if not desc:
             continue
 
+        line, snippet = _hydrate_evidence(fp, raw_line, desc, sol, expl)
         combined_text = f"{desc} {expl}"
         sev = extract_crew_severity(combined_text)
         cwe = extract_crew_cwe(combined_text)
@@ -112,6 +163,15 @@ def parse_crew_advisory_findings(
         if key in seen_keys:
             continue
         seen_keys.add(key)
+
+        provenance: dict[str, Any] = {}
+        why, sugg = inline_meta.get((fp, line), (None, None))
+        if why:
+            provenance["why"] = why
+        elif expl:
+            provenance["why"] = expl.split(".")[0].strip()
+        if sugg:
+            provenance["suggestion_code"] = sugg
 
         findings.append(
             SastFinding(
@@ -126,10 +186,11 @@ def parse_crew_advisory_findings(
                 severity=sev,
                 file_path=fp,
                 line_number=line,
-                snippet="",
+                snippet=snippet,
                 fix_recommendation=sol
                 or "Review advisory recommendation from Tech Lead.",
                 analyzer_source="llm-crew",
+                evidence_provenance=provenance,
             )
         )
 
@@ -145,7 +206,8 @@ def parse_crew_advisory_findings(
             continue
 
         sev = extract_crew_severity(reason, default="HIGH")
-        key = (file_hint, 1, reason[:50].lower())
+        b_line, b_snippet = _hydrate_evidence(file_hint, None, reason)
+        key = (file_hint, b_line, reason[:50].lower())
         if key in seen_keys:
             continue
         seen_keys.add(key)
@@ -161,8 +223,8 @@ def parse_crew_advisory_findings(
                 description=reason,
                 severity=sev,
                 file_path=file_hint,
-                line_number=1,
-                snippet="",
+                line_number=b_line,
+                snippet=b_snippet,
                 fix_recommendation="Remediate blocking issue identified by multi-agent review crew.",
                 analyzer_source="llm-crew",
             )

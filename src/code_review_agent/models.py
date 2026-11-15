@@ -736,6 +736,14 @@ class ReviewState(BaseModel):
         default=False,
         description="Whether the review was posted to GitHub via REST API",
     )
+    ai_threat_audit: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional adversarial verifier cross-model consensus audit summary when enabled",
+    )
+    canary_verified: bool | None = Field(
+        default=None,
+        description="Whether canary prompt-injection enclosure was verified clean on LLM outputs",
+    )
     repo_root: str | None = Field(
         default=None,
         description="Target root directory for AST Code Graph indexing (defaults to current dir if None)",
@@ -838,6 +846,14 @@ class ReviewAPIResponse(BaseModel):
     )
     reviewed_diff: str | None = Field(
         default=None, description="Raw diff or source file content that was reviewed"
+    )
+    ai_threat_audit: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional adversarial verifier consensus telemetry when REVIEW_ENABLE_ADVERSARIAL_VERIFIER=true",
+    )
+    canary_verified: bool | None = Field(
+        default=None,
+        description="Canary prompt-injection delimiter verification status (True=clean, False=alert, None=not run)",
     )
     scope_note: str = Field(
         default=(

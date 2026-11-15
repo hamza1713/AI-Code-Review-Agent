@@ -111,6 +111,37 @@ class ReviewService:
     """Orchestrates input validation, diff conversion, and synchronous Flow execution."""
 
     @staticmethod
+    def _build_zdr_attestation(state: ReviewState, active_tenant: str) -> dict[str, Any]:
+        """Compute honest quarantine and provider retention attestation from runtime config."""
+        from code_review_agent.config import get_model_name
+        from code_review_agent.llm_factory import LLMFactory
+
+        model_name = get_model_name()
+        try:
+            provider = LLMFactory.resolve_provider(model_name)
+        except Exception:
+            provider = model_name.split("/", 1)[0].lower() if "/" in model_name else "unknown"
+        is_local_model = provider == "ollama"
+        quarantine_base = get_quarantine_base_dir()
+        uses_tmpfs = (
+            os.getenv("APP_ENV", "development").lower() == "production"
+            and str(quarantine_base).startswith("/tmp")
+        )
+        return {
+            "zero_data_retention": bool(state.zdr_enforced and is_local_model),
+            "quarantine_type": "TMPFS_SHREDDED" if uses_tmpfs else "TEMPDIR_SHREDDED",
+            "quarantine_dir": str(quarantine_base),
+            "provider": provider,
+            "provider_retention_policy": (
+                "LOCAL_ONLY_NO_EGRESS"
+                if is_local_model
+                else "EXTERNAL_PROVIDER_PER_ACCOUNT_TERMS"
+            ),
+            "attestation_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "tenant_id": active_tenant,
+        }
+
+    @staticmethod
     def file_to_unified_diff(filename: str, content: str) -> str:
         """
         Convert raw file text into a standard unified git diff format.
@@ -425,7 +456,9 @@ class ReviewService:
                 final_diff = cls.file_to_unified_diff(file_name, content)
 
                 # Create temp file so AST indexer can index it if it is Python
-                temp_dir_obj = tempfile.TemporaryDirectory(prefix="code_review_file_")
+                temp_dir_obj = tempfile.TemporaryDirectory(
+                    prefix="code_review_file_", dir=str(get_quarantine_base_dir())
+                )
                 temp_path = Path(temp_dir_obj.name)
                 dest_file = temp_path / Path(file_name).name
                 dest_file.write_bytes(file_bytes)
@@ -485,7 +518,9 @@ class ReviewService:
             if evaluation_mode:
                 if temp_dir_obj is not None:
                     temp_dir_obj.cleanup()
-                temp_dir_obj = tempfile.TemporaryDirectory(prefix="frozen_evaluation_")
+                temp_dir_obj = tempfile.TemporaryDirectory(
+                    prefix="frozen_evaluation_", dir=str(get_quarantine_base_dir())
+                )
                 repo_root = temp_dir_obj.name
                 from code_review_agent.path_validation import safe_diff_path
 
@@ -500,7 +535,9 @@ class ReviewService:
                     )
             if repo_root is None:
                 # Never index the server checkout when source context is absent.
-                temp_dir_obj = tempfile.TemporaryDirectory(prefix="review_context_")
+                temp_dir_obj = tempfile.TemporaryDirectory(
+                    prefix="review_context_", dir=str(get_quarantine_base_dir())
+                )
                 repo_root = temp_dir_obj.name
                 from code_review_agent.path_validation import safe_diff_path
 
@@ -639,13 +676,7 @@ class ReviewService:
 
             # 8. Assemble Structured API Response
             active_tenant = getattr(flow.state, "tenant_id", "default") or get_current_tenant()
-            zdr_attestation = {
-                "zero_data_retention": True,
-                "quarantine_type": "TMPFS_SHREDDED",
-                "provider_retention_policy": "NO_STORE",
-                "attestation_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "tenant_id": active_tenant,
-            }
+            zdr_attestation = cls._build_zdr_attestation(flow.state, active_tenant)
             response = ReviewAPIResponse(
                 tenant_id=active_tenant,
                 zdr_attestation=zdr_attestation,
@@ -675,6 +706,8 @@ class ReviewService:
                 telemetry=flow.state.telemetry,
                 trace=trace_data,
                 reviewed_diff=final_diff,
+                ai_threat_audit=flow.state.ai_threat_audit,
+                canary_verified=flow.state.canary_verified,
                 scope_note=(
                     "Scope Note: Review performed via heuristic regex pattern scanning, AST Code Graph indexer "
                     "(Python only), and governance rules engine. Not a full dataflow SAST or formal verification engine."
@@ -722,13 +755,7 @@ class ReviewService:
                 gen_tests = None
 
         active_tenant = getattr(state, "tenant_id", "default") or get_current_tenant()
-        zdr_attestation = {
-            "zero_data_retention": True,
-            "quarantine_type": "TMPFS_SHREDDED",
-            "provider_retention_policy": "NO_STORE",
-            "attestation_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "tenant_id": active_tenant,
-        }
+        zdr_attestation = cls._build_zdr_attestation(state, active_tenant)
         response = ReviewAPIResponse(
             tenant_id=active_tenant,
             zdr_attestation=zdr_attestation,
@@ -752,6 +779,8 @@ class ReviewService:
             telemetry=state.telemetry,
             trace=None,
             reviewed_diff=state.pr_content,
+            ai_threat_audit=state.ai_threat_audit,
+            canary_verified=state.canary_verified,
             scope_note="Scope Note: Review performed via heuristic regex pattern scanning and AST Code Graph indexer.",
         )
 

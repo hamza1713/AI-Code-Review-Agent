@@ -10,6 +10,7 @@ import {
   Scale,
 } from 'lucide-react';
 import type { ReviewAPIResponse } from '../types/review';
+import { apiFetch } from '../api';
 
 interface AIThreatRadarProps {
   data: ReviewAPIResponse;
@@ -52,14 +53,9 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
   const handleDownloadSARIF = async () => {
     setDownloadingSarif(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('review_api_token') : null;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch('/api/review/sarif', {
+      const response = await apiFetch('/api/review/sarif', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
@@ -208,11 +204,11 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <span className="text-xs font-bold text-white">Trojan Source</span>
               </div>
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                isTrojanClean
+                isTrojanClean && data.canary_verified !== false
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               }`}>
-                {isTrojanClean ? 'SHIELDED' : 'OVERRIDE DETECTED'}
+                {isTrojanClean && data.canary_verified !== false ? 'SHIELDED' : 'OVERRIDE DETECTED'}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
@@ -221,13 +217,21 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
           </div>
 
           <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
-            {isTrojanClean ? (
+            {!isTrojanClean ? (
+              <span className="text-rose-400 font-bold">
+                🚨 {trojanFindings[0]?.rule_id}: Bidi/Unicode injection
+              </span>
+            ) : data.canary_verified === false ? (
+              <span className="text-rose-400 font-bold">
+                🚨 Canary Prompt Escape Alert
+              </span>
+            ) : data.canary_verified === true ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Canary Token Validated
               </span>
             ) : (
-              <span className="text-rose-400 font-bold">
-                🚨 {trojanFindings[0]?.rule_id}: Bidi/Unicode injection
+              <span className="text-slate-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Bidi/Unicode Clean (Canary Not Evaluated)
               </span>
             )}
           </div>
@@ -286,7 +290,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
             <p className="text-[11px] text-slate-300 leading-relaxed">
               {consensusAudit
                 ? 'Orthogonal cross-family verification pairing primary reviewer with an independent red-team critic.'
-                : 'Primary analyzer executed. Multi-model red-team critic consensus is available in enterprise configuration.'}
+                : 'Single-engine primary analyzer completed (opt-in adversarial verifier disabled).'}
             </p>
           </div>
 

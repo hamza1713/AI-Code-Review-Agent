@@ -1,3 +1,0 @@
-# Retired: ephemeral Render deployments are not supported for production.
-# Use docker-compose.yml and docs/OPERATIONS.md on one Docker host.
-services: []

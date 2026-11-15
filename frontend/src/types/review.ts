@@ -163,6 +163,7 @@ export interface ReviewAPIResponse {
   reviewed_diff?: string | null;
   scope_note: string;
   ai_threat_audit?: AIThreatAudit | null;
+  canary_verified?: boolean | null;
 }
 
 export interface WebhookJob {

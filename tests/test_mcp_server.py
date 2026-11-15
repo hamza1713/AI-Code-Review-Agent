@@ -84,3 +84,10 @@ class TestMCPServer:
         assert "verdict" in data
         assert data["verdict"] in ["APPROVE", "REQUEST CHANGES", "ESCALATE"]
         assert "confidence_score" in data
+
+    def test_mcp_review_diff_blocks_out_of_workspace_repo_root(self):
+        """K17: review_diff must reject repo_root outside the current workspace."""
+        raw_json = review_diff("--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n+x = 1\n", repo_root="../outside")
+        data = json.loads(raw_json)
+        assert data["verdict"] == "ERROR"
+        assert "Access denied" in data["error"]

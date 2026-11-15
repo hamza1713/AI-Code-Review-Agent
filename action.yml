@@ -1,5 +1,5 @@
 name: 'AI Code Review Agent'
-description: 'Autonomous multi-agent PR review system powered by CrewAI Flows and Google Gemini'
+description: 'Autonomous multi-agent PR review system powered by deterministic static analysis, native LLM providers, and Google Gemini'
 author: 'Hamza Ali'
 
 # Required GitHub Workflow Permissions:

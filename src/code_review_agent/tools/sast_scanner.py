@@ -353,27 +353,38 @@ class QuickPatternScanner:
                         )
 
             # Check multiline patches after cleaning comments/docstrings
+            # Scan post-change patch lines only (ignore diff headers, '-' removals, and leading diff markers)
             raw_patch = file_diff.raw_patch
-            clean_patch_lines = []
+            clean_patch_lines: list[str] = []
+            added_char_spans: list[tuple[int, int]] = []
+            cursor = 0
             in_doc = False
             for line_item in raw_patch.splitlines():
+                if line_item.startswith(("diff --git ", "--- ", "+++ ", "@@ ", "-")):
+                    continue
+                is_added = line_item.startswith("+")
                 content_only = (
-                    line_item[1:]
-                    if line_item.startswith(("+", "-", " "))
-                    else line_item
+                    line_item[1:] if line_item.startswith(("+", " ")) else line_item
                 )
                 is_c, in_doc = is_comment_or_docstring_line(content_only, in_doc)
-                prefix = line_item[:1] if line_item.startswith(("+", "-", " ")) else ""
-                if is_c:
-                    clean_patch_lines.append(prefix)
-                else:
-                    clean_patch_lines.append(prefix + strip_line_comment(content_only))
+                cleaned_line = "" if is_c else strip_line_comment(content_only)
+                start_pos = cursor
+                end_pos = cursor + len(cleaned_line)
+                if is_added and cleaned_line.strip():
+                    added_char_spans.append((start_pos, end_pos))
+                clean_patch_lines.append(cleaned_line)
+                cursor = end_pos + 1
             cleaned_patch = "\n".join(clean_patch_lines)
 
             for rule in SECURITY_PATTERN_RULES:
                 if rule.rule_id == "SEC-CMD-001":
                     continue
                 for match in re.finditer(rule.pattern, cleaned_patch, re.IGNORECASE):
+                    if not any(
+                        match.start() < s_end and match.end() > s_start
+                        for s_start, s_end in added_char_spans
+                    ):
+                        continue
                     matched_snippet = match.group(0).strip()
                     if not matched_snippet:
                         continue
@@ -381,9 +392,7 @@ class QuickPatternScanner:
                         f.file_path == file_path and f.rule_id == rule.rule_id
                         for f in findings
                     ):
-                        first_line = (
-                            matched_snippet.splitlines()[0].lstrip("+- ").strip()
-                        )
+                        first_line = matched_snippet.splitlines()[0].strip()
                         line_no = next(
                             (
                                 ln

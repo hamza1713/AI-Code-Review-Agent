@@ -1,5 +1,6 @@
 """Compatibility entrypoint for fixed quality/security/synthesis orchestration."""
 
+import inspect
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -159,9 +160,43 @@ class CodeReviewCrew:
             {"role": "user", "content": user},
         ]
 
+        def _norm_tool_key(raw: str) -> str:
+            return raw.strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+
+        tool_lookup: dict[str, Any] = {}
+        for t in tools:
+            for candidate in (t.__class__.__name__, getattr(t, "name", "") or ""):
+                norm = _norm_tool_key(candidate)
+                if norm:
+                    tool_lookup.setdefault(norm, t)
+                    if norm.endswith("tool") and len(norm) > 4:
+                        tool_lookup.setdefault(norm[:-4], t)
+
+        allowed_upstream_comments: set[tuple[Any, ...]] | None = None
+        if upstream is not None and name == "summarize_findings":
+            q_up = upstream.get("quality") or {}
+            s_up = upstream.get("security") or {}
+            up_items = list(q_up.get("inline_suggestions") or []) + list(
+                s_up.get("inline_security_comments") or []
+            )
+            allowed_upstream_comments = {
+                (
+                    c.get("path"),
+                    c.get("line"),
+                    c.get("severity"),
+                    c.get("comment_body"),
+                    c.get("why"),
+                    c.get("suggestion_code"),
+                )
+                for c in up_items
+                if isinstance(c, dict)
+            }
+
         # Iterative tool-calling loop (bounded to at most 4 invocations per stage)
         max_tool_calls = 4
         tool_calls_count = 0
+        repair_used = False
+        budget_prompted = False
         last_response: LLMResponse | None = None
 
         while True:
@@ -171,29 +206,43 @@ class CodeReviewCrew:
             last_response = response
             block = RobustLLMOutputParser.extract_json_block(response.text) or response.text.strip()
 
-            if tools and tool_calls_count < max_tool_calls:
+            if tools:
                 try:
                     parsed_call = json.loads(block)
-                    if isinstance(parsed_call, dict) and parsed_call.get("action") == "call_tool":
-                        tool_name = str(parsed_call.get("tool", "")).strip()
+                except Exception:
+                    parsed_call = None
+                if isinstance(parsed_call, dict) and parsed_call.get("action") == "call_tool":
+                    tool_name = str(parsed_call.get("tool", "")).strip()
+                    if tool_calls_count < max_tool_calls:
                         args = parsed_call.get("arguments", {})
                         if not isinstance(args, dict):
                             args = {}
 
-                        target_tool = None
-                        for t in tools:
-                            candidate_names = (
-                                t.__class__.__name__.lower(),
-                                getattr(t, "name", "").lower(),
-                            )
-                            clean_req = tool_name.lower().replace("_", "").replace("tool", "")
-                            if any(clean_req in c.replace("_", "").replace(" ", "") for c in candidate_names):
-                                target_tool = t
-                                break
+                        req_norm = _norm_tool_key(tool_name)
+                        target_tool = tool_lookup.get(req_norm)
+                        if target_tool is None and req_norm.endswith("tool") and len(req_norm) > 4:
+                            target_tool = tool_lookup.get(req_norm[:-4])
 
                         if target_tool is not None:
                             try:
-                                obs = str(target_tool.run(**args))
+                                filtered_args = dict(args)
+                                args_schema = getattr(target_tool, "args_schema", None)
+                                if args_schema is not None and hasattr(args_schema, "model_fields"):
+                                    allowed_fields = set(args_schema.model_fields.keys())
+                                    filtered_args = {
+                                        k: v for k, v in filtered_args.items() if k in allowed_fields
+                                    }
+                                else:
+                                    sig = inspect.signature(target_tool._run)
+                                    accepts_kwargs = any(
+                                        p.kind == inspect.Parameter.VAR_KEYWORD
+                                        for p in sig.parameters.values()
+                                    )
+                                    if not accepts_kwargs:
+                                        filtered_args = {
+                                            k: v for k, v in filtered_args.items() if k in sig.parameters
+                                        }
+                                obs = str(target_tool.run(**filtered_args))
                             except Exception as te:
                                 obs = f"Error executing tool {tool_name}: {te}"
                         else:
@@ -206,17 +255,71 @@ class CodeReviewCrew:
                             "content": f"Observation from {tool_name}:\n{obs}\n\nContinue review. If additional context is required, invoke another tool. Otherwise provide the final JSON output matching the expected schema."
                         })
                         continue
-                except Exception:
-                    pass
+                    elif not budget_prompted:
+                        budget_prompted = True
+                        messages.append({"role": "assistant", "content": response.text})
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                f"Tool call budget ({max_tool_calls}) is exhausted. "
+                                "Do not call any more tools; return ONLY valid final JSON matching the expected schema."
+                            ),
+                        })
+                        continue
 
             if not block:
                 raise ValueError("Required stage returned no JSON")
-            result = schema.model_validate(json.loads(block))
-            if name == "review_security":
-                passed, _ = security_review_output_guardrail(result.model_dump())
-                if not passed:
-                    raise ValueError("Security output consistency failed")
-            return result, last_response or response
+            try:
+                result = schema.model_validate(json.loads(block))
+                if name == "review_security":
+                    passed, msg = security_review_output_guardrail(result.model_dump())
+                    if not passed:
+                        raise ValueError(f"Security output consistency failed: {msg}")
+                if allowed_upstream_comments is not None:
+                    if any(
+                        (c.path, c.line, c.severity, c.comment_body, c.why, c.suggestion_code)
+                        not in allowed_upstream_comments
+                        for c in result.inline_comments  # type: ignore[attr-defined]
+                    ):
+                        raise ValueError(
+                            "Synthesis must copy inline_comments verbatim from validated upstream results."
+                        )
+                return result, last_response or response
+            except Exception as err:
+                if repair_used:
+                    if name == "review_security" and "Security output consistency" in str(err):
+                        raise ValueError("Security output consistency failed") from err
+                    raise
+                repair_used = True
+                repair_messages = list(messages) + [
+                    {"role": "assistant", "content": response.text},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Your previous JSON output failed validation ({err}). "
+                            "Return ONLY valid JSON strictly matching the expected output schema."
+                        ),
+                    },
+                ]
+                try:
+                    retry_response = self._get_llm().call_response(
+                        LLMRequest(messages=repair_messages)
+                    )
+                except StopIteration:
+                    raise err from None
+                last_response = retry_response
+                retry_block = (
+                    RobustLLMOutputParser.extract_json_block(retry_response.text)
+                    or retry_response.text.strip()
+                )
+                if not retry_block:
+                    raise ValueError("Required stage returned no JSON") from err
+                result = schema.model_validate(json.loads(retry_block))
+                if name == "review_security":
+                    passed, _ = security_review_output_guardrail(result.model_dump())
+                    if not passed:
+                        raise ValueError("Security output consistency failed") from err
+                return result, last_response or retry_response
 
     def kickoff(self, inputs: dict[str, Any]) -> ReviewResult:
         # ContextVar consent must propagate separately to each concurrent stage.

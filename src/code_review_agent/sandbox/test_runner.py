@@ -170,7 +170,7 @@ class SandboxTestRunner:
                     ):
                         try:
                             content = cls._apply_diff_to_base(
-                                base_file.read_text(encoding="utf-8", errors="replace"),
+                                base_file.read_text(encoding="utf-8", errors="strict"),
                                 item,
                             )
                             dest.write_text(content, encoding="utf-8")

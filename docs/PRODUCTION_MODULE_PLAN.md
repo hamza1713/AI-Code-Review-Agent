@@ -40,3 +40,9 @@ M0
 Keep `ReviewAPIResponse` compatible. Use its existing `analysis_complete`, `analyzer_status`, evidence, and publication fields to expose output validation and withheld or unverified findings. Add an explicit unavailable state to the evaluation result type. The first release uses the existing SQLite single host boundary, one approved model provider, GitHub publication, and human merge authority.
 
 After the pilot, plan separate modules for isolated generated test execution, automated remediation, merge gating, additional provider publication, and multi tenant scaling. Their designs should use the pilot’s measured usefulness, latency, and cost rather than being included in the first production release.
+
+## Post-baseline checkpoints
+
+- **M9–M13 (Native pipeline, full-source snapshots, real PR eval prep, retained release evidence):** Recorded in [`docs/MODULES_9_13_COMPLETION.md`](MODULES_9_13_COMPLETION.md).
+- **M14–M16 (Bounded crew loop, audit fixes `K1–K17`, CI & doc parity):** Recorded in [`docs/MODULES_14_16_COMPLETION.md`](MODULES_14_16_COMPLETION.md).
+- **M17 (External Pilot & Empirical Validation Gates):** Pending live operator/external prerequisites (blind dual-reviewer labeling on `samples/evaluation/public-pr-v2`, paid `llm`/`combined` eval capture, hosted CI matrix + signed container release record, and M8 100-PR shadow + 100-comment advisory pilot).

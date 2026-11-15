@@ -211,7 +211,7 @@ class GeminiEmbedder(Embedder):
         for i in range(0, len(texts), chunk_size):
             batch = texts[i : i + chunk_size]
             task_type_upper = (task_type or "RETRIEVAL_DOCUMENT").upper()
-            config = None
+            config: Any = None
             if hasattr(self._types, "EmbedContentConfig"):
                 try:
                     config = self._types.EmbedContentConfig(task_type=task_type_upper)

@@ -637,13 +637,14 @@ def test_uncertain_remediation_is_not_replayed_after_head_changes(
         snippet='print("old")',
         fix_recommendation="Use logging",
     )
+    monkeypatch.setenv("REMEDIATION_ALLOW_DIRECT_COMMITS", "true")
     monkeypatch.setattr(AutoRemediator, "find_target_finding", lambda *a, **kw: finding)
     args = {
         "pr_identifier": target,
         "fingerprint": finding.fingerprint,
         "client": client,
         "replacement_code": 'logger.info("old")',
-        "bypass_policy": True,
+        "reviewed_head": "original-head",
     }
     with pytest.raises(ReconciliationRequired):
         AutoRemediator.apply_remediation(**args, **claim)
