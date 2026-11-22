@@ -52,6 +52,7 @@ flow_state.json
 result.dill
 *.html
 !frontend/index.html
+!samples/evaluation/**/*.html
 *.sarif
 telemetry_metrics.json
 
