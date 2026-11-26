@@ -1,9 +1,21 @@
 """
-Multi-Tenant Context and Isolation Engine.
-Enforces tenant namespacing across webhooks, API requests, SQLite/PostgreSQL
-job queues, finding suppressions, and telemetry stores.
+Tenant context for the review job queue.
+
+Scope today: the SQLite job queue and its HTTP endpoints are tenant-scoped.
+Calibration, pilot, suppression and telemetry stores are not yet tenant-aware.
+
+Trust model (when ``REVIEW_MULTI_TENANT=true``):
+- A *tenant token* listed in ``REVIEW_TENANT_TOKENS`` is bound to exactly one
+  tenant. A client-sent ``X-Tenant-ID`` header may only repeat that tenant;
+  any other value is refused (``TenantAccessError`` -> HTTP 403).
+- The deployment operator token (``REVIEW_API_TOKEN``) is the single trusted
+  administrator and may select a tenant with ``X-Tenant-ID``.
+- Webhooks never read ``X-Tenant-ID``; the tenant is the repository owner from
+  the signature-verified payload.
 """
 
+import hashlib
+import hmac
 import os
 import re
 from collections.abc import Iterator
@@ -49,21 +61,63 @@ def tenant_scope(tenant_id: str | None) -> Iterator[str]:
         _current_tenant.reset(token)
 
 
+class TenantAccessError(PermissionError):
+    """A caller asked for a tenant its credential is not bound to."""
+
+
+def _header_tenant(headers: dict[str, Any] | None) -> str | None:
+    for k, v in (headers or {}).items():
+        if k.lower() == "x-tenant-id" and v:
+            return normalize_tenant_id(str(v))
+    return None
+
+
+def tenant_for_token(token: str) -> str | None:
+    """Return the tenant bound to a tenant token, or None.
+
+    ``REVIEW_TENANT_TOKENS`` is a comma-separated list of
+    ``<tenant>:<sha256 hex of token>`` pairs, so raw tenant tokens never sit in
+    the server environment.
+    """
+    raw = os.getenv("REVIEW_TENANT_TOKENS", "")
+    if not raw or not token:
+        return None
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    match = None
+    for entry in raw.split(","):
+        tenant, sep, expected = entry.strip().rpartition(":")
+        if not sep or not tenant:
+            continue
+        # Compare every entry so timing does not reveal the matching position.
+        if hmac.compare_digest(digest, expected.strip().lower()):
+            match = normalize_tenant_id(tenant)
+    return match
+
+
 def resolve_tenant_from_request(
     headers: dict[str, Any] | None = None,
     repo_identifier: str | None = None,
+    bound_tenant: str | None = None,
 ) -> str:
     """
-    Resolve tenant from incoming HTTP headers or repository path.
-    Order of precedence:
-    1. Explicit 'X-Tenant-ID' or 'x-tenant-id' header
-    2. Repository owner namespace (e.g., 'owner/repo' -> 'owner', 'github.com/owner/repo' -> 'owner')
-    3. Default tenant ('default')
+    Resolve the tenant for a request.
+
+    1. A credential-bound tenant wins; an ``X-Tenant-ID`` header that names a
+       different tenant raises ``TenantAccessError``.
+    2. Otherwise (trusted operator) an explicit ``X-Tenant-ID`` header.
+    3. Repository owner namespace ('owner/repo' or 'github.com/owner/repo' -> 'owner').
+    4. ``'default'``.
     """
-    headers = headers or {}
-    for k, v in headers.items():
-        if k.lower() == "x-tenant-id" and v:
-            return normalize_tenant_id(str(v))
+    requested = _header_tenant(headers)
+    if bound_tenant is not None:
+        bound = normalize_tenant_id(bound_tenant)
+        if requested is not None and requested != bound:
+            raise TenantAccessError(
+                "This credential is not authorized for the requested tenant."
+            )
+        return bound
+    if requested is not None:
+        return requested
 
     if repo_identifier:
         clean = (
@@ -91,24 +145,12 @@ def multi_tenant_enabled() -> bool:
 def resolve_request_tenant(
     headers: dict[str, Any] | None = None,
     repo_identifier: str | None = None,
+    bound_tenant: str | None = None,
 ) -> str:
     """Resolve HTTP request tenant when multi-tenancy is enabled; otherwise 'default'."""
     if not multi_tenant_enabled():
         return "default"
-    return resolve_tenant_from_request(headers, repo_identifier=repo_identifier)
+    return resolve_tenant_from_request(
+        headers, repo_identifier=repo_identifier, bound_tenant=bound_tenant
+    )
 
-
-class TenantConfig:
-    """Enterprise policy configuration per tenant."""
-
-    def __init__(
-        self,
-        tenant_id: str,
-        max_concurrent_reviews: int = 3,
-        rate_limit_per_minute: int = 60,
-        zdr_enforced: bool = True,
-    ):
-        self.tenant_id = normalize_tenant_id(tenant_id)
-        self.max_concurrent_reviews = max_concurrent_reviews
-        self.rate_limit_per_minute = rate_limit_per_minute
-        self.zdr_enforced = zdr_enforced

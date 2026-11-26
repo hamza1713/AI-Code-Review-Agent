@@ -1,7 +1,10 @@
 """
-Enterprise Key & Secrets Management Interface.
-Provides isolated per-tenant credential resolution with support for
-environment fallback, encrypted vault backends, and token rotation.
+Per-tenant credential lookup.
+
+This is an environment-backed lookup, not a secrets manager: values come from
+an in-memory registry, then ``TENANT_<ID>_<KEY>``, then ``<KEY>`` environment
+variables. There is no encryption at rest, external backend, or rotation.
+It is not yet called by production code paths.
 """
 
 import os
@@ -11,16 +14,14 @@ from code_review_agent.tenancy import get_current_tenant, normalize_tenant_id
 
 class SecretsVault:
     """
-    Secrets vault provider.
-    In local/development environments, resolves from process environment variables.
-    In enterprise deployments, fetches credentials dynamically per tenant.
+    Resolve credentials per tenant from memory, then environment variables.
     """
 
     _tenant_secrets_store: dict[str, dict[str, str]] = {}
 
     @classmethod
     def register_tenant_secrets(cls, tenant_id: str, secrets: dict[str, str]) -> None:
-        """Register encrypted secrets for a specific tenant (used in multi-tenant mode or tests)."""
+        """Register in-memory secrets for a specific tenant (used in multi-tenant mode or tests)."""
         tid = normalize_tenant_id(tenant_id)
         if tid not in cls._tenant_secrets_store:
             cls._tenant_secrets_store[tid] = {}

@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from code_review_agent.config import logger
+from code_review_agent.tenancy import get_current_tenant
 
 MAX_RESULT_BYTES = 8 * 1024 * 1024
 DEFAULT_CONCURRENCY = int(os.getenv("MAX_CONCURRENT_REVIEWS", "2"))
@@ -114,7 +115,15 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None, event_callback
             root = Path(folder)
             request_file, result_file = root / "request.json", root / "result.json"
             request_file.write_text(
-                json.dumps({"operation": operation, "payload": encode_inputs(payload)}),
+                json.dumps(
+                    {
+                        "operation": operation,
+                        "payload": encode_inputs(payload),
+                        # asyncio.to_thread copies the caller's context, so the
+                        # request tenant is visible here and crosses into the worker.
+                        "tenant_id": get_current_tenant(),
+                    }
+                ),
                 encoding="utf-8",
             )
             request_file.chmod(0o600)
