@@ -104,3 +104,103 @@ def test_mutable_source_ref_rejected_without_network(monkeypatch):
             "fork-owner", "reviewed", "api/utils.py", "main"
         )
     assert not requests
+
+
+def test_stale_token_retries_without_authorization_header(monkeypatch):
+    blob = hashlib.sha1(
+        b"blob " + str(len(SOURCE)).encode() + b"\0" + SOURCE
+    ).hexdigest()
+    seen_auth_headers = []
+
+    def respond(request):
+        auth = request.headers.get("authorization")
+        seen_auth_headers.append((request.url.path, auth))
+        if auth == "Bearer expired-token":
+            return httpx.Response(401, json={"message": "Bad credentials"})
+
+        prefix = "/repos/fork-owner/reviewed"
+        if request.url.path == f"{prefix}/pulls/7":
+            if "diff" in request.headers.get("accept", ""):
+                return httpx.Response(200, text="diff --git a/api/utils.py b/api/utils.py\n+ok\n")
+            return httpx.Response(
+                200,
+                json={
+                    "title": "Public fix",
+                    "body": "",
+                    "user": {"login": "octocat"},
+                    "base": {"sha": "0" * 40, "ref": "main"},
+                    "head": {"sha": HEAD, "ref": "fix", "repo": {"full_name": "fork-owner/reviewed"}},
+                    "state": "open",
+                    "html_url": "https://github.com/fork-owner/reviewed/pull/7",
+                },
+            )
+        if request.url.path == f"{prefix}/git/commits/{HEAD}":
+            return httpx.Response(200, json={"sha": HEAD, "tree": {"sha": TREE}})
+        if request.url.path == f"{prefix}/git/trees/{TREE}":
+            return httpx.Response(
+                200,
+                json={
+                    "sha": TREE,
+                    "truncated": False,
+                    "tree": [
+                        {
+                            "path": "api/utils.py",
+                            "type": "blob",
+                            "mode": "100644",
+                            "sha": blob,
+                            "size": len(SOURCE),
+                        }
+                    ],
+                },
+            )
+        if request.url.path == f"{prefix}/contents/api/utils.py":
+            return httpx.Response(
+                200,
+                json={
+                    "type": "file",
+                    "encoding": "base64",
+                    "content": base64.b64encode(SOURCE).decode(),
+                    "sha": blob,
+                    "size": len(SOURCE),
+                },
+            )
+        raise AssertionError(str(request.url))
+
+    original = httpx.Client
+    monkeypatch.setattr(
+        "code_review_agent.github_client.httpx.Client",
+        lambda **kw: original(transport=httpx.MockTransport(respond), **kw),
+    )
+
+    client = GitHubClient(token="expired-token")
+    meta = client.fetch_pull_request_metadata("fork-owner", "reviewed", 7)
+    diff = client.fetch_pull_request_diff("fork-owner", "reviewed", 7)
+    raw = client.fetch_source_file("fork-owner", "reviewed", "api/utils.py", HEAD)
+
+    assert meta["head_sha"] == HEAD
+    assert "+ok" in diff
+    assert raw == SOURCE
+    # Ensure failed attempts included Bearer and retried unauthenticated without Authorization
+    assert seen_auth_headers[0][1] == "Bearer expired-token"
+    assert seen_auth_headers[1][1] is None
+    assert any(auth is None and path.endswith("/contents/api/utils.py") for path, auth in seen_auth_headers)
+
+
+def test_unauthenticated_retry_rejected_fails_closed(monkeypatch):
+    """A private repo rejects both the stale token and the anonymous retry."""
+    seen_auth_headers = []
+
+    def respond(request):
+        seen_auth_headers.append(request.headers.get("authorization"))
+        return httpx.Response(401, json={"message": "Bad credentials"})
+
+    original = httpx.Client
+    monkeypatch.setattr(
+        "code_review_agent.github_client.httpx.Client",
+        lambda **kw: original(transport=httpx.MockTransport(respond), **kw),
+    )
+
+    client = GitHubClient(token="expired-token")
+    with pytest.raises(RuntimeError, match="401"):
+        client.fetch_source_file("fork-owner", "reviewed", "api/utils.py", HEAD)
+    assert seen_auth_headers == ["Bearer expired-token", None]

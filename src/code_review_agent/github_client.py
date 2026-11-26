@@ -87,6 +87,7 @@ class GitHubClient:
                 logger.warning(
                     f"GitHub token rejected with 401 for {url}; retrying unauthenticated for public repository..."
                 )
+                client.headers.pop("Authorization", None)
                 resp = client.get(url, headers=self._get_headers(include_auth=False))
 
             if resp.status_code != 200:
@@ -122,6 +123,7 @@ class GitHubClient:
                 logger.warning(
                     f"GitHub token rejected with 401 for {url}; retrying unauthenticated API request..."
                 )
+                client.headers.pop("Authorization", None)
                 resp = client.get(
                     url,
                     headers=self._get_headers(
@@ -446,29 +448,43 @@ class GitHubClient:
         ) as client:
 
             def get(endpoint, params=None):
-                remaining = (
-                    float(os.getenv("REVIEW_WORKER_DEADLINE", "inf")) - time.time()
-                )
-                if remaining <= 0:
-                    raise TimeoutError("Source acquisition deadline expired")
-                client.timeout = httpx.Timeout(min(20, remaining))
-                with client.stream(
-                    "GET", self.base_url + endpoint, params=params
-                ) as response:
-                    if response.status_code != 200:
-                        raise RuntimeError(
-                            f"Source acquisition returned HTTP {response.status_code}"
-                        )
-                    data = bytearray()
-                    for chunk in response.iter_bytes():
-                        data.extend(chunk)
-                        if len(data) > 4 * 1024 * 1024:
-                            raise OverflowError("Source metadata exceeds limit")
-                        if time.time() >= float(
-                            os.getenv("REVIEW_WORKER_DEADLINE", "inf")
+                for allow_auth_retry in (True, False):
+                    remaining = (
+                        float(os.getenv("REVIEW_WORKER_DEADLINE", "inf")) - time.time()
+                    )
+                    if remaining <= 0:
+                        raise TimeoutError("Source acquisition deadline expired")
+                    client.timeout = httpx.Timeout(min(20, remaining))
+                    with client.stream(
+                        "GET", self.base_url + endpoint, params=params
+                    ) as response:
+                        if (
+                            allow_auth_retry
+                            and response.status_code == 401
+                            and "Authorization" in client.headers
                         ):
-                            raise TimeoutError("Source acquisition deadline expired")
-                    return json.loads(data)
+                            logger.warning(
+                                f"GitHub token rejected with 401 for {self.base_url + endpoint}; retrying unauthenticated API request..."
+                            )
+                            client.headers.pop("Authorization", None)
+                            continue
+                        if response.status_code != 200:
+                            raise RuntimeError(
+                                f"Source acquisition returned HTTP {response.status_code}"
+                            )
+                        data = bytearray()
+                        for chunk in response.iter_bytes():
+                            data.extend(chunk)
+                            if len(data) > 4 * 1024 * 1024:
+                                raise OverflowError("Source metadata exceeds limit")
+                            if time.time() >= float(
+                                os.getenv("REVIEW_WORKER_DEADLINE", "inf")
+                            ):
+                                raise TimeoutError("Source acquisition deadline expired")
+                        return json.loads(data)
+                # Both attempts consumed without returning: the unauthenticated
+                # retry itself must have been skipped, so fail closed explicitly.
+                raise RuntimeError("Source acquisition failed after authentication retry")
 
             prefix = f"/repos/{owner}/{repo}"
             cache = getattr(self, "_source_trees", {})

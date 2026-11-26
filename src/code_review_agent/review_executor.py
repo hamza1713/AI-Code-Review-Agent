@@ -201,6 +201,19 @@ def run_job(operation, payload, timeout=180.0, cancel_event=None, event_callback
                         )
                     result = json.loads(result_file.read_text(encoding="utf-8"))
                     if "error" in result:
+                        err_out.flush()
+                        stderr_content = ""
+                        try:
+                            stderr_content = stderr_file.read_text(
+                                encoding="utf-8", errors="replace"
+                            ).strip()
+                        except Exception:
+                            pass
+                        if stderr_content:
+                            logger.error(
+                                f"❌ Review worker returned status {result.get('status', 500)} "
+                                f"({result['error']}):\n{stderr_content[-2000:]}"
+                            )
                         raise ReviewWorkerError(
                             result["error"], result.get("status", 500)
                         )
