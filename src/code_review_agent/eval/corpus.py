@@ -232,6 +232,9 @@ def score_predictions(root: Path, predictions: dict, labels: dict) -> dict:
     precision = tp / (tp + fp) if tp + fp else None
     recall = tp / (tp + fn) if tp + fn else None
     clean = [d for d in details if d["cohort"] == "clean"]
+    clean_alarms = sum(d["fp"] > 0 for d in clean)
+    from code_review_agent.eval.adjudication import wilson_interval
+
     return {
         "corpus_version": manifest["corpus_version"],
         "scorer_version": 2,
@@ -245,15 +248,16 @@ def score_predictions(root: Path, predictions: dict, labels: dict) -> dict:
         "precision": precision,
         "recall": recall,
         "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
+        "precision_ci95": wilson_interval(tp, tp + fp),
+        "recall_ci95": wilson_interval(tp, tp + fn),
         "verdict_accuracy": sum(d["verdict_correct"] for d in details) / len(details),
         "precision_denominator": tp + fp,
         "recall_denominator": tp + fn,
         "false_comments_per_pr": fp / len(details),
         "incomplete_cases": sum(not d["analysis_complete"] for d in details),
         "clean_prs": len(clean),
-        "clean_pr_false_alarm_rate": sum(d["fp"] > 0 for d in clean) / len(clean)
-        if clean
-        else None,
+        "clean_pr_false_alarm_rate": clean_alarms / len(clean) if clean else None,
+        "clean_pr_false_alarm_rate_ci95": wilson_interval(clean_alarms, len(clean)),
         "severity_emitted": {
             severity: sum(
                 str(f.get("severity", "UNKNOWN")).upper() == severity
@@ -284,7 +288,9 @@ def score_predictions(root: Path, predictions: dict, labels: dict) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Offline blind PR evaluation")
-    parser.add_argument("action", choices=["capture", "score", "label-template"])
+    parser.add_argument(
+        "action", choices=["capture", "score", "label-template", "merge-labels"]
+    )
     parser.add_argument(
         "--corpus", type=Path, default=Path("samples/evaluation/public-pr-v1")
     )
@@ -298,6 +304,19 @@ def main():
     )
     parser.add_argument("--split", choices=["development", "held_out"])
     args = parser.parse_args()
+    if args.action == "merge-labels":
+        from code_review_agent.eval.adjudication import agreement_report, merge_labels
+
+        split = args.split or "development"
+        folder = args.corpus / "labeling"
+        read = lambda name: json.loads((folder / name).read_text(encoding="utf-8"))  # noqa: E731
+        a, b = read(f"{split}-reviewer-a.json"), read(f"{split}-reviewer-b.json")
+        target = folder / f"{split}-adjudication.json"
+        previous = json.loads(target.read_text(encoding="utf-8")) if target.exists() else None
+        merged = merge_labels(a, b, previous)
+        target.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(agreement_report(a, b), indent=2))
+        return
     if args.action == "label-template":
         if not args.output:
             parser.error("label-template requires --output")

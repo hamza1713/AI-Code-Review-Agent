@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from code_review_agent.bot import CommandRouter
 from code_review_agent.calibration.api import router as calibration_router
 from code_review_agent.config import get_webhook_secret, logger
+from code_review_agent.eval.api import router as eval_router
 from code_review_agent.gateway_security import GatewaySecurityMiddleware
 from code_review_agent.models import ReviewAPIResponse
 from code_review_agent.review_executor import (
@@ -653,6 +654,7 @@ def delete_suppression(
 
 
 app.include_router(calibration_router)
+app.include_router(eval_router)
 
 
 class RemediationApplyRequest(BaseModel):
