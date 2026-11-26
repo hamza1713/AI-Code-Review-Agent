@@ -530,7 +530,7 @@ class RepoCalibrationEngine:
             """,
             (provider, host, clean_repo.lower(), start_time, now),
         ).fetchall()
-        breakdown = []
+        breakdown: list[dict[str, Any]] = []
         for rule_id, items in sorted(group_findings_by_rule(rows).items()):
             triaged, positives, negatives, fpr = score_rule_outcomes(items)
             judged = positives + negatives
