@@ -362,6 +362,32 @@ def pilot_report(repository: str, reviewer_profile_id: str | None = None):
     return PilotStore(str(queue.db_path)).report(repository, reviewer_profile_id)
 
 
+@app.get("/api/pilot/weekly")
+def pilot_weekly(
+    repository: str,
+    days: int = Query(7, ge=1, le=365),
+    reviewer_profile_id: str | None = None,
+):
+    """Pilot latency, cost and withheld-rate summary for one repository."""
+    from code_review_agent.pilot import PilotStore
+
+    try:
+        return PilotStore(str(queue.db_path)).weekly(repository, days, reviewer_profile_id)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+
+
+@app.get("/api/telemetry/latency")
+def telemetry_latency(
+    repo_id: str | None = None, days: int = Query(30, ge=1, le=365)
+):
+    """Review latency percentiles recorded by completed reviews."""
+    from code_review_agent.observability.telemetry import latency_summary
+
+    # Same path resolution as TelemetryTracker.record_to_db (QUEUE_DB_PATH).
+    return latency_summary(None, repo_id=repo_id, days=days)
+
+
 @app.post("/api/pilot/control")
 def pilot_control(repository: str, request: PilotControlRequest):
     from code_review_agent.pilot import PilotStore

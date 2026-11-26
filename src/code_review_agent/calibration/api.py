@@ -131,6 +131,31 @@ def metrics(
         raise HTTPException(403, str(exc)) from exc
 
 
+@router.get("/rules")
+def rule_metrics(
+    repo_id: str = "",
+    repo: str = "",
+    window_days: int = Query(30, ge=1, le=365),
+    provider: str = "github",
+    host: str = "github.com",
+):
+    """Per-rule false-positive rates with probation state; no side effects."""
+    repository = (repo_id or repo).strip() or "default"
+    try:
+        validate_target(provider, host, repository)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    from code_review_agent.suppression_store import SuppressionStore
+
+    rules = RepoCalibrationEngine().rule_breakdown(
+        repository, window_days, provider=provider, host=host
+    )
+    on_probation = set(SuppressionStore().get_probation_rules(repository))
+    for rule in rules:
+        rule["on_probation"] = rule["rule_id"] in on_probation
+    return {"repo_id": repository, "window_days": window_days, "rules": rules}
+
+
 @router.post("/feedback")
 def feedback(req: FeedbackRequest):
     store = FindingOutcomeStore()
