@@ -72,20 +72,20 @@ export function PipelineProgress({ currentStage, stageProgress }: PipelineProgre
   };
 
   return (
-    <section className="bg-[#0e121a] border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-4xl mx-auto shadow-2xl my-6" aria-busy="true" aria-labelledby="progress-title">
+    <section className="bg-surface border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-4xl mx-auto shadow-2xl my-6" aria-busy="true" aria-labelledby="progress-title">
       <div className="flex flex-col items-center text-center">
         {/* Top Spinner Badge */}
         <div className="relative mb-4">
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
             <Loader2 size={32} className="animate-spin text-indigo-400" />
           </div>
-          <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-[10px] text-black font-bold px-1.5 py-0.5 rounded-full border border-black flex items-center gap-0.5">
+          <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-[11px] text-black font-bold px-1.5 py-0.5 rounded-full border border-black flex items-center gap-0.5">
             <Lock size={10} />
             <span>v3.0</span>
           </div>
         </div>
 
-        <p className="text-[11px] font-mono tracking-widest text-indigo-400 uppercase font-semibold">
+        <p className="text-xs font-mono tracking-widest text-indigo-400 uppercase font-semibold">
           Zero-Trust Multi-Agent Verification Pipeline
         </p>
         <h1 id="progress-title" className="text-xl sm:text-2xl font-bold text-white mt-1 mb-2">
@@ -160,12 +160,12 @@ export function PipelineProgress({ currentStage, stageProgress }: PipelineProgre
               }`}>
                 <IconComponent size={16} />
               </div>
-              <span className={`text-[11px] font-semibold leading-tight ${
+              <span className={`text-xs font-semibold leading-tight ${
                 status === 'active' ? 'text-white' : status === 'completed' ? 'text-slate-200' : 'text-slate-500'
               }`}>
                 {step.label}
               </span>
-              <span className="text-[9px] font-mono mt-1 uppercase">
+              <span className="text-[11px] font-mono mt-1 uppercase">
                 {status === 'active' ? '● In Progress' : status === 'completed' ? '✓ Passed' : 'Pending'}
               </span>
             </div>
@@ -173,7 +173,7 @@ export function PipelineProgress({ currentStage, stageProgress }: PipelineProgre
         })}
       </div>
 
-      <p className="text-[11px] text-center text-slate-400 font-mono mt-6">
+      <p className="text-xs text-center text-slate-400 font-mono mt-6">
         🔒 Provable Trust: Real-time telemetry streamed directly from AST parser, supply-chain verifier, and sandbox.
       </p>
     </section>

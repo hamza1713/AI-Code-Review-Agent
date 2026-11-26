@@ -28,7 +28,7 @@ export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTest
   };
 
   return (
-    <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
+    <div className="bg-surface border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
       {copyError && <p role="alert" className="text-xs text-rose-300 mb-3">{copyError}</p>}
       {execution && <p className="text-xs text-slate-300 mb-3" role="status">{execution.evidence_badge}: {execution.summary_message}</p>}
       {/* Header */}
@@ -39,7 +39,7 @@ export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTest
           </div>
           <div>
             <h3 className="text-xs font-bold text-white tracking-tight uppercase">Generated Pytest Suite</h3>
-            <p className="text-[10px] text-slate-400">AST parameter mocks & regression tests</p>
+            <p className="text-[11px] text-slate-400">AST parameter mocks & regression tests</p>
           </div>
         </div>
 
@@ -47,7 +47,7 @@ export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTest
         {unitTests && unitTests.trim() && (
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-[10px] font-semibold transition-all cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-[11px] font-semibold transition-all cursor-pointer"
             title="Copy test suite code"
           >
             {copied ? (
@@ -67,8 +67,8 @@ export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTest
 
       {/* Code Viewer */}
       <div className="mt-3 flex-1 flex flex-col">
-        <div className="rounded-lg bg-[#0a0c10] border border-slate-800/80 overflow-hidden">
-          <div className="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+        <div className="rounded-lg bg-canvas border border-slate-800/80 overflow-hidden">
+          <div className="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
             <span className="flex items-center gap-1 text-slate-300">
               <Terminal className="w-3 h-3 text-emerald-400" />
               test_suite_generated.py
@@ -76,7 +76,7 @@ export const GeneratedUnitTests: React.FC<GeneratedUnitTestsProps> = ({ unitTest
             <span>pytest</span>
           </div>
 
-          <pre className="p-3 text-[11px] font-mono text-emerald-300 overflow-x-auto leading-relaxed max-h-[300px]">
+          <pre className="p-3 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed max-h-[300px]">
             <code>{testContent}</code>
           </pre>
         </div>

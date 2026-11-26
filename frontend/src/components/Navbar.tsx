@@ -1,26 +1,50 @@
-import { Shield, GitPullRequest, Layers, Activity, LogOut } from 'lucide-react';
+import { Shield, GitPullRequest, Layers, Activity, LogOut, ClipboardCheck, Sun, Moon, Monitor } from 'lucide-react';
 import type { HealthStatus } from '../types/review';
+import type { View } from '../hooks/useHashView';
+import type { ThemePreference } from '../hooks/useTheme';
+
 interface NavbarProps {
   health: HealthStatus | null;
-  activeView: 'review' | 'jobs' | 'calibration';
-  onViewChange: (view: 'review' | 'jobs' | 'calibration') => void;
+  activeView: View;
+  onViewChange: (view: View) => void;
   onLogout?: () => void;
+  theme: ThemePreference;
+  onCycleTheme: () => void;
 }
-export function Navbar({ health, activeView, onViewChange, onLogout }: NavbarProps) {
+
+const THEME_LABEL: Record<ThemePreference, string> = { system: 'System theme', light: 'Light theme', dark: 'Dark theme' };
+
+export function Navbar({ health, activeView, onViewChange, onLogout, theme, onCycleTheme }: NavbarProps) {
   const isHealthy = Boolean(
     health?.status && ['healthy', 'alive', 'ready', 'ok'].includes(health.status.toLowerCase())
+  );
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const link = (view: View, label: string, icon: React.ReactNode, extra?: React.ReactNode) => (
+    <button type="button" aria-current={activeView === view ? 'page' : undefined} onClick={() => onViewChange(view)}>
+      {icon}{label}{extra}
+    </button>
   );
   return <header className="workspace-nav">
     <a href="#main-content" className="skip-link">Skip to workspace</a>
     <div className="nav-inner">
-      <div className="brand"><span className="brand-icon"><Shield size={22} /></span><div>Code Review<span className="brand-subtitle">AGENT WORKSPACE</span></div><span className="version-pill">v2.0</span></div>
+      <div className="brand">
+        <span className="brand-icon"><Shield size={20} /></span>
+        <div>Code Review<span className="brand-subtitle">AGENT WORKSPACE</span></div>
+        <span className="version-pill">v{__APP_VERSION__}</span>
+      </div>
       <nav aria-label="Main navigation" className="nav-links">
-        <button aria-current={activeView === 'review' ? 'page' : undefined} onClick={() => onViewChange('review')}><GitPullRequest size={16} />Reviews</button>
-        <button aria-current={activeView === 'jobs' ? 'page' : undefined} onClick={() => onViewChange('jobs')}><Layers size={16} />Job queue{health?.queue?.queued ? <span className="queue-count">{health.queue.queued}</span> : null}</button>
-        <button aria-current={activeView === 'calibration' ? 'page' : undefined} onClick={() => onViewChange('calibration')}><Activity size={16} />Calibration</button>
+        {link('review', 'Reviews', <GitPullRequest size={16} />)}
+        {link('jobs', 'Job queue', <Layers size={16} />, health?.queue?.queued ? <span className="queue-count">{health.queue.queued}</span> : null)}
+        {link('calibration', 'Calibration', <Activity size={16} />)}
+        {link('labeling', 'Labeling', <ClipboardCheck size={16} />)}
       </nav>
-      <div className="connection-status" role="status"><span className={isHealthy ? 'status-dot online' : 'status-dot'} />{isHealthy ? 'Service connected' : 'Service unavailable'}</div>
-      {onLogout && <button type="button" onClick={onLogout} className="logout-button"><LogOut size={16} />Log out</button>}
+      <div className="nav-actions">
+        <div className="connection-status" role="status"><span className={isHealthy ? 'status-dot online' : 'status-dot'} /><span>{isHealthy ? 'Connected' : 'Service unavailable'}</span></div>
+        <button type="button" className="icon-button" onClick={onCycleTheme} aria-label={`${THEME_LABEL[theme]}. Switch theme`} title={THEME_LABEL[theme]}>
+          <ThemeIcon size={16} />
+        </button>
+        {onLogout && <button type="button" onClick={onLogout} className="logout-button"><LogOut size={15} /><span className="hidden sm:inline">Log out</span></button>}
+      </div>
     </div>
   </header>;
 }

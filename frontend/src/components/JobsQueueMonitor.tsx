@@ -379,7 +379,7 @@ export function JobsQueueMonitor({
                   <td className="p-3 break-all font-mono text-xs">{job.pr_identifier}</td>
                   <td className="p-3 text-xs">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                         job.status === 'COMPLETED'
                           ? 'bg-emerald-950 text-emerald-300'
                           : job.status === 'FAILED'
@@ -394,7 +394,7 @@ export function JobsQueueMonitor({
                       {job.status}
                     </span>
                     {job.current_stage && job.status === 'PROCESSING' && (
-                      <div className="text-[11px] text-indigo-400 mt-1 font-mono">
+                      <div className="text-xs text-indigo-400 mt-1 font-mono">
                         {job.current_stage}{' '}
                         {typeof job.stage_progress === 'number' &&
                           `(${Math.round(job.stage_progress * 100)}%)`}
