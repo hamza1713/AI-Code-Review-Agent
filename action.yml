@@ -1,5 +1,5 @@
 name: 'AI Code Review Agent'
-description: 'Autonomous multi-agent PR review system powered by deterministic static analysis, native LLM providers, and Google Gemini'
+description: 'Advisory multi-agent PR review service with human merge authority: deterministic static analysis plus native LLM providers'
 author: 'Hamza Ali'
 
 # Required GitHub Workflow Permissions:
@@ -24,6 +24,10 @@ inputs:
     description: 'File path to save the SARIF report'
     required: false
     default: 'code-review-results.sarif'
+  sarif_category:
+    description: 'Code Scanning category for the uploaded SARIF report'
+    required: false
+    default: 'ai-code-review-agent'
 
 runs:
   using: 'composite'
@@ -39,8 +43,10 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
       run: |
         python -m pip install --upgrade pip
-        # Install from action directory rather than executing arbitrary setup scripts from PR checkout
-        pip install --no-deps -e "${ACTION_PATH}" || pip install -e "${ACTION_PATH}"
+        # Install the action's own package with its dependencies. (`--no-deps`
+        # succeeded without FastAPI/httpx/pydantic, so the review crashed on
+        # import and never wrote the SARIF report.)
+        pip install "${ACTION_PATH}"
 
     - name: Run AI Code Review Flow
       shell: bash
@@ -57,7 +63,10 @@ runs:
           --sarif "${SARIF_OUTPUT}"
 
     - name: Upload SARIF Security Report
-      uses: github/codeql-action/upload-sarif@6bb034414c761b3035773ea082901518b50904d0 # v3.28.11
-      if: always()
+      # Only upload a report that exists, so a failed review shows its own error
+      # instead of a misleading "Path does not exist" from the upload step.
+      if: always() && hashFiles(inputs.sarif_output) != ''
+      uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
       with:
         sarif_file: ${{ inputs.sarif_output }}
+        category: ${{ inputs.sarif_category }}
