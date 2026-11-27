@@ -527,7 +527,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
               <h2 className="text-sm font-bold text-slate-100 tracking-tight">
                 Live Annotated Source Review
               </h2>
-              <span className="text-[11px] font-mono bg-rose-500/10 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">
+              <span className="text-xs font-mono bg-rose-500/10 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">
                 Pulsing Markers Active
               </span>
             </div>
@@ -623,7 +623,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
       {parsedFiles.length > 1 && (
         <div className="px-4 py-2 bg-canvas border-b border-slate-800/80 flex items-center space-x-2 overflow-x-auto">
           <FileCode className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-[11px]">Files:</span>
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-xs">Files:</span>
           {parsedFiles.map(f => {
             const hasIssues = unifiedAnnotations.some(a => pathsMatch(a.filePath, f.filename));
             return (
@@ -760,7 +760,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                   }`}>
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-2.5">
-                                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
+                                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
                                           isCritCard
                                             ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                             : isWarnCard
@@ -798,7 +798,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                         <div className="px-3.5 py-2 bg-surface border-b border-slate-800 flex items-center justify-between">
                                           <div className="flex items-center space-x-2">
                                             <Code2 className="w-3.5 h-3.5 text-emerald-400" />
-                                            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                                               Proposed Secure Patch
                                             </span>
                                           </div>
@@ -807,7 +807,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                               e.stopPropagation();
                                               handleCopyCode(ann.suggestionCode || '', cardKey);
                                             }}
-                                            className="text-[11px] text-slate-300 hover:text-white flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                                            className="text-xs text-slate-300 hover:text-white flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
                                           >
                                             {copiedKey === cardKey ? (
                                               <>
@@ -863,7 +863,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                             <td colSpan={3} className="py-1 px-4 text-center">
                               <button
                                 onClick={() => setManuallyExpandedFolds(prev => ({ ...prev, [idx]: true }))}
-                                className="text-[11px] text-slate-500 hover:text-indigo-400 font-sans tracking-wide cursor-pointer py-0.5 px-3 rounded hover:bg-slate-900 transition-colors"
+                                className="text-xs text-slate-500 hover:text-indigo-400 font-sans tracking-wide cursor-pointer py-0.5 px-3 rounded hover:bg-slate-900 transition-colors"
                               >
                                 ··· Hidden context lines (click to reveal) ···
                               </button>
@@ -931,12 +931,12 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                 {isRedFlag ? (
                                   <div className="flex items-center gap-1 bg-rose-500/20 border border-rose-500/50 px-1.5 py-0.5 rounded-md">
                                     <span className="w-2 h-2 rounded-full bg-rose-500 pulse-dot-critical shadow-[0_0_8px_#f43f5e]" />
-                                    <span className="text-[11px] font-black text-rose-300 uppercase tracking-tighter">RED FLAG</span>
+                                    <span className="text-xs font-black text-rose-300 uppercase tracking-tighter">RED FLAG</span>
                                   </div>
                                 ) : isWarning ? (
                                   <div className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/50 px-1.5 py-0.5 rounded-md">
                                     <span className="w-2 h-2 rounded-full bg-amber-400 pulse-dot-warning shadow-[0_0_8px_#f59e0b]" />
-                                    <span className="text-[11px] font-black text-amber-300 uppercase tracking-tighter">WARN</span>
+                                    <span className="text-xs font-black text-amber-300 uppercase tracking-tighter">WARN</span>
                                   </div>
                                 ) : (
                                   <span className="w-2.5 h-2.5 rounded-full bg-sky-400 pulse-dot-info shadow-md" />
@@ -975,7 +975,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                   }}
                                 />
                                 {hasFlag && (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border shadow-sm ${
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border shadow-sm ${
                                     isRedFlag
                                       ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
                                       : isWarning
@@ -987,7 +987,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                 )}
                               </div>
                               {hasFlag && (
-                                <span className="text-[11px] text-slate-500 font-sans tracking-wide opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                                <span className="text-xs text-slate-500 font-sans tracking-wide opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
                                   {isAnyCardOpen ? '▼ Hide Rationale' : '▶ Show Rationale & Fix'}
                                 </span>
                               )}
@@ -1026,7 +1026,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                           <Info className="w-4 h-4 text-sky-400 shrink-0" />
                                         )}
 
-                                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
+                                        <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
                                           isCrit
                                             ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
                                             : isWarn
@@ -1037,7 +1037,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
                                         </span>
 
                                         {ann.cwe && (
-                                          <span className="text-[11px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                                          <span className="text-xs font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
                                             {ann.cwe}
                                           </span>
                                         )}
@@ -1145,7 +1145,7 @@ export const AnnotatedCodeViewer: React.FC<AnnotatedCodeViewerProps> = ({
           aria-label="Diff navigation minimap"
           className="w-7 bg-canvas border-l border-slate-800/80 sticky top-0 h-auto min-h-[300px] select-none py-2 hidden sm:flex flex-col items-center"
         >
-          <div className="text-[11px] font-mono text-slate-500 mb-1 font-bold" title="Code findings map">MAP</div>
+          <div className="text-xs font-mono text-slate-500 mb-1 font-bold" title="Code findings map">MAP</div>
           <div className="relative w-full flex-1 min-h-[260px]">
             {flaggedLineNumbers.map((lineNo) => {
               const anns = annotationsByLine[lineNo] || [];

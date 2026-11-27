@@ -138,7 +138,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                 AI-Era Zero-Trust Threat Radar
               </h2>
-              <span className="text-[11px] font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-xs font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-bold">
                 Pillar v3.0 Defense
               </span>
             </div>
@@ -173,7 +173,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Boxes className={`w-4 h-4 ${isSupplyChainClean ? 'text-emerald-400' : 'text-rose-400'}`} />
                 <span className="text-xs font-bold text-white">Supply Chain</span>
               </div>
-              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isSupplyChainClean
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
@@ -186,7 +186,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {isSupplyChainClean ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> 0 Hallucinated Packages
@@ -211,7 +211,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Binary className={`w-4 h-4 ${isTrojanClean ? 'text-emerald-400' : 'text-rose-400'}`} />
                 <span className="text-xs font-bold text-white">Trojan Source</span>
               </div>
-              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isTrojanClean && data.canary_verified !== false
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
@@ -224,7 +224,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {!isTrojanClean ? (
               <span className="text-rose-400 font-bold">
                 🚨 {trojanFindings[0]?.rule_id}: Bidi/Unicode injection
@@ -257,7 +257,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <FileCode2 className={`w-4 h-4 ${isAIDefectsClean ? 'text-emerald-400' : 'text-amber-400'}`} />
                 <span className="text-xs font-bold text-white">AI Code Smells</span>
               </div>
-              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isAIDefectsClean
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
@@ -270,7 +270,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {isAIDefectsClean ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Concurrency & Contract Integrity
@@ -291,7 +291,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Scale className="w-4 h-4 text-indigo-400" />
                 <span className="text-xs font-bold text-white">Model Consensus</span>
               </div>
-              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-300 border-indigo-500/40">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-300 border-indigo-500/40">
                 {consensusAudit ? `${consensusAudit.agreement_score}% MATCH` : 'SINGLE ENGINE'}
               </span>
             </div>
@@ -302,7 +302,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] font-mono text-indigo-300 flex items-center justify-between">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-indigo-300 flex items-center justify-between">
             <span>Engine: {consensusAudit ? `Critic: ${consensusAudit.critic_verdict}` : (data.telemetry?.model_used || 'Gemini')}</span>
             <span className="text-emerald-400">✓ {consensusAudit ? 'INDEPENDENT' : 'PRIMARY'}</span>
           </div>

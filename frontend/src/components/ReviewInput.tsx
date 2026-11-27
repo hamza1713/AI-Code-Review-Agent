@@ -257,7 +257,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               <label htmlFor="review-diff" className="text-sm font-medium text-slate-300">Your code changes</label>
               {/* Presets */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-slate-500 font-medium">Quick Presets:</span>
+                <span className="text-xs text-slate-500 font-medium">Quick Presets:</span>
                 <button
                   type="button"
                   onClick={() => { setDiffContent(SAMPLE_SQLI_DIFF); setErrorMessage(null); }}
@@ -303,7 +303,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                 className="w-full bg-transparent p-3.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none resize-y leading-relaxed"
                 spellCheck={false}
               />
-              <div className="px-3.5 py-1.5 bg-slate-900/60 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <div className="px-3.5 py-1.5 bg-slate-900/60 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
                 <span>{diffContent ? `${diffContent.split('\n').length} lines • ${new Blob([diffContent]).size} bytes` : '0 lines'}</span>
                 <span>Supports standard unified git diff format</span>
               </div>
@@ -320,7 +320,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                   <Sparkles className="w-4 h-4 text-amber-400" />
                   <span>Review Public or Private GitHub Pull Request</span>
                 </span>
-                <span className="text-[11px] font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                <span className="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
                   Live GitHub Ingestion
                 </span>
               </div>
@@ -352,18 +352,18 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
 
               {/* Sample PR Presets */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-[11px] text-slate-500 font-medium">Quick Presets:</span>
+                <span className="text-xs text-slate-500 font-medium">Quick Presets:</span>
                 <button
                   type="button"
                   onClick={() => setPrUrl('https://github.com/octocat/Hello-World/pull/1')}
-                  className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                  className="text-xs font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
                 >
                   octocat/Hello-World#1
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrUrl('https://github.com/psf/requests/pull/6000')}
-                  className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                  className="text-xs font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
                 >
                   psf/requests#6000
                 </button>
@@ -471,7 +471,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Review code</span>
-            <kbd aria-hidden="true" className="hidden sm:inline-block text-[11px] font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
+            <kbd aria-hidden="true" className="hidden sm:inline-block text-xs font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

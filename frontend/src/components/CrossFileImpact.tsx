@@ -140,7 +140,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
               <h3 className="text-xs font-bold text-white tracking-tight uppercase">
                 Cross-File Blast Radius & Taint Flow
               </h3>
-              <span className={`text-[11px] uppercase font-mono font-bold px-1.5 py-0.5 rounded-full border ${
+              <span className={`text-xs uppercase font-mono font-bold px-1.5 py-0.5 rounded-full border ${
                 impact.is_python
                   ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -148,7 +148,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                 {impact.is_python ? 'Polyglot AST' : 'Syntactic Graph'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-xs text-slate-400">
               Inter-procedural call chains & dataflow impact ({allCallers.length} caller(s) affected)
             </p>
           </div>
@@ -317,9 +317,9 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                     />
                     <text
                       x={12}
-                      y={18}
+                      y={16}
                       fill={isModified ? '#a5f3fc' : '#c7d2fe'}
-                      fontSize={10}
+                      fontSize={12}
                       fontWeight="bold"
                       fontFamily="monospace"
                     >
@@ -327,9 +327,9 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                     </text>
                     <text
                       x={12}
-                      y={31}
+                      y={33}
                       fill="#ffffff"
-                      fontSize={11}
+                      fontSize={12}
                       fontFamily="monospace"
                       fontWeight="600"
                     >
@@ -342,7 +342,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
           </div>
 
           {/* Canvas Footer Legend */}
-          <div className="p-2.5 bg-canvas border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] text-slate-400 font-mono">
+          <div className="p-2.5 bg-canvas border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 font-mono">
             <div className="flex items-center space-x-3">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -414,12 +414,12 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
 
                   <div className="pl-3 space-y-1 border-l border-slate-800">
                     {callers.length === 0 ? (
-                      <span className="text-[11px] text-slate-500 italic">No external callers identified.</span>
+                      <span className="text-xs text-slate-500 italic">No external callers identified.</span>
                     ) : (
                       callers.map((caller, cIdx) => (
                         <div
                           key={cIdx}
-                          className="flex items-center gap-1.5 text-[11px] font-mono text-slate-300 bg-canvas px-2 py-0.5 rounded border border-slate-800/60"
+                          className="flex items-center gap-1.5 text-xs font-mono text-slate-300 bg-canvas px-2 py-0.5 rounded border border-slate-800/60"
                         >
                           <CornerDownRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
                           <span>{caller}</span>

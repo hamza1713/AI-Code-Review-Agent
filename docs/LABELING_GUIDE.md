@@ -12,6 +12,10 @@ This guide lets two people produce the human labels needed to publish precision,
 
 Held-out cases (100) are never shown in the workbench. Label them in a separate, offline workspace after the development numbers are frozen.
 
+## Where labeling runs
+
+Run labeling from a **source checkout** (`uv run review-server`). Production Docker images include only `src/`, not the evaluation corpus, so the Labeling view says it is unavailable there. This is deliberate: it keeps labels in a development workspace, third-party PR snapshots out of shipped images, and the image small. To point a server at a corpus elsewhere, set `REVIEW_EVAL_CORPUS` (folder with `inputs.json`) and `REVIEW_EVAL_PREDICTIONS` (prediction capture JSON).
+
 ## Workflow
 
 1. Start the server (`uv run review-server`) and open the **Labeling** view in the workbench.

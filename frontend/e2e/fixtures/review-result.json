@@ -1,0 +1,319 @@
+{
+ "tenant_id": "default",
+ "zdr_attestation": {
+  "zero_data_retention": false,
+  "quarantine_type": "TEMPDIR_SHREDDED",
+  "quarantine_dir": "\\tmp\\quarantine",
+  "provider": "gemini",
+  "provider_retention_policy": "EXTERNAL_PROVIDER_PER_ACCOUNT_TERMS",
+  "attestation_timestamp": "2026-11-27T09:42:04Z",
+  "tenant_id": "default"
+ },
+ "reviewer_profile": {
+  "schema_version": 1,
+  "application_commit": "unreleased-working-tree",
+  "model": "gemini/gemini-3.8-flash",
+  "generation_settings": {
+   "max_tokens": 4096,
+   "temperature": null
+  },
+  "prompt_hashes": {
+   "agents.yaml": "072a97c2f0897da7114d19650057c43186156f7f17363b7e8b56081a3d3b6025",
+   "tasks.yaml": "45e35a3c226170b2b5a072d4b34f4121e4f13b386588b220dfadff4623748538",
+   "flow": "4b44dd44ae0fb17538fd0e14b94338099d3d4e87679237a5353de8314705c5db"
+  },
+  "scanner_versions": {
+   "bandit": "1.9.4",
+   "ruff": "0.16.9",
+   "semgrep": "UNAVAILABLE",
+   "pydantic": "2.12.5"
+  },
+  "configuration": {
+   "python_runtime": "3.12.5",
+   "pricing_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+   "expected_provider_model": "gemini-3.8-flash",
+   "ollama_model_digest": null,
+   "source_tree_sha256": "42c1c71d0ccbdebe9039b45b1ccc104f6dc7c199a6d4ffa0abe0888494eba744",
+   "rules_sha256": "NONE",
+   "team_memory_sha256": "a74b8c905b472e0304bb5d41e1cecb3776f1ddba4ee95b51a9952faa863bb704",
+   "rag_enabled": "false",
+   "rag_model": "",
+   "rag_embedder": "hashing",
+   "rag_dimension": "512",
+   "rag_extra_roots_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "ollama_endpoint_sha256": "7866d63830422cd421667c95360eaf1d8819f6f603bd2d479450e06cf01cb023",
+   "experimental_tests": "false",
+   "review_pipeline": "fixed-stages-v1",
+   "scanner_settings": "full-source-isolated-v1"
+  }
+ },
+ "reviewer_profile_id": "eaa1bc098bd06bdc179dba567eba587ab07549b9f6e6d3867abad454fdab323f",
+ "input_snapshot_hash": "662b912f356920fc2bfe2e4ff663076429ee2265af1f0284ffb96d47e941f241",
+ "file_coverage": [
+  {
+   "path": "app/legacy/auth_manager.py",
+   "status": "MISSING",
+   "reason": "Full source unavailable",
+   "sha256": null
+  }
+ ],
+ "findings": [
+  {
+   "rule_id": "SEC-SQLI-001",
+   "cwe": "CWE-89",
+   "category": "SECURITY",
+   "name": "SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m",
+   "description": "SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m",
+   "severity": "CRITICAL",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 12,
+   "snippet": "query = f\"SELECT * FROM users WHERE username = '{username}'\"",
+   "fix_recommendation": "Use parameterized queries or prepared statements: `db.query('SELECT * FROM users WHERE username = %s', (username,))`",
+   "analyzer_source": "default-no-print,regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "WITHHELD",
+   "publication_reasons": [
+    "INCOMPLETE_ANALYSIS",
+    "UNGROUNDED_EVIDENCE"
+   ],
+   "blocking": true,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {
+    "sources": [
+     "default-no-print",
+     "regex"
+    ]
+   },
+   "fingerprint": "6dd65204314d0dc1",
+   "lifecycle_status": "NEW"
+  },
+  {
+   "rule_id": "SEC-AUTH-001",
+   "cwe": "CWE-256",
+   "category": "SECURITY",
+   "name": "Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic",
+   "description": "Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic",
+   "severity": "HIGH",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 19,
+   "snippet": "if user and user.password == password:",
+   "fix_recommendation": "Use a password hashing library: `bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))`",
+   "analyzer_source": "regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "WITHHELD",
+   "publication_reasons": [
+    "INCOMPLETE_ANALYSIS"
+   ],
+   "blocking": true,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {
+    "sources": [
+     "regex"
+    ]
+   },
+   "fingerprint": "9f6cd930c22bfe82",
+   "lifecycle_status": "NEW"
+  }
+ ],
+ "reconciled_findings": [
+  {
+   "rule_id": "SEC-SQLI-001",
+   "cwe": "CWE-89",
+   "category": "SECURITY",
+   "name": "SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m",
+   "description": "SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m",
+   "severity": "CRITICAL",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 12,
+   "snippet": "query = f\"SELECT * FROM users WHERE username = '{username}'\"",
+   "fix_recommendation": "Use parameterized queries or prepared statements: `db.query('SELECT * FROM users WHERE username = %s', (username,))`",
+   "analyzer_source": "default-no-print,regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "WITHHELD",
+   "publication_reasons": [
+    "INCOMPLETE_ANALYSIS",
+    "UNGROUNDED_EVIDENCE"
+   ],
+   "blocking": true,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {
+    "sources": [
+     "default-no-print",
+     "regex"
+    ]
+   },
+   "fingerprint": "6dd65204314d0dc1",
+   "lifecycle_status": "NEW"
+  },
+  {
+   "rule_id": "SEC-AUTH-001",
+   "cwe": "CWE-256",
+   "category": "SECURITY",
+   "name": "Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic",
+   "description": "Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic",
+   "severity": "HIGH",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 19,
+   "snippet": "if user and user.password == password:",
+   "fix_recommendation": "Use a password hashing library: `bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))`",
+   "analyzer_source": "regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "WITHHELD",
+   "publication_reasons": [
+    "INCOMPLETE_ANALYSIS"
+   ],
+   "blocking": true,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {
+    "sources": [
+     "regex"
+    ]
+   },
+   "fingerprint": "9f6cd930c22bfe82",
+   "lifecycle_status": "NEW"
+  }
+ ],
+ "analysis_complete": false,
+ "analyzer_status": {
+  "source_coverage": "FAILED",
+  "ast_error": "ValueError",
+  "ast": "FAILED",
+  "patterns": "COMPLETED_HEURISTIC",
+  "supply_chain": "COMPLETED",
+  "ai_code_defects": "COMPLETED",
+  "trojan_source": "COMPLETED",
+  "bandit_error": "ValueError",
+  "bandit": "FAILED",
+  "ruff_error": "ValueError",
+  "ruff": "FAILED",
+  "semgrep": "SKIPPED_OPTIONAL_UNAVAILABLE",
+  "static_analysis": "FAILED",
+  "governance": "COMPLETED",
+  "review": "SKIPPED_COMPARISON_DETERMINISTIC",
+  "sandbox": "SKIPPED_DISABLED",
+  "self_healing": "SKIPPED_DISABLED",
+  "synthesis": "COMPLETED",
+  "adversarial_verifier": "SKIPPED_DISABLED",
+  "output_invariants": "COMPLETED",
+  "response_invariants": "COMPLETED",
+  "finding_policy": "COMPLETED"
+ },
+ "analyzed_commit": null,
+ "verdict": "ESCALATE",
+ "confidence_score": 0,
+ "summary": "Deterministic scanner comparison; no model call.",
+ "full_report": "**INCOMPLETE ANALYSIS \u2014 manual review required.**\n\n# Pull Request Review Report\n\n## Incomplete analysis \u2014 rerun required\n\n## \ud83e\uddee Reconciled Findings (final synthesis)\n\n**Verdict**: ESCALATE  \u00b7  **Quality Score**: 40/100  \u00b7  **Findings**: 2  \u00b7  **Worst severity**: CRITICAL\n\n*Score*: `Ceiling 65 (worst: CRITICAL) -15.0 (1x CRITICAL) -10.0 (1x HIGH) = 40`\n\n### \ud83d\udeab Blocking\n- CRITICAL CWE-89 in app/legacy/auth_manager.py:L12 \u2014 SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m\n\n| # | Severity | CWE | Location | Defect | Sources |\n| :-- | :-- | :-- | :-- | :-- | :-- |\n| 1 | \ud83d\udd34 CRITICAL | CWE-89 | `app/legacy/auth_manager.py:L12` | SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows m | default-no-print, regex |\n| 2 | \ud83d\udfe0 HIGH | CWE-256 | `app/legacy/auth_manager.py:L19` | Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic | regex |\n\n### \ud83e\uddea Empirical Test Evidence \u2014 \u26aa HEURISTIC\n> No generated test was executed for these findings (static-analysis signal only).\n\n> \u2139\ufe0f Coverage & limitations: this pipeline combines pattern/Bandit-based static analysis with an AST call-graph \u2014 it has no dataflow/taint tracking. It reliably flags direct, single-site sinks (raw SQL, os.system/eval, pickle, weak hashes, hardcoded secrets) while complex cross-statement state mutations, concurrency, and algorithmic performance traps are surfaced via multi-agent review (findings sourced from 'llm-crew' reflect synthesized expert advisory analysis) and verified where possible through sandbox testing. Absence of a finding here is not proof of safety \u2014 treat this as one layer, not a full audit.\n\n---\n\n## \ud83e\udde0 Agent Analysis (advisory)\n\n**Final Decision**: ESCALATE\n\n**Agent confidence (advisory)**: 0/100\n\n### Executive Summary\nDeterministic scanner comparison; no model call.\n\n### Required Action Items\n- No critical actions required.\n",
+ "pattern_findings_label": "Static scanner candidates (heuristic evidence; see analyzer_status)",
+ "pattern_findings": [
+  {
+   "rule_id": "SEC-SQLI-001",
+   "cwe": "CWE-89",
+   "category": "SECURITY",
+   "name": "",
+   "description": "SQL Query String Interpolation: Formatted string (f-string) interpolation used directly in SQL query execution. Allows manipulation of SQL syntax.",
+   "severity": "CRITICAL",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 15,
+   "snippet": "query = f\"SELECT * FROM users WHERE username = '{username}'\"",
+   "fix_recommendation": "Use parameterized queries or prepared statements: `db.query('SELECT * FROM users WHERE username = %s', (username,))`",
+   "analyzer_source": "regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "UNPUBLISHED",
+   "publication_reasons": [],
+   "blocking": false,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {},
+   "fingerprint": "6dd65204314d0dc1",
+   "lifecycle_status": "NEW"
+  },
+  {
+   "rule_id": "SEC-AUTH-001",
+   "cwe": "CWE-256",
+   "category": "SECURITY",
+   "name": "",
+   "description": "Plain-Text Password Comparison: Comparing passwords directly in plain text. Passwords must be verified via cryptographic hashes.",
+   "severity": "HIGH",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 19,
+   "snippet": "if user and user.password == password:",
+   "fix_recommendation": "Use a password hashing library: `bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))`",
+   "analyzer_source": "regex",
+   "finding_id": null,
+   "pr_id": null,
+   "publication_status": "UNPUBLISHED",
+   "publication_reasons": [],
+   "blocking": false,
+   "evidence_grade": "HEURISTIC",
+   "evidence_provenance": {},
+   "fingerprint": "9f6cd930c22bfe82",
+   "lifecycle_status": "NEW"
+  }
+ ],
+ "governance_violations": [
+  {
+   "rule_id": "default-no-print",
+   "rule_name": "Prohibit print() statements in production",
+   "severity": "WARNING",
+   "file_path": "app/legacy/auth_manager.py",
+   "line_number": 12,
+   "description": "Direct stdout logging should be replaced with structured logger.",
+   "suggested_fix": "Use logger.info(...) or logger.debug(...)",
+   "snippet": "print(f\"Authenticating user {username}\")",
+   "fingerprint": "24189bb898333e29"
+  }
+ ],
+ "cross_file_impact": {
+  "available": true,
+  "is_python": true,
+  "message": "No cross-file caller dependencies detected in repository index.",
+  "impacted_callers": {}
+ },
+ "ticket_compliance": null,
+ "generated_unit_tests": "\"\"\"\nAutomated Pytest Unit & Regression Test Suite for `app.legacy.auth_manager`.\nGenerated via AST signature analysis by AI Code Review Agent.\n\"\"\"\n\nimport pytest\nfrom unittest.mock import MagicMock, patch\n\ntry:\n    from app.legacy.auth_manager import authenticate\nexcept (ImportError, ModuleNotFoundError):\n    # Fallback to local module name if full path is not in sys.path\n    try:\n        from auth_manager import authenticate\n    except (ImportError, ModuleNotFoundError):\n        # Define resilient stubs so test runner can still introspect signatures\n        authenticate = lambda *args, **kwargs: True\n\nclass TestAuthenticate:\n    \"\"\"Test suite for `authenticate` covering happy path, edge cases, and mocks.\"\"\"\n\n    @pytest.fixture\n    def mock_db(self):\n        \"\"\"Mock fixture for `db` dependency.\"\"\"\n        mock_obj = MagicMock()\n        return mock_obj\n\n    def test_authenticate_happy_path(self, mock_db):\n        \"\"\"Verify `authenticate` executes successfully with valid parameters.\"\"\"\n        # Act\n        result = authenticate(mock_db, \"test_username\", \"password_val\")\n        # Assert\n        assert result is not None\n\n    def test_authenticate_boundary_edge_cases(self, mock_db):\n        \"\"\"Verify `authenticate` handles boundary or empty input appropriately.\"\"\"\n        # Act & Assert with boundary values: mock_db, \"\", None\n        try:\n            result = authenticate(mock_db, \"\", None)\n        except (ValueError, TypeError, KeyError) as exc:\n            # Boundary rejection is an acceptable defensive pattern\n            assert str(exc) != ''\n\n    def test_authenticate_none_rejection(self, mock_db):\n        \"\"\"Defensive check: verify `authenticate` behavior when `db` is None.\"\"\"\n        with pytest.raises((TypeError, ValueError, AttributeError, Exception)):\n            authenticate(None, \"test_username\", \"password_val\")\n",
+ "test_execution": null,
+ "inline_comments": [],
+ "telemetry": {
+  "duration_seconds": 2.203,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "total_tokens": 0,
+  "estimated_cost_usd": null,
+  "token_usage_source": "UNAVAILABLE",
+  "cost_source": "UNAVAILABLE",
+  "pricing_as_of": null,
+  "model_used": "gemini/gemini-3.8-flash",
+  "sast_findings_count": 2,
+  "rule_violations_count": 1,
+  "inline_comments_count": 3,
+  "final_verdict": "**INCOMPLETE ANALYSIS \u2014 manual"
+ },
+ "trace": {
+  "trace_id": "web_review_bfc50a95067745348bc6779e29da11a9",
+  "started_at": 1795772522.1591763,
+  "duration_ms": 2218.9999999827705,
+  "nodes": [
+   {
+    "id": "review",
+    "title": "Review analysis",
+    "stage": "REVIEW",
+    "status": "COMPLETED",
+    "started_at": 1795772522.1591763,
+    "ended_at": 1795772524.3724926,
+    "duration_ms": 2218.9999999827705,
+    "details": {
+     "timing_scope": "End-to-end analysis; individual stages are not instrumented."
+    },
+    "children": []
+   }
+  ]
+ },
+ "reviewed_diff": "diff --git a/app/legacy/auth_manager.py b/app/legacy/auth_manager.py\nindex fffffff..0000000 100644\n--- a/app/legacy/auth_manager.py\n+++ b/app/legacy/auth_manager.py\n@@ -10,12 +10,22 @@ class AuthManager:\n     def authenticate(self, db, username, password):\n+        # Issue 1: Debug print statement\n+        print(f\"Authenticating user {username}\")\n+        \n+        # Issue 2: Raw SQL Injection\n+        query = f\"SELECT * FROM users WHERE username = '{username}'\"\n+        user = db.execute(query).fetchone()\n+        \n+        # Issue 3: Plaintext password compare\n+        if user and user.password == password:\n+            return True\n+        return False\n",
+ "ai_threat_audit": null,
+ "canary_verified": null,
+ "scope_note": "Scope Note: Review performed via heuristic regex pattern scanning, AST Code Graph indexer (Python only), and governance rules engine. Not a full dataflow SAST or formal verification engine."
+}

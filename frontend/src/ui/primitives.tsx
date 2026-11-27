@@ -109,7 +109,7 @@ export function SeverityPill({ severity, className }: { severity: string; classN
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold tracking-wide',
+        'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold tracking-wide',
         SEVERITY_STYLES[key] ?? SEVERITY_STYLES.INFO,
         className,
       )}

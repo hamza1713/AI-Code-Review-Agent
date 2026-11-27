@@ -125,7 +125,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-bold text-white tracking-tight uppercase">Security Pattern Findings</h3>
-              <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              <span className={`text-xs px-1.5 py-0.2 rounded-full font-mono font-bold ${
                 findings.length > 0
                   ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -133,7 +133,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                 {findings.length}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">{label}</p>
+            <p className="text-xs text-slate-400">{label}</p>
           </div>
         </div>
 
@@ -146,7 +146,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                 key={sev}
                 aria-pressed={selectedSeverity === sev}
                 onClick={() => setSelectedSeverity(sev)}
-                className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                className={`px-1.5 py-0.5 rounded text-xs font-semibold transition-all ${
                   selectedSeverity === sev
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -177,19 +177,19 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
               {/* Finding Top Bar */}
               <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(item.severity)}`}>
+                  <span className={`text-xs uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(item.severity)}`}>
                     {item.severity}
                   </span>
                   <span className="font-mono font-semibold text-slate-200 text-xs">
                     {item.rule_id}
                   </span>
                   {item.cwe && (
-                    <span className="text-[11px] font-mono px-1 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50">
+                    <span className="text-xs font-mono px-1 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50">
                       {item.cwe}
                     </span>
                   )}
                   {item.lifecycle_status && (
-                    <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                    <span className={`text-xs font-mono font-bold px-1.5 py-0.2 rounded border ${
                       item.lifecycle_status === 'SUPPRESSED'
                         ? 'bg-slate-800/80 text-slate-400 border-slate-700'
                         : item.lifecycle_status === 'RESOLVED'
@@ -207,7 +207,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                   {item.fingerprint && (
                     <button
                       onClick={() => handleCopySuppress(item.fingerprint!)}
-                      className="text-[11px] font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-xs font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
                       title="Click to copy /review suppress command"
                     >
                       <span>fp:{item.fingerprint.slice(0, 8)}</span>
@@ -218,7 +218,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                       )}
                     </button>
                   )}
-                  <div className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                  <div className="text-xs font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
                     {item.file_path}:L{item.line_number}
                   </div>
                 </div>
@@ -232,7 +232,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
               {/* Snippet */}
               {item.snippet && (
                 <div className="rounded bg-canvas border border-slate-800/80 p-2 overflow-x-auto">
-                  <pre className="text-[11px] font-mono text-rose-300 leading-tight">
+                  <pre className="text-xs font-mono text-rose-300 leading-tight">
                     <code>{item.snippet}</code>
                   </pre>
                 </div>
@@ -242,14 +242,14 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
               {item.fix_recommendation && (
                 <div className="bg-emerald-950/20 border border-emerald-500/20 rounded p-2 text-xs">
                   <div className="flex items-center justify-between gap-2 text-emerald-400 font-semibold mb-0.5">
-                    <span className="text-[11px] flex items-center gap-1">
+                    <span className="text-xs flex items-center gap-1">
                       💡 Suggested Fix:
                     </span>
                     <div className="flex items-center gap-1.5">
                       {item.fingerprint && (
                         <button
                           onClick={() => handleCopyApply(item.fingerprint!)}
-                          className="text-[11px] text-amber-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/40 hover:bg-amber-900/70 border border-amber-500/30 transition-colors cursor-pointer"
+                          className="text-xs text-amber-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/40 hover:bg-amber-900/70 border border-amber-500/30 transition-colors cursor-pointer"
                           title="Copy /review apply command to auto-remediate on PR branch"
                         >
                           <Zap className="w-2.5 h-2.5 text-amber-400" />
@@ -258,7 +258,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                       )}
                       <button
                         onClick={() => handleCopyFix(item.fix_recommendation, idx)}
-                        className="text-[11px] text-emerald-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/40 hover:bg-emerald-900/70 transition-colors cursor-pointer"
+                        className="text-xs text-emerald-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/40 hover:bg-emerald-900/70 transition-colors cursor-pointer"
                       >
                         {copiedIndex === idx ? (
                           <>
@@ -274,7 +274,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({ findings, label, rep
                       </button>
                     </div>
                   </div>
-                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                  <p className="text-slate-300 text-xs leading-relaxed">
                     {item.fix_recommendation}
                   </p>
                 </div>

@@ -108,7 +108,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
           ]}
         />
 
-        <div className="text-[11px] text-slate-400 font-mono px-2">
+        <div className="text-xs text-slate-400 font-mono px-2">
           {securityCount} findings • {govCount} violations • {inlineCount} inline suggestions
         </div>
       </div>

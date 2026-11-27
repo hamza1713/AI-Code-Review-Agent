@@ -285,6 +285,30 @@ The centerpiece of the code review experience: suspicious lines are highlighted 
 
 ---
 
+### 6. Light Theme, Calibration & Human Labeling
+
+The workbench follows the OS light or dark setting, and the navbar toggle overrides it.
+
+<p align="center">
+  <img src="docs/images/06_workspace_light.png" alt="Workspace in the light theme" width="900" />
+</p>
+
+**Calibration** shows how often developers accept findings, which rules are noisy (and on probation), and how long reviews take. *Screenshot uses sample data.*
+
+<p align="center">
+  <img src="docs/images/07_calibration.png" alt="Calibration view with acceptance rate, latency and per-rule false-positive table" width="900" />
+</p>
+
+**Labeling** lets two reviewers label real pull requests blind, with a third person settling disagreements, so precision and false-alarm rates can be published with confidence intervals.
+
+<p align="center">
+  <img src="docs/images/08_labeling.png" alt="Labeling workbench with a real corpus diff" width="900" />
+</p>
+
+> Screenshots are regenerated with `CAPTURE_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts --project=desktop` (from `frontend/`). The review shown is a real deterministic run of `samples/benchmarks/complex_multi_issue.diff`.
+
+---
+
 ### Workbench Views & Controls Summary
 
 | View / Tab | What it shows |
@@ -300,7 +324,7 @@ The centerpiece of the code review experience: suspicious lines are highlighted 
 | **Generated Pytest** | Automatically synthesized regression test suite and execution status |
 | **Job queue** (`#/jobs`) | Durable jobs, cancel, saved results, webhook configuration |
 | **Calibration** (`#/calibration`) | Acceptance rate, FP rate, p50/p95 latency, per-rule FP table with probation badges, feedback and audit forms |
-| **Labeling** (`#/labeling`) | Blind two-reviewer labeling of the development PR corpus, adjudication, agreement (κ) and scored quality with 95% intervals |
+| **Labeling** (`#/labeling`) | Blind two-reviewer labeling of the development PR corpus, adjudication, agreement (κ) and scored quality with 95% intervals. Source checkouts only; production images leave the corpus out |
 
 The workbench follows the OS light or dark setting, and the navbar toggle overrides it per browser. Views live in the URL hash, so back, forward and reload keep your place. Review sections use an ARIA tablist (arrow keys, Home and End).
 | **Jobs** | Durable SQLite queue monitor (status, cancel, results) |

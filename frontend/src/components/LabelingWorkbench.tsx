@@ -175,7 +175,7 @@ export function LabelingWorkbench() {
   const labeledAt = new Set(findings.map(f => `${f.file_path}:${f.line_number}`));
 
   if (unavailable) {
-    return <EmptyState title="Labeling is not available on this server" icon={<ClipboardCheck size={28} />}>{unavailable}</EmptyState>;
+    return <EmptyState title="Labeling is not available on this server" icon={<ClipboardCheck size={28} />}>{unavailable}<p className="mt-2">Labeling is a development step: production images do not ship the evaluation corpus.</p></EmptyState>;
   }
   if (!listing) return <p className="p-8 text-sm text-ink-muted">Loading the evaluation corpus…</p>;
 
@@ -241,7 +241,7 @@ export function LabelingWorkbench() {
             className={clsx('flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm',
               row.id === caseId ? 'bg-indigo-500/15 text-ink' : 'text-ink-muted hover:bg-raised hover:text-ink')}>
             <span className="font-mono text-xs">{row.id}</span>
-            <span className={clsx('rounded border px-1.5 py-0.5 text-[11px] font-medium', STATUS_STYLE[statusFor(row)] ?? STATUS_STYLE.UNREVIEWED)}>
+            <span className={clsx('rounded border px-1.5 py-0.5 text-xs font-medium', STATUS_STYLE[statusFor(row)] ?? STATUS_STYLE.UNREVIEWED)}>
               {statusFor(row).replace('_', ' ').toLowerCase()}
             </span>
           </button>
@@ -289,7 +289,7 @@ export function LabelingWorkbench() {
                 </button>
                 <span className="w-5 shrink-0 text-center text-ink-muted">{line.kind === 'add' ? '+' : line.kind === 'del' ? '-' : ' '}</span>
                 <span className="whitespace-pre pr-4 text-ink">{line.text}</span>
-                {predicted && <span className="ml-auto shrink-0 self-center pr-3 text-[11px] text-amber-300">tool: {predicted.join(', ')}</span>}
+                {predicted && <span className="ml-auto shrink-0 self-center pr-3 text-xs text-amber-300">tool: {predicted.join(', ')}</span>}
               </div>;
             })}
           </div>

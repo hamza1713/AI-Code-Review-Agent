@@ -139,3 +139,12 @@ def test_eval_api_never_serves_held_out(corpus_copy):
         assert client.get(f"/api/eval/cases/{held_out}").status_code == 404
         ids = {c["id"] for c in client.get("/api/eval/cases").json()["cases"]}
     assert held_out not in ids
+
+
+def test_eval_api_explains_missing_corpus(tmp_path, monkeypatch):
+    monkeypatch.setenv("REVIEW_EVAL_CORPUS", str(tmp_path / "absent"))
+    monkeypatch.setenv("QUEUE_DB_PATH", str(tmp_path / "q.db"))
+    with TestClient(app) as client:
+        response = client.get("/api/eval/cases")
+    assert response.status_code == 404
+    assert "source checkout" in response.json()["detail"]

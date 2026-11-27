@@ -557,7 +557,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
             {scoreBreakdown && (
               <button
                 onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
-                className="mt-2 flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                className="mt-2 flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
               >
                 <Info className="w-3 h-3" />
                 <span>{showScoreBreakdown ? 'Hide calculation' : 'View formula breakdown'}</span>
@@ -570,7 +570,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
         <div className="p-4 rounded-xl border border-slate-800 bg-canvas flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Evidence</span>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
               {testEvidence.badge}
             </span>
           </div>
@@ -589,22 +589,22 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
           </div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             {severityCounts.CRITICAL > 0 && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
                 {severityCounts.CRITICAL} Critical
               </span>
             )}
             {severityCounts.HIGH > 0 && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
                 {severityCounts.HIGH} High
               </span>
             )}
             {severityCounts.MEDIUM > 0 && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                 {severityCounts.MEDIUM} Med
               </span>
             )}
             {severityCounts.LOW > 0 && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
                 {severityCounts.LOW} Low
               </span>
             )}
@@ -632,7 +632,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
               <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wide">
                 <OctagonAlert className="w-4 h-4 shrink-0" />
                 <span>Blocking Violations (Must Resolve Before Merge)</span>
-                <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 text-[11px] border border-rose-800">
+                <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 text-xs border border-rose-800">
                   {blockingReasons.length}
                 </span>
               </div>
@@ -684,7 +684,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                     }`}
                   >
                     <span>{sev === 'ALL' ? 'All' : sev.charAt(0) + sev.slice(1).toLowerCase()}</span>
-                    <span className="text-[11px] px-1.5 py-0.2 rounded bg-black/30 font-mono">
+                    <span className="text-xs px-1.5 py-0.2 rounded bg-black/30 font-mono">
                       {count}
                     </span>
                   </button>
@@ -766,11 +766,11 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-slate-400 font-bold">#{f.index}</span>
-                        <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded border ${sevBadge}`}>
+                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded border ${sevBadge}`}>
                           {f.severity}
                         </span>
                         {f.cwe && (
-                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 text-indigo-300 border border-indigo-900/60 font-semibold">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-indigo-300 border border-indigo-900/60 font-semibold">
                             {f.cwe}
                           </span>
                         )}
@@ -778,7 +778,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                           {f.location}
                         </span>
                         {f.isBlocking && (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-1">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-1">
                             <OctagonAlert className="w-3 h-3" />
                             Blocking
                           </span>
@@ -791,7 +791,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                           {f.sources.map(src => (
                             <span
                               key={src}
-                              className="text-[11px] uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 font-mono"
+                              className="text-xs uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 font-mono"
                             >
                               {src}
                             </span>
@@ -823,7 +823,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                         {/* Snippet preview if available */}
                         {f.snippet && (
                           <div className="space-y-1">
-                            <div className="text-[11px] font-mono uppercase text-slate-400 flex items-center gap-1">
+                            <div className="text-xs font-mono uppercase text-slate-400 flex items-center gap-1">
                               <Code2 className="w-3 h-3" />
                               <span>Code Context:</span>
                             </div>
@@ -843,7 +843,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                               </div>
                               <button
                                 onClick={() => handleCopyFix(f.id, f.fixRecommendation!)}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-900/40 hover:bg-indigo-900/70 text-indigo-300 text-[11px] font-semibold border border-indigo-700/50 transition-colors cursor-pointer"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-900/40 hover:bg-indigo-900/70 text-indigo-300 text-xs font-semibold border border-indigo-700/50 transition-colors cursor-pointer"
                               >
                                 {copiedFixId === f.id ? (
                                   <>

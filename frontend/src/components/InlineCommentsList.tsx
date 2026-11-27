@@ -58,7 +58,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-bold text-white tracking-tight uppercase">Line-Level Inline Suggestions</h3>
-              <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              <span className={`text-xs px-1.5 py-0.2 rounded-full font-mono font-bold ${
                 comments.length > 0
                   ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -66,7 +66,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
                 {comments.length}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">GitHub 1-click suggestion diff blocks</p>
+            <p className="text-xs text-slate-400">GitHub 1-click suggestion diff blocks</p>
           </div>
         </div>
       </div>
@@ -88,11 +88,11 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
             >
               <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(comment.severity)}`}>
+                  <span className={`text-xs uppercase font-mono font-bold px-1.5 py-0.5 rounded border ${getSeverityBadge(comment.severity)}`}>
                     {comment.severity || 'SUGGESTION'}
                   </span>
                   {comment.lifecycle_status && (
-                    <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                    <span className={`text-xs font-mono font-bold px-1.5 py-0.2 rounded border ${
                       comment.lifecycle_status === 'SUPPRESSED'
                         ? 'bg-slate-800/80 text-slate-400 border-slate-700'
                         : comment.lifecycle_status === 'RESOLVED'
@@ -110,7 +110,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
                   {comment.fingerprint && (
                     <button
                       onClick={() => handleCopySuppress(comment.fingerprint!)}
-                      className="text-[11px] font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-xs font-mono text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
                       title="Click to copy /review suppress command"
                     >
                       <span>fp:{comment.fingerprint.slice(0, 8)}</span>
@@ -121,7 +121,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
                       )}
                     </button>
                   )}
-                  <div className="text-[11px] font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                  <div className="text-xs font-mono text-indigo-300 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
                     {comment.path}:L{comment.line} ({comment.side || 'RIGHT'})
                   </div>
                 </div>
@@ -134,13 +134,13 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
               {comment.suggestion_code && (
                 <div className="rounded-lg bg-canvas border border-slate-800/80 overflow-hidden">
                   <div className="px-2.5 py-1 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                    <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
                       <GitCommit className="w-2.5 h-2.5 text-indigo-400" />
                       1-Click Suggestion Diff
                     </span>
                     <button
                       onClick={() => handleCopySuggestion(comment.suggestion_code || '', idx)}
-                      className="text-[11px] text-slate-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                      className="text-xs text-slate-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
                       title="Copy suggestion code"
                     >
                       {copiedIndex === idx ? (
@@ -156,7 +156,7 @@ export const InlineCommentsList: React.FC<InlineCommentsListProps> = ({ comments
                       )}
                     </button>
                   </div>
-                  <pre className="p-2.5 text-[11px] font-mono text-emerald-300 bg-emerald-950/10 overflow-x-auto leading-relaxed max-h-[160px]">
+                  <pre className="p-2.5 text-xs font-mono text-emerald-300 bg-emerald-950/10 overflow-x-auto leading-relaxed max-h-[160px]">
                     <code>{comment.suggestion_code.trim()}</code>
                   </pre>
                 </div>

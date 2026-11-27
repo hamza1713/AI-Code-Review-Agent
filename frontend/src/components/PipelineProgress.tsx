@@ -79,7 +79,7 @@ export function PipelineProgress({ currentStage, stageProgress }: PipelineProgre
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
             <Loader2 size={32} className="animate-spin text-indigo-400" />
           </div>
-          <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-[11px] text-black font-bold px-1.5 py-0.5 rounded-full border border-black flex items-center gap-0.5">
+          <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-xs text-black font-bold px-1.5 py-0.5 rounded-full border border-black flex items-center gap-0.5">
             <Lock size={10} />
             <span>v3.0</span>
           </div>
@@ -165,7 +165,7 @@ export function PipelineProgress({ currentStage, stageProgress }: PipelineProgre
               }`}>
                 {step.label}
               </span>
-              <span className="text-[11px] font-mono mt-1 uppercase">
+              <span className="text-xs font-mono mt-1 uppercase">
                 {status === 'active' ? '● In Progress' : status === 'completed' ? '✓ Passed' : 'Pending'}
               </span>
             </div>

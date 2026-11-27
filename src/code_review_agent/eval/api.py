@@ -34,7 +34,12 @@ def corpus_root() -> Path:
     default = Path(__file__).resolve().parents[3] / "samples" / "evaluation" / "public-pr-v2"
     root = Path(os.getenv("REVIEW_EVAL_CORPUS", str(default)))
     if not (root / "inputs.json").is_file():
-        raise HTTPException(404, "The evaluation corpus is not available on this server.")
+        raise HTTPException(
+            404,
+            "The evaluation corpus is not on this server. Production images leave it out "
+            "on purpose; run labeling from a source checkout with `uv run review-server`, "
+            "or set REVIEW_EVAL_CORPUS.",
+        )
     return root
 
 

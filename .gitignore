@@ -103,3 +103,6 @@ production-*.log
 
 # Agent teamwork scratch
 /.agents/
+
+# Local Claude Code / editor session config
+.claude/
