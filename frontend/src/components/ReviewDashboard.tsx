@@ -11,6 +11,9 @@ import { TelemetryCard } from './TelemetryCard';
 import { CompleteExecutiveReport } from './CompleteExecutiveReport';
 import { AnnotatedCodeViewer } from './AnnotatedCodeViewer';
 import { AIThreatRadar } from './AIThreatRadar';
+import { Tabs } from '../ui/Tabs';
+
+type DashboardTab = 'all' | 'radar' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests';
 
 interface ReviewDashboardProps {
   data: ReviewAPIResponse;
@@ -18,7 +21,7 @@ interface ReviewDashboardProps {
 }
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'radar' | 'annotated' | 'report' | 'security' | 'governance' | 'inline' | 'impact' | 'tests'>('all');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('all');
 
   const handleExportJSON = () => {
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -57,9 +60,9 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
             <span>Incomplete analysis — manual review required</span>
             {data.reviewer_profile?.model && <span className="text-slate-400 font-normal">({data.reviewer_profile.model})</span>}
           </div>
-          {data.reviewer_profile_id && <p className="text-[11px] text-slate-400 break-all font-mono">Reviewer: <code>{data.reviewer_profile_id}</code></p>}
+          {data.reviewer_profile_id && <p className="text-xs text-slate-400 break-all font-mono">Reviewer: <code>{data.reviewer_profile_id}</code></p>}
           {(data.file_coverage ?? []).filter(file => !['AVAILABLE', 'DELETED'].includes(file.status)).map(file => (
-            <p key={file.path} className="text-amber-300 font-mono text-[11px]">
+            <p key={file.path} className="text-amber-300 font-mono text-xs">
               <code>{file.path}</code>: {file.status.toLowerCase().replaceAll('_', ' ')}{file.reason ? ` — ${file.reason}` : ''}
             </p>
           ))}
@@ -86,123 +89,32 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       </section>
 
       {/* 2. Navigation Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#12151c] p-1.5 rounded-xl border border-slate-800/80">
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            aria-pressed={activeTab === 'all'} onClick={() => setActiveTab('all')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>Full Overview</span>
-          </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-surface p-1.5 rounded-xl border border-slate-800/80">
+        <Tabs
+          label="Review sections"
+          idPrefix="review"
+          active={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { id: 'all', label: 'Full overview', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+            { id: 'radar', label: 'AI threat radar', icon: <Lock className="w-3.5 h-3.5" /> },
+            { id: 'annotated', label: `Annotated code (${totalAnnotatedCount})`, icon: <Sparkles className="w-3.5 h-3.5" /> },
+            { id: 'report', label: 'Complete report', icon: <FileText className="w-3.5 h-3.5" /> },
+            { id: 'security', label: `Security (${securityCount})`, icon: <ShieldAlert className="w-3.5 h-3.5" /> },
+            { id: 'governance', label: `Governance (${govCount})`, icon: <FileCheck className="w-3.5 h-3.5" /> },
+            { id: 'inline', label: `Inline fixes (${inlineCount})`, icon: <MessageSquareCode className="w-3.5 h-3.5" /> },
+            { id: 'impact', label: 'Call graph', icon: <GitGraph className="w-3.5 h-3.5" /> },
+            { id: 'tests', label: 'Generated tests', icon: <TestTube2 className="w-3.5 h-3.5" /> },
+          ]}
+        />
 
-          <button
-            aria-pressed={activeTab === 'radar'} onClick={() => setActiveTab('radar')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'radar'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5 text-indigo-400" />
-            <span>AI Threat Radar</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'annotated'} onClick={() => setActiveTab('annotated')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'annotated'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Annotated Code ({totalAnnotatedCount})</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'report'} onClick={() => setActiveTab('report')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'report'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Complete Report</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'security'} onClick={() => setActiveTab('security')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'security'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-            <span>Security ({securityCount})</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'governance'} onClick={() => setActiveTab('governance')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'governance'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Governance ({govCount})</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'inline'} onClick={() => setActiveTab('inline')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'inline'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MessageSquareCode className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Inline Fixes ({inlineCount})</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'impact'} onClick={() => setActiveTab('impact')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'impact'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <GitGraph className="w-3.5 h-3.5 text-cyan-400" />
-            <span>AST Call Graph</span>
-          </button>
-
-          <button
-            aria-pressed={activeTab === 'tests'} onClick={() => setActiveTab('tests')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'tests'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <TestTube2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Generated Pytest</span>
-          </button>
-        </div>
-
-        <div className="text-[10px] text-slate-400 font-mono px-2">
+        <div className="text-xs text-slate-400 font-mono px-2">
           {securityCount} findings • {govCount} violations • {inlineCount} inline suggestions
         </div>
       </div>
 
       {/* 3. Tab Contents */}
+      <div role="tabpanel" id="review-panel" aria-labelledby={`review-tab-${activeTab}`} tabIndex={0} className="focus:outline-none">
       {activeTab === 'all' && (
         <div className="space-y-4">
           {/* AI-Era Zero-Trust Threat Radar */}
@@ -289,6 +201,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ data, onReset 
       {activeTab === 'tests' && (
         <GeneratedUnitTests unitTests={data.generated_unit_tests} execution={data.test_execution} />
       )}
+      </div>
 
       {/* Telemetry */}
       <TelemetryCard telemetry={data.telemetry} />

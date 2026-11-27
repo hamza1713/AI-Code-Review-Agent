@@ -37,9 +37,14 @@ def main():
     request_file, result_file = map(Path, sys.argv[1:3])
     request = json.loads(request_file.read_text(encoding="utf-8"))
     try:
-        result = {
-            "result": execute(request["operation"], decode_inputs(request["payload"]))
-        }
+        from code_review_agent.tenancy import tenant_scope
+
+        with tenant_scope(request.get("tenant_id")):
+            result = {
+                "result": execute(
+                    request["operation"], decode_inputs(request["payload"])
+                )
+            }
     except Exception as error:
         from code_review_agent.path_validation import UnsafeDiffPathError
         from code_review_agent.review_service import (

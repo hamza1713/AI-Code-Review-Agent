@@ -128,7 +128,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
   const svgHeight = Math.max(340, Math.max(modifiedFunctions.length, allCallers.length) * 80 + 80);
 
   return (
-    <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
+    <div className="bg-surface border border-slate-800/80 rounded-xl p-4 shadow-md flex flex-col">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-2">
         <div className="flex items-center space-x-2.5">
@@ -140,7 +140,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
               <h3 className="text-xs font-bold text-white tracking-tight uppercase">
                 Cross-File Blast Radius & Taint Flow
               </h3>
-              <span className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded-full border ${
+              <span className={`text-xs uppercase font-mono font-bold px-1.5 py-0.5 rounded-full border ${
                 impact.is_python
                   ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -148,17 +148,17 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                 {impact.is_python ? 'Polyglot AST' : 'Syntactic Graph'}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-xs text-slate-400">
               Inter-procedural call chains & dataflow impact ({allCallers.length} caller(s) affected)
             </p>
           </div>
         </div>
 
         {/* View Switcher Controls */}
-        <div className="flex items-center space-x-1.5 bg-[#0a0c10] p-0.5 rounded-lg border border-slate-800/80">
+        <div className="flex items-center space-x-1.5 bg-canvas p-0.5 rounded-lg border border-slate-800/80">
           <button
             onClick={() => setViewMode('canvas')}
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               viewMode === 'canvas' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Interactive Visual Node-Edge Canvas"
@@ -168,7 +168,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
           </button>
           <button
             onClick={() => setViewMode('mermaid')}
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               viewMode === 'mermaid' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Mermaid Sequence / Flowchart for PR comments"
@@ -178,7 +178,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
           </button>
           <button
             onClick={() => setViewMode('tree')}
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               viewMode === 'tree' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Hierarchical Caller List"
@@ -191,7 +191,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
 
       {/* 1. Interactive Canvas View */}
       {viewMode === 'canvas' && (
-        <div className="mt-3 relative bg-[#07090e] border border-slate-800/80 rounded-xl overflow-hidden">
+        <div className="mt-3 relative bg-canvas border border-slate-800/80 rounded-xl overflow-hidden">
           {/* Canvas Floating Toolbar */}
           <div className="absolute top-3 right-3 z-10 flex items-center space-x-1 bg-slate-900/90 border border-slate-800 p-1 rounded-lg backdrop-blur shadow-md">
             <button
@@ -317,9 +317,9 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                     />
                     <text
                       x={12}
-                      y={18}
+                      y={16}
                       fill={isModified ? '#a5f3fc' : '#c7d2fe'}
-                      fontSize={10}
+                      fontSize={12}
                       fontWeight="bold"
                       fontFamily="monospace"
                     >
@@ -327,9 +327,9 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                     </text>
                     <text
                       x={12}
-                      y={31}
+                      y={33}
                       fill="#ffffff"
-                      fontSize={11}
+                      fontSize={12}
                       fontFamily="monospace"
                       fontWeight="600"
                     >
@@ -342,7 +342,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
           </div>
 
           {/* Canvas Footer Legend */}
-          <div className="p-2.5 bg-[#0a0d14] border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[10px] text-slate-400 font-mono">
+          <div className="p-2.5 bg-canvas border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 font-mono">
             <div className="flex items-center space-x-3">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -362,12 +362,12 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
       {viewMode === 'mermaid' && (
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
-            <span className="text-[11px] font-mono text-slate-300">
+            <span className="text-xs font-mono text-slate-300">
               Mermaid Diagram Definition (Ready for GitHub/GitLab PR Comment):
             </span>
             <button
               onClick={handleCopyMermaid}
-              className="flex items-center gap-1 text-[11px] text-slate-200 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded transition-colors cursor-pointer"
+              className="flex items-center gap-1 text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded transition-colors cursor-pointer"
             >
               {copiedMermaid ? (
                 <>
@@ -382,7 +382,7 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
               )}
             </button>
           </div>
-          <pre className="p-3 rounded-lg bg-[#07090e] border border-slate-800 text-[11px] font-mono text-cyan-300 overflow-x-auto leading-relaxed max-h-[300px]">
+          <pre className="p-3 rounded-lg bg-canvas border border-slate-800 text-xs font-mono text-cyan-300 overflow-x-auto leading-relaxed max-h-[300px]">
             {mermaidDiagram}
           </pre>
         </div>
@@ -392,14 +392,14 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
       {viewMode === 'tree' && (
         <div className="mt-3 space-y-2 max-h-[380px] overflow-y-auto pr-1 text-xs">
           {impact.message && (
-            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] text-slate-300 font-mono leading-relaxed">
+            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed">
               {impact.message}
             </div>
           )}
 
           {hasCallers ? (
             <div className="space-y-2 mt-2">
-              <span className="text-[11px] font-semibold text-slate-300 block">
+              <span className="text-xs font-semibold text-slate-300 block">
                 Modified Functions & Impacted Callers:
               </span>
               {Object.entries(callersMap).map(([func, callers], idx) => (
@@ -407,19 +407,19 @@ export const CrossFileImpact: React.FC<CrossFileImpactProps> = ({ impact }) => {
                   key={idx}
                   className="bg-slate-900/70 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5"
                 >
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-cyan-300 font-bold">
+                  <div className="flex items-center gap-1.5 font-mono text-xs text-cyan-300 font-bold">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                     <span>{func}</span>
                   </div>
 
                   <div className="pl-3 space-y-1 border-l border-slate-800">
                     {callers.length === 0 ? (
-                      <span className="text-[10px] text-slate-500 italic">No external callers identified.</span>
+                      <span className="text-xs text-slate-500 italic">No external callers identified.</span>
                     ) : (
                       callers.map((caller, cIdx) => (
                         <div
                           key={cIdx}
-                          className="flex items-center gap-1.5 text-[10px] font-mono text-slate-300 bg-[#0a0c10] px-2 py-0.5 rounded border border-slate-800/60"
+                          className="flex items-center gap-1.5 text-xs font-mono text-slate-300 bg-canvas px-2 py-0.5 rounded border border-slate-800/60"
                         >
                           <CornerDownRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
                           <span>{caller}</span>

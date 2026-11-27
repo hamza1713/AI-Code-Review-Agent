@@ -18,6 +18,7 @@ interface AIThreatRadarProps {
 
 export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
   const [downloadingSarif, setDownloadingSarif] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Extract findings relevant to AI-specific threats
   const allFindings = [
@@ -52,6 +53,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
 
   const handleDownloadSARIF = async () => {
     setDownloadingSarif(true);
+    setExportError(null);
     try {
       const response = await apiFetch('/api/review/sarif', {
         method: 'POST',
@@ -109,7 +111,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to export SARIF:', err);
+      setExportError(err instanceof Error ? `SARIF export failed: ${err.message}` : 'SARIF export failed. Try again.');
     } finally {
       setDownloadingSarif(false);
     }
@@ -118,7 +120,13 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
   const snapshotHash = data.input_snapshot_hash || null;
 
   return (
-    <div className="bg-[#10141e] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+    <div className="bg-surface border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+      {exportError && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          <span>{exportError}</span>
+          <button type="button" className="text-rose-300 hover:text-rose-100" onClick={() => setExportError(null)}>Dismiss</button>
+        </div>
+      )}
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-800 gap-3">
         <div className="flex items-center space-x-3">
@@ -130,7 +138,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                 AI-Era Zero-Trust Threat Radar
               </h2>
-              <span className="text-[10px] font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-xs font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-bold">
                 Pillar v3.0 Defense
               </span>
             </div>
@@ -165,7 +173,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Boxes className={`w-4 h-4 ${isSupplyChainClean ? 'text-emerald-400' : 'text-rose-400'}`} />
                 <span className="text-xs font-bold text-white">Supply Chain</span>
               </div>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isSupplyChainClean
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
@@ -173,12 +181,12 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 {isSupplyChainClean ? 'CLEAN' : `${slopFindings.length} THREAT(S)`}
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Manifest & import verification against hallucinated packages (slopsquatting) and Levenshtein typosquatting.
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {isSupplyChainClean ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> 0 Hallucinated Packages
@@ -203,7 +211,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Binary className={`w-4 h-4 ${isTrojanClean ? 'text-emerald-400' : 'text-rose-400'}`} />
                 <span className="text-xs font-bold text-white">Trojan Source</span>
               </div>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isTrojanClean && data.canary_verified !== false
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
@@ -211,12 +219,12 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 {isTrojanClean && data.canary_verified !== false ? 'SHIELDED' : 'OVERRIDE DETECTED'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Unicode Bidi overrides (CVE-2021-42574), invisible zero-width chars, and canary prompt token sandboxing.
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {!isTrojanClean ? (
               <span className="text-rose-400 font-bold">
                 🚨 {trojanFindings[0]?.rule_id}: Bidi/Unicode injection
@@ -249,7 +257,7 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <FileCode2 className={`w-4 h-4 ${isAIDefectsClean ? 'text-emerald-400' : 'text-amber-400'}`} />
                 <span className="text-xs font-bold text-white">AI Code Smells</span>
               </div>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
                 isAIDefectsClean
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                   : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
@@ -257,12 +265,12 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 {isAIDefectsClean ? '0 DEFECTS' : `${aiDefectFindings.length} FLAGGED`}
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Catches unawaited async coroutines in conditionals, blocking I/O in async def, and hollow mock stubs.
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
             {isAIDefectsClean ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Concurrency & Contract Integrity
@@ -283,18 +291,18 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
                 <Scale className="w-4 h-4 text-indigo-400" />
                 <span className="text-xs font-bold text-white">Model Consensus</span>
               </div>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-300 border-indigo-500/40">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-300 border-indigo-500/40">
                 {consensusAudit ? `${consensusAudit.agreement_score}% MATCH` : 'SINGLE ENGINE'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               {consensusAudit
                 ? 'Orthogonal cross-family verification pairing primary reviewer with an independent red-team critic.'
                 : 'Single-engine primary analyzer completed (opt-in adversarial verifier disabled).'}
             </p>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-indigo-300 flex items-center justify-between">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-indigo-300 flex items-center justify-between">
             <span>Engine: {consensusAudit ? `Critic: ${consensusAudit.critic_verdict}` : (data.telemetry?.model_used || 'Gemini')}</span>
             <span className="text-emerald-400">✓ {consensusAudit ? 'INDEPENDENT' : 'PRIMARY'}</span>
           </div>
@@ -302,21 +310,21 @@ export const AIThreatRadar: React.FC<AIThreatRadarProps> = ({ data }) => {
       </div>
 
       {/* Cryptographic Attestation Receipt Footer */}
-      <div className="p-3 bg-[#0a0d14] border border-slate-800/80 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div className="p-3 bg-canvas border border-slate-800/80 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center space-x-2 text-slate-300">
           <Fingerprint className="w-4 h-4 text-indigo-400" />
           <span className="font-semibold text-slate-200">Cryptographic Review Receipt:</span>
           {snapshotHash ? (
-            <code className="text-indigo-300 font-mono text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+            <code className="text-indigo-300 font-mono text-xs bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
               sha256:{snapshotHash.slice(0, 16)}...
             </code>
           ) : (
-            <span className="text-slate-400 font-mono text-[11px] italic bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+            <span className="text-slate-400 font-mono text-xs italic bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
               Unsigned (Development Run)
             </span>
           )}
         </div>
-        <div className="text-[11px] font-mono text-slate-400">
+        <div className="text-xs font-mono text-slate-400">
           OASIS SARIF 2.1.0 • GitHub Code Scanning Ready • Full Worktree Isolation
         </div>
       </div>

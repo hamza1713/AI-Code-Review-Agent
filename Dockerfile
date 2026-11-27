@@ -3,6 +3,8 @@ WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
+# vite.config.ts reads the app version from ../pyproject.toml (/pyproject.toml here).
+COPY pyproject.toml /pyproject.toml
 RUN npm run build
 
 FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS runtime

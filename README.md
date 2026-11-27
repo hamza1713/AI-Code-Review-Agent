@@ -89,6 +89,10 @@ It runs in four ways:
 - **Real-time progress** via Server-Sent Events (`/api/review/stream`), with fallback to job polling.
 - **SARIF 2.1.0 export** for GitHub Code Scanning / GitLab security dashboards.
 
+### 📏 Measured trust
+- **Calibration view** — acceptance rate, false-positive rate, p50/p95 review latency and a per-rule false-positive table with probation badges (`/api/calibration/rules`, `/api/telemetry/latency`, `/api/pilot/weekly`).
+- **Labeling workbench** — two reviewers label real PRs blind, a third adjudicates disagreements, and the scorer publishes precision, recall and clean-PR false alarms with 95% Wilson intervals plus Cohen's kappa ([`docs/LABELING_GUIDE.md`](docs/LABELING_GUIDE.md)).
+
 ### 🛡️ Operations
 - **Durable SQLite job queue** with cancel / reconcile / result / SARIF endpoints.
 - **Calibration loop** — developer feedback (`/fp`, `/confirm`, reactions), human audit sampling, and a **Tricorder-style circuit breaker** that puts noisy rules on probation.
@@ -281,6 +285,30 @@ The centerpiece of the code review experience: suspicious lines are highlighted 
 
 ---
 
+### 6. Light Theme, Calibration & Human Labeling
+
+The workbench follows the OS light or dark setting, and the navbar toggle overrides it.
+
+<p align="center">
+  <img src="docs/images/06_workspace_light.png" alt="Workspace in the light theme" width="900" />
+</p>
+
+**Calibration** shows how often developers accept findings, which rules are noisy (and on probation), and how long reviews take. *Screenshot uses sample data.*
+
+<p align="center">
+  <img src="docs/images/07_calibration.png" alt="Calibration view with acceptance rate, latency and per-rule false-positive table" width="900" />
+</p>
+
+**Labeling** lets two reviewers label real pull requests blind, with a third person settling disagreements, so precision and false-alarm rates can be published with confidence intervals.
+
+<p align="center">
+  <img src="docs/images/08_labeling.png" alt="Labeling workbench with a real corpus diff" width="900" />
+</p>
+
+> Screenshots are regenerated with `CAPTURE_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts --project=desktop` (from `frontend/`). The review shown is a real deterministic run of `samples/benchmarks/complex_multi_issue.diff`.
+
+---
+
 ### Workbench Views & Controls Summary
 
 | View / Tab | What it shows |
@@ -294,6 +322,11 @@ The centerpiece of the code review experience: suspicious lines are highlighted 
 | **Security / Governance / Inline Fixes** | Filterable finding lists with stable fingerprints and 1-click remediation |
 | **AST Call Graph** | Interactive SVG/Canvas impact graph + Mermaid and Tree exports |
 | **Generated Pytest** | Automatically synthesized regression test suite and execution status |
+| **Job queue** (`#/jobs`) | Durable jobs, cancel, saved results, webhook configuration |
+| **Calibration** (`#/calibration`) | Acceptance rate, FP rate, p50/p95 latency, per-rule FP table with probation badges, feedback and audit forms |
+| **Labeling** (`#/labeling`) | Blind two-reviewer labeling of the development PR corpus, adjudication, agreement (κ) and scored quality with 95% intervals. Source checkouts only; production images leave the corpus out |
+
+The workbench follows the OS light or dark setting, and the navbar toggle overrides it per browser. Views live in the URL hash, so back, forward and reload keep your place. Review sections use an ARIA tablist (arrow keys, Home and End).
 | **Jobs** | Durable SQLite queue monitor (status, cancel, results) |
 | **Calibration** | False-positive rates, developer feedback (`/fp`, `/confirm`), and circuit-breaker status |
 
@@ -430,7 +463,9 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 | `REVIEW_ENABLE_TICKET_COMPLIANCE` | `false` | Opt-in ticket acceptance criteria stage |
 | `REVIEW_ENABLE_EXPERIMENTAL_TESTS` | `false` | Allow sandboxed pytest execution |
 | `REVIEW_SANDBOX_IMAGE` | — | Immutable sandbox image digest |
-| `REVIEW_MULTI_TENANT` | `false` | Honor `X-Tenant-ID` header (`false` uses `"default"` single-operator tenancy) |
+| `REVIEW_MULTI_TENANT` | `false` | Scope the job queue per tenant (`false` uses `"default"` single-operator tenancy) |
+| `REVIEW_TENANT_TOKENS` | — | `tenant:sha256(token)` pairs; each token is bound to one tenant and limited to its own review and job routes. A mismatching `X-Tenant-ID` returns 403 |
+| `REVIEW_EVAL_CORPUS` / `REVIEW_EVAL_PREDICTIONS` | repo samples | Corpus and prediction capture used by the Labeling view |
 | `SHADOW_MODE` | `false` | Review without posting |
 | `QUEUE_DB_PATH` | — | SQLite queue location |
 | `MAX_CONCURRENT_REVIEWS` / `MAX_QUEUE_CAPACITY` | `2` / `100` (compose) | Back-pressure limits |
@@ -711,9 +746,9 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 | [`docs/SECURE_OPERATION.md`](docs/SECURE_OPERATION.md) · [`docs/DATA_TRANSFER_POLICY.md`](docs/DATA_TRANSFER_POLICY.md) | Security and data handling |
 | [`docs/RELEASE_GATES.md`](docs/RELEASE_GATES.md) | Release criteria |
 | [`docs/EVALUATION_PROTOCOL_V2.md`](docs/EVALUATION_PROTOCOL_V2.md) | Evaluation methodology |
-| [`docs/SKILLS.md`](docs/SKILLS.md) | Agent skills and prompts |
-| [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md) | Security & production-readiness audit (`K1–K17` closed) |
-| [`docs/PRODUCTION_MODULE_PLAN.md`](docs/PRODUCTION_MODULE_PLAN.md) · [`docs/MODULES_14_16_COMPLETION.md`](docs/MODULES_14_16_COMPLETION.md) | Module roadmap (`M0–M17`) & stabilization checkpoints |
+| [`docs/LABELING_GUIDE.md`](docs/LABELING_GUIDE.md) | How two reviewers and an adjudicator produce gold labels |
+| [`docs/SCALING.md`](docs/SCALING.md) | Single-node limits and the planned multi-node path |
+| [`docs/internal/`](docs/internal/) | Build logs, audit report (`K1–K17` closed), module plans, agent skills, interview notes |
 
 ---
 
@@ -721,9 +756,9 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 
 - **Deep analysis is Python-first.** The AST scanner, Bandit, Ruff, and test generation are Python-only; other languages get regex SAST, governance rules, and Tree-Sitter graph context.
 - **Regex SAST is heuristic.** Pattern findings are labelled `HEURISTIC` evidence and can produce false positives; they are not full dataflow analysis.
-- **Benchmark scores are synthetic.** Real-world precision/recall on human-labelled PRs is not yet published.
+- **Real-world quality numbers are pending human labels.** The labeling workbench, adjudication and interval scoring are built; the 20 development PRs still need two independent reviewers. Synthetic benchmark scores are regression checks, not a quality study.
 - **Sandbox execution and auto-remediation are experimental** and disabled by default.
-- **Queue is single-node SQLite**; horizontal scaling and multi-tenant isolation are roadmap items.
+- **Queue is single-node SQLite**; see [`docs/SCALING.md`](docs/SCALING.md). Tenant isolation covers the job queue and its routes only; calibration, pilot and telemetry stores are shared.
 - **LLM output varies** between runs and providers; the deterministic layer and publication policy limit, but do not remove, this variance.
 
 ---
@@ -735,7 +770,8 @@ Operational runbooks: [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/SECURE_
 - [x] **Phase 2 — Trust & operations:** shadow mode, Tricorder-style circuit breaker, calibration feedback loop, telemetry persistence and tracing.
 - [x] **Workbench UX:** SSE progress, unified annotated viewer with red-flag highlighting and "why" rationale, SARIF export; removed noisy trace/disclaimer panels.
 - [x] **Stabilization & audit closure (M14–M16):** closed audit items `K1–K17`, hardened `CodeReviewCrew` tool loop, migrated to `tree-sitter-language-pack`, widened `mypy` CI gate, and cleaned legacy Render/static artifacts.
-- [ ] **Phase 3 — Measured quality:** human-labelled golden set, published precision/recall/acceptance rate, CI regression gates on eval metrics.
+- [x] **Production gaps, day 1:** credential-bound tenancy, read-only rule/latency/pilot metrics APIs, blind labeling with adjudication and Wilson intervals, light/dark themed workbench with Calibration and Labeling views.
+- [ ] **Phase 3 — Measured quality:** label the 20 development PRs, publish precision/recall/false-alarm rate with intervals, then gate CI on them; label held-out PRs offline.
 - [ ] **Phase 4 — Scale:** distributed queue, remote isolated sandboxes, multi-tenant RBAC, compliance evidence (SOC 2 / GDPR retention).
 
 ---

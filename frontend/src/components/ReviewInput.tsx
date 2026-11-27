@@ -178,14 +178,14 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
   };
 
   return (
-    <div className="input-panel bg-[#12151c] border border-slate-800/80 rounded-2xl p-5 sm:p-7 shadow-lg relative overflow-hidden">
+    <div className="input-panel bg-surface border border-slate-800/80 rounded-2xl p-5 sm:p-7 shadow-lg relative overflow-hidden">
       {/* Header */}
       <div className="flex flex-col justify-between pb-5 border-b border-slate-800/80 gap-3 relative z-10">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
             <span>Start a new review</span>
           </h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             Choose your source, add your code, and let the review begin.
           </p>
         </div>
@@ -257,11 +257,11 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               <label htmlFor="review-diff" className="text-sm font-medium text-slate-300">Your code changes</label>
               {/* Presets */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                <span className="text-xs text-slate-500 font-medium">Quick Presets:</span>
                 <button
                   type="button"
                   onClick={() => { setDiffContent(SAMPLE_SQLI_DIFF); setErrorMessage(null); }}
-                  className="text-[11px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <ShieldAlert className="w-3 h-3" />
                   <span>SQLi & Auth PR</span>
@@ -269,7 +269,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                 <button
                   type="button"
                   onClick={() => { setDiffContent(SAMPLE_CLEAN_DIFF); setErrorMessage(null); }}
-                  className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <CheckCircle2 className="w-3 h-3" />
                   <span>Clean Refactor</span>
@@ -277,7 +277,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                 <button
                   type="button"
                   onClick={() => { setDiffContent(SAMPLE_GOV_VIOLATION_DIFF); setErrorMessage(null); }}
-                  className="text-[11px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <AlertTriangle className="w-3 h-3" />
                   <span>Governance PR</span>
@@ -285,7 +285,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               </div>
             </div>
 
-            <div className="relative rounded-xl border border-slate-800 bg-[#0a0c10] overflow-hidden focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
+            <div className="relative rounded-xl border border-slate-800 bg-canvas overflow-hidden focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
               <textarea
                 id="review-diff"
                 value={diffContent}
@@ -303,7 +303,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                 className="w-full bg-transparent p-3.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none resize-y leading-relaxed"
                 spellCheck={false}
               />
-              <div className="px-3.5 py-1.5 bg-slate-900/60 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <div className="px-3.5 py-1.5 bg-slate-900/60 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
                 <span>{diffContent ? `${diffContent.split('\n').length} lines • ${new Blob([diffContent]).size} bytes` : '0 lines'}</span>
                 <span>Supports standard unified git diff format</span>
               </div>
@@ -320,16 +320,16 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                   <Sparkles className="w-4 h-4 text-amber-400" />
                   <span>Review Public or Private GitHub Pull Request</span>
                 </span>
-                <span className="text-[10px] font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                <span className="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
                   Live GitHub Ingestion
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-400 leading-relaxed">
                 Enter any GitHub Pull Request URL. The agent will fetch the real-time unified diff via the GitHub REST API and run the multi-agent review crew.
               </p>
 
               <div className="space-y-1.5">
-                <label htmlFor="review-pr-url" className="text-[11px] font-semibold text-slate-300">GitHub PR URL or Shorthand</label>
+                <label htmlFor="review-pr-url" className="text-xs font-semibold text-slate-300">GitHub PR URL or Shorthand</label>
                 <div className="flex items-center gap-2">
                   <input
                     id="review-pr-url"
@@ -345,25 +345,25 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
                       }
                     }}
                     placeholder="https://github.com/owner/repository/pull/42 or owner/repo#42"
-                    className="flex-1 bg-[#0a0c10] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="flex-1 bg-canvas border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
               </div>
 
               {/* Sample PR Presets */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                <span className="text-xs text-slate-500 font-medium">Quick Presets:</span>
                 <button
                   type="button"
                   onClick={() => setPrUrl('https://github.com/octocat/Hello-World/pull/1')}
-                  className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                  className="text-xs font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
                 >
                   octocat/Hello-World#1
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrUrl('https://github.com/psf/requests/pull/6000')}
-                  className="text-[10px] font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
+                  className="text-xs font-mono text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-800/40 transition-colors cursor-pointer"
                 >
                   psf/requests#6000
                 </button>
@@ -393,13 +393,13 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               <h3 className="text-xs font-semibold text-white">
                 {selectedFile ? selectedFile.name : 'Drag & drop a single source code file here'}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 {selectedFile
                   ? `Size: ${(selectedFile.size / 1024).toFixed(1)} KB • Click or drop again to replace`
                   : 'Python (.py), JavaScript (.js, .ts), Go (.go), SQL (.sql), Rust (.rs), etc. (Max 2MB)'}
               </p>
               {selectedFile && (
-                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-mono font-medium">
+                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-medium">
                   <CheckCircle2 className="w-3 h-3" />
                   <span>{selectedFile.name} ready for review</span>
                 </div>
@@ -428,13 +428,13 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
               <h3 className="text-xs font-semibold text-white">
                 {selectedZip ? selectedZip.name : 'Drag & drop a repository ZIP archive here'}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 {selectedZip
                   ? `Size: ${(selectedZip.size / 1024).toFixed(1)} KB • Click or drop again to replace`
                   : 'Small project archive (max 20 files, max 2MB). AST call graph will index callers across repository.'}
               </p>
               {selectedZip && (
-                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-mono font-medium">
+                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-medium">
                   <CheckCircle2 className="w-3 h-3" />
                   <span>{selectedZip.name} ready for repository review</span>
                 </div>
@@ -471,7 +471,7 @@ export const ReviewInput: React.FC<ReviewInputProps> = ({ onSubmit, isLoading })
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Review code</span>
-            <kbd aria-hidden="true" className="hidden sm:inline-block text-[9px] font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
+            <kbd aria-hidden="true" className="hidden sm:inline-block text-xs font-mono bg-black/30 text-indigo-100 px-1.5 py-0.5 rounded border border-white/20 ml-0.5">⌘↵</kbd>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

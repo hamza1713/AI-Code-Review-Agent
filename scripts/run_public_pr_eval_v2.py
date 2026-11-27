@@ -101,10 +101,13 @@ def run_evaluation(
 
         # Check if adjudication labels are finalized or unreviewed templates
         is_adjudicated = False
-        if labels and "cases" in labels and labels["cases"]:
-            first_case = labels["cases"][0]
-            if first_case.get("status") == "ADJUDICATED" and len(first_case.get("reviewers", [])) >= 2:
-                is_adjudicated = True
+        if labels and labels.get("cases"):
+            # Every case must be adjudicated by two reviewers, not just the first.
+            is_adjudicated = all(
+                case.get("status") == "ADJUDICATED"
+                and len({r.strip().lower() for r in case.get("reviewers", []) if r.strip()}) >= 2
+                for case in labels["cases"]
+            )
 
         if is_adjudicated:
             scores = score_predictions(

@@ -36,6 +36,14 @@ MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB max single file upload
 MAX_DIFF_CHARS = 500_000  # ~500 KB raw diff limit
 
 
+
+def _active_tenant(state: Any) -> str:
+    """Prefer an explicit state tenant; fall back to the request/worker context."""
+    explicit = getattr(state, "tenant_id", None)
+    if explicit and explicit != "default":
+        return explicit
+    return get_current_tenant()
+
 class RateLimitExceeded(Exception):
     """Raised when client IP exceeds rate limit."""
 
@@ -675,7 +683,7 @@ class ReviewService:
             }
 
             # 8. Assemble Structured API Response
-            active_tenant = getattr(flow.state, "tenant_id", "default") or get_current_tenant()
+            active_tenant = _active_tenant(flow.state)
             zdr_attestation = cls._build_zdr_attestation(flow.state, active_tenant)
             response = ReviewAPIResponse(
                 tenant_id=active_tenant,
@@ -754,7 +762,7 @@ class ReviewService:
             except Exception:
                 gen_tests = None
 
-        active_tenant = getattr(state, "tenant_id", "default") or get_current_tenant()
+        active_tenant = _active_tenant(state)
         zdr_attestation = cls._build_zdr_attestation(state, active_tenant)
         response = ReviewAPIResponse(
             tenant_id=active_tenant,

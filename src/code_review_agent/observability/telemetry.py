@@ -323,3 +323,53 @@ def trace_span(name: str, attributes: dict[str, Any] | None = None):
                 span.end()
             except Exception:
                 pass
+
+
+def latency_summary(
+    db_path: str | Path | None = None,
+    repo_id: str | None = None,
+    days: int = 30,
+) -> dict[str, Any]:
+    """Review latency percentiles from ``telemetry_runs`` (read-only)."""
+    db_target: str | Path = db_path or os.getenv("QUEUE_DB_PATH") or "webhook_jobs.db"
+    db_file = Path(db_target).resolve()
+    empty: dict[str, Any] = {
+        "days": days,
+        "runs": 0,
+        "latency_p50_seconds": None,
+        "latency_p95_seconds": None,
+        "latency_mean_seconds": None,
+        "estimated_cost_usd": None,
+    }
+    if not db_file.exists():
+        return empty
+    since = time.time() - max(1, days) * 86400
+    conn = sqlite3.connect(f"file:{db_file}?mode=ro", uri=True, timeout=5)
+    try:
+        query = "SELECT duration_seconds, estimated_cost_usd FROM telemetry_runs WHERE created_at >= ?"
+        params: list[Any] = [since]
+        if repo_id:
+            query += " AND repo_id = ?"
+            params.append(repo_id.strip().lower())
+        try:
+            rows = conn.execute(query, params).fetchall()
+        except sqlite3.OperationalError:
+            return empty  # table not created yet: no reviews recorded
+    finally:
+        conn.close()
+    durations = sorted(float(r[0]) for r in rows)
+    costs = [float(r[1]) for r in rows if r[1] is not None]
+    if not durations:
+        return empty
+
+    def pct(q: float) -> float:
+        return round(durations[min(len(durations) - 1, int(len(durations) * q))], 3)
+
+    return {
+        "days": days,
+        "runs": len(durations),
+        "latency_p50_seconds": pct(0.5),
+        "latency_p95_seconds": pct(0.95),
+        "latency_mean_seconds": round(sum(durations) / len(durations), 3),
+        "estimated_cost_usd": round(sum(costs), 4) if costs else None,
+    }

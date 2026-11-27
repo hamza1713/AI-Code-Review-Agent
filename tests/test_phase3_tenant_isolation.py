@@ -7,14 +7,18 @@ Verifies that:
 4. SecretsVault maintains tenant-isolated credentials.
 """
 
+import hashlib
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from code_review_agent.tenancy import (
+    TenantAccessError,
     get_current_tenant,
     normalize_tenant_id,
     resolve_tenant_from_request,
+    tenant_for_token,
     tenant_scope,
 )
 from code_review_agent.vault import SecretsVault
@@ -176,3 +180,59 @@ class TestSecretsVaultTenancy:
         assert token_a == "token-for-corp-a"
         assert token_b == "token-for-corp-b"
         assert token_unknown == "default-fallback-token"
+
+
+# --- Tenant credential binding (production-gaps day 1) -----------------------
+
+OPERATOR_TOKEN = "o" * 40
+ACME_TOKEN = "acme-tenant-token-" + "x" * 24
+
+
+def _bind_tenants(monkeypatch):
+    monkeypatch.setenv("REVIEW_MULTI_TENANT", "true")
+    monkeypatch.setenv("REVIEW_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("REVIEW_API_TOKEN", OPERATOR_TOKEN)
+    monkeypatch.setenv(
+        "REVIEW_TENANT_TOKENS",
+        "acme:" + hashlib.sha256(ACME_TOKEN.encode()).hexdigest(),
+    )
+
+
+def test_tenant_token_binding(monkeypatch):
+    _bind_tenants(monkeypatch)
+    assert tenant_for_token(ACME_TOKEN) == "acme"
+    assert tenant_for_token("unknown-token") is None
+
+
+def test_bound_tenant_rejects_spoofed_header():
+    with pytest.raises(TenantAccessError):
+        resolve_tenant_from_request({"X-Tenant-ID": "globex"}, bound_tenant="acme")
+    assert resolve_tenant_from_request({"X-Tenant-ID": "acme"}, bound_tenant="acme") == "acme"
+    assert resolve_tenant_from_request({}, bound_tenant="acme") == "acme"
+
+
+def test_webhook_tenant_ignores_header():
+    from code_review_agent.tenancy import resolve_tenant_from_request as resolve
+
+    assert resolve(None, repo_identifier="github.com/acme/api") == "acme"
+
+
+def test_gateway_tenant_token_spoof_and_scope(monkeypatch, tmp_path):
+    _bind_tenants(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    from code_review_agent.webhook_server import app
+
+    acme = {"Authorization": f"Bearer {ACME_TOKEN}"}
+    with TestClient(app) as client:
+        assert client.get("/jobs", headers=acme).status_code == 200
+        spoofed = client.get("/jobs", headers={**acme, "X-Tenant-ID": "globex"})
+        assert spoofed.status_code == 403
+        # Tenant tokens cannot reach operator-only endpoints.
+        assert client.get("/jobs/metrics", headers=acme).status_code == 403
+        assert client.get("/api/calibration/metrics", headers=acme).status_code == 403
+        session = client.get("/api/session", headers=acme).json()
+        assert session["role"] == "tenant" and session["tenant"] == "acme"
+        # The operator token keeps full access.
+        operator = {"Authorization": f"Bearer {OPERATOR_TOKEN}"}
+        assert client.get("/jobs/metrics", headers=operator).status_code == 200
+        assert client.get("/jobs", headers={"Authorization": "Bearer wrong"}).status_code == 401

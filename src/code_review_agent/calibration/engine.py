@@ -56,6 +56,8 @@ class MetricSlice(BaseModel):
     audited_invalid: int = 0  # Human rejected reproduction
     validation_error_rate: float = 0.0  # audited_invalid / audited_total
     human_confirmed_fpr: float = 0.0  # human_fp / (human_tp + human_fp)
+    # Share of triaged findings developers confirmed as real: tp / (tp + fp).
+    acceptance_rate: float = 0.0
     audit_reasons_breakdown: dict[str, int] = Field(default_factory=dict)
 
 
@@ -76,6 +78,8 @@ class CalibrationMetrics(BaseModel):
     ignored_merged: int = 0
     pending: int = 0
     false_positive_rate: float = 0.0
+    # Share of triaged findings developers confirmed as real: tp / (tp + fp).
+    acceptance_rate: float = 0.0
     cried_wolf_index: float = 0.0
     noise_burden_rate: float = 0.0
 
@@ -104,6 +108,7 @@ def compute_slice_metrics(findings: list[dict[str, Any]]) -> MetricSlice:
 
     triaged = tp + fp
     fpr = round(fp / triaged, 4) if triaged > 0 else 0.0
+    acceptance = round(tp / triaged, 4) if triaged > 0 else 0.0
     cwi = fpr  # Cried-Wolf Index among triaged alerts
     noise = round((fp + inv_rep + ignored) / total, 4) if total > 0 else 0.0
 
@@ -153,6 +158,7 @@ def compute_slice_metrics(findings: list[dict[str, Any]]) -> MetricSlice:
         ignored_merged=ignored,
         pending=pending,
         false_positive_rate=fpr,
+        acceptance_rate=acceptance,
         cried_wolf_index=cwi,
         noise_burden_rate=noise,
         audited_total=n_audited,
@@ -162,6 +168,63 @@ def compute_slice_metrics(findings: list[dict[str, Any]]) -> MetricSlice:
         human_confirmed_fpr=human_fpr,
         audit_reasons_breakdown=reasons,
     )
+
+
+def group_findings_by_rule(rows: list[Any]) -> dict[str, list[dict[str, Any]]]:
+    """Group finding outcome rows by rule id, plus a ``category:<name>`` rollup."""
+    rule_findings: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        data = dict(row)
+        meta: dict[str, Any] = {}
+        try:
+            meta = json.loads(data.get("metadata_json") or "{}")
+        except Exception:
+            pass
+        rule_id = (
+            meta.get("rule_id")
+            or meta.get("rule")
+            or data.get("claim_title")
+            or data.get("category")
+            or "UNKNOWN"
+        ).strip()
+
+        rule_findings.setdefault(rule_id, []).append(data)
+        cat = (data.get("category") or "").strip()
+        if cat and cat != rule_id:
+            rule_findings.setdefault(f"category:{cat}", []).append(data)
+    return rule_findings
+
+
+def score_rule_outcomes(items: list[dict[str, Any]]) -> tuple[int, int, int, float]:
+    """Return (triaged, positives, negatives, false-positive rate) for one rule."""
+    triaged = positives = negatives = 0
+    for item in items:
+        outcome = item.get("outcome")
+        audit_status = item.get("audit_status")
+        is_triaged = outcome in (
+            CONFIRMED_REAL,
+            FALSE_POSITIVE,
+            INVALID_REPRODUCTION,
+            IGNORED_MERGED,
+        ) or audit_status in (AUDIT_STATUS_VALID, AUDIT_STATUS_INVALID)
+        if not is_triaged:
+            continue
+        triaged += 1
+        if (
+            outcome in (FALSE_POSITIVE, INVALID_REPRODUCTION)
+            or audit_status == AUDIT_STATUS_INVALID
+        ):
+            negatives += 1
+        elif outcome == CONFIRMED_REAL or audit_status == AUDIT_STATUS_VALID:
+            positives += 1
+
+    if positives + negatives > 0:
+        fpr = negatives / (positives + negatives)
+    elif triaged > 0:
+        fpr = negatives / triaged
+    else:
+        fpr = 0.0
+    return triaged, positives, negatives, fpr
 
 
 class RepoCalibrationEngine:
@@ -253,6 +316,7 @@ class RepoCalibrationEngine:
             ignored_merged=overall.ignored_merged,
             pending=overall.pending,
             false_positive_rate=overall.false_positive_rate,
+            acceptance_rate=overall.acceptance_rate,
             cried_wolf_index=overall.cried_wolf_index,
             noise_burden_rate=overall.noise_burden_rate,
             audited_total=overall.audited_total,
@@ -442,6 +506,48 @@ class RepoCalibrationEngine:
         )
 
 
+    def rule_breakdown(
+        self,
+        repo_id: str,
+        window_days: int = 30,
+        *,
+        provider: str = "github",
+        host: str = "github.com",
+    ) -> list[dict[str, Any]]:
+        """Per-rule triage counts and false-positive rate. Read-only: never changes probation."""
+        clean_repo = (repo_id or "").strip() or "default"
+        now = time.time()
+        start_time = now - (max(1, window_days) * 86400)
+        conn_getter = getattr(self.store, "_get_connection", None)
+        if conn_getter is None:
+            return []
+        rows = conn_getter().execute(
+            """
+            SELECT category, metadata_json, claim_title, outcome, audit_status
+            FROM finding_outcomes
+            WHERE provider = ? AND host = ? AND repo_id = ?
+              AND first_posted_at >= ? AND first_posted_at <= ?
+            """,
+            (provider, host, clean_repo.lower(), start_time, now),
+        ).fetchall()
+        breakdown: list[dict[str, Any]] = []
+        for rule_id, items in sorted(group_findings_by_rule(rows).items()):
+            triaged, positives, negatives, fpr = score_rule_outcomes(items)
+            judged = positives + negatives
+            breakdown.append(
+                {
+                    "rule_id": rule_id,
+                    "total": len(items),
+                    "triaged": triaged,
+                    "confirmed_real": positives,
+                    "false_positives": negatives,
+                    "false_positive_rate": round(fpr, 4),
+                    "acceptance_rate": round(positives / judged, 4) if judged else 0.0,
+                }
+            )
+        breakdown.sort(key=lambda r: (-r["false_positive_rate"], -r["triaged"]))
+        return breakdown
+
     def evaluate_tricorder_circuit_breaker(
         self,
         repo_id: str,
@@ -483,68 +589,11 @@ class RepoCalibrationEngine:
             (provider, host, clean_repo.lower(), start_time, now),
         ).fetchall()
 
-        rule_findings: dict[str, list[dict[str, Any]]] = {}
-        for row in rows:
-            data = dict(row)
-            meta = {}
-            try:
-                meta = json.loads(data.get("metadata_json") or "{}")
-            except Exception:
-                pass
-            rule_id = (
-                meta.get("rule_id")
-                or meta.get("rule")
-                or data.get("claim_title")
-                or data.get("category")
-                or "UNKNOWN"
-            ).strip()
-
-            rule_findings.setdefault(rule_id, []).append(data)
-            cat = (data.get("category") or "").strip()
-            if cat and cat != rule_id:
-                cat_key = f"category:{cat}"
-                rule_findings.setdefault(cat_key, []).append(data)
+        rule_findings = group_findings_by_rule(rows)
 
         results: list[dict[str, Any]] = []
         for target_id, items in sorted(rule_findings.items()):
-            triaged = 0
-            positives = 0
-            negatives = 0
-            for item in items:
-                outcome = item.get("outcome")
-                audit_status = item.get("audit_status")
-
-                is_triaged = (
-                    outcome
-                    in (
-                        CONFIRMED_REAL,
-                        FALSE_POSITIVE,
-                        INVALID_REPRODUCTION,
-                        IGNORED_MERGED,
-                    )
-                    or audit_status in (AUDIT_STATUS_VALID, AUDIT_STATUS_INVALID)
-                )
-                if not is_triaged:
-                    continue
-
-                triaged += 1
-                if (
-                    outcome in (FALSE_POSITIVE, INVALID_REPRODUCTION)
-                    or audit_status == AUDIT_STATUS_INVALID
-                ):
-                    negatives += 1
-                elif (
-                    outcome == CONFIRMED_REAL
-                    or audit_status == AUDIT_STATUS_VALID
-                ):
-                    positives += 1
-
-            if positives + negatives > 0:
-                fpr = negatives / (positives + negatives)
-            elif triaged > 0:
-                fpr = negatives / triaged
-            else:
-                fpr = 0.0
+            triaged, _positives, negatives, fpr = score_rule_outcomes(items)
 
             if triaged >= min_sample and fpr > max_fpr:
                 reason = (

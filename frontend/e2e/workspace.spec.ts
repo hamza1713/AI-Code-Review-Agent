@@ -120,7 +120,7 @@ test('copy failures are visible instead of claiming success', async ({ page }) =
   await page.route('**/api/review', route => route.fulfill({ json: result }));
   await page.getByRole('button', { name: 'Clean Refactor' }).click();
   await page.getByRole('button', { name: 'Review code', exact: true }).click();
-  await page.getByRole('button', { name: 'Generated Pytest', exact: true }).click();
+  await page.getByRole('tab', { name: 'Generated tests', exact: true }).click();
   await page.getByRole('button', { name: /Copy/ }).click();
   await expect(page.getByRole('alert')).toContainText('Copy failed');
   await expect(page.getByText('Copied', { exact: true })).not.toBeVisible();
@@ -135,8 +135,100 @@ test('annotations stay attached to their own file', async ({ page }) => {
   await page.route('**/api/review', route => route.fulfill({ json: multiFile }));
   await page.getByRole('button', { name: 'Clean Refactor' }).click();
   await page.getByRole('button', { name: 'Review code', exact: true }).click();
-  await page.getByRole('button', { name: /Annotated Code/ }).click();
+  await page.getByRole('tab', { name: /Annotated code/ }).click();
   await page.getByRole('button', { name: /b.py/ }).click();
   await expect(page.getByText('Only applies to file A.', { exact: true })).not.toBeVisible();
   await expect(page.getByText('y=2', { exact: true })).toBeVisible();
+});
+
+test('theme choice persists across reloads', async ({ page }) => {
+  await connect(page);
+  const toggle = page.getByRole('button', { name: /theme\. Switch theme/ });
+  await toggle.click(); // system -> light
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await toggle.click(); // light -> dark
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+test('views live in the URL and support back navigation', async ({ page }) => {
+  await page.route('**/api/eval/cases', route => route.fulfill({ status: 404, json: { detail: 'The evaluation corpus is not available on this server.' } }));
+  await page.route('**/api/eval/score', route => route.fulfill({ status: 404, json: { detail: 'missing' } }));
+  await connect(page);
+  await page.getByRole('button', { name: 'Labeling', exact: true }).click();
+  await expect(page).toHaveURL(/#\/labeling$/);
+  await expect(page.getByText('Labeling is not available on this server')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByLabel('Your code changes')).toBeVisible();
+});
+
+test('review tabs follow the ARIA tablist keyboard pattern', async ({ page }) => {
+  await connect(page);
+  await page.route('**/api/review', route => route.fulfill({ json: result }));
+  await page.getByRole('button', { name: 'Clean Refactor' }).click();
+  await page.getByRole('button', { name: 'Review code', exact: true }).click();
+  const first = page.getByRole('tab', { name: 'Full overview' });
+  await first.click();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'AI threat radar' })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Generated tests' })).toBeFocused();
+  await expect(page.getByRole('tabpanel')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('calibration shows acceptance, latency and noisy rules', async ({ page }) => {
+  await connect(page);
+  await page.route('**/api/calibration/metrics?**', route => route.fulfill({ json: {
+    total_findings: 12, triaged: 10, false_positive_rate: 0.2, acceptance_rate: 0.8,
+    audited_total: 0, audited_invalid: 0, validation_error_rate: 0 } }));
+  await page.route('**/api/calibration/findings?**', route => route.fulfill({ json: { findings: [] } }));
+  await page.route('**/api/calibration/contracts', route => route.fulfill({ json: { outcomes: ['FALSE_POSITIVE'], audit_reasons: [] } }));
+  await page.route('**/api/calibration/audit/sample?**', route => route.fulfill({ json: { findings: [] } }));
+  await page.route('**/api/calibration/rules?**', route => route.fulfill({ json: { rules: [
+    { rule_id: 'SEC-NOISY', total: 10, triaged: 10, confirmed_real: 6, false_positives: 4, false_positive_rate: 0.4, acceptance_rate: 0.6, on_probation: true },
+  ] } }));
+  await page.route('**/api/telemetry/latency?**', route => route.fulfill({ json: { runs: 5, latency_p50_seconds: 4.2, latency_p95_seconds: 9.8 } }));
+  await page.getByRole('button', { name: 'Calibration', exact: true }).click();
+  await page.getByLabel('Repository').fill('acme/api');
+  await page.getByRole('button', { name: /Load metrics/ }).click();
+  await expect(page.getByText('80.0%')).toBeVisible();
+  await expect(page.getByText('4.2s / 9.8s')).toBeVisible();
+  await expect(page.getByRole('row', { name: /SEC-NOISY/ })).toContainText('Probation');
+});
+
+test('labeling saves a reviewer label and updates progress', async ({ page }) => {
+  let labeled = 0;
+  const listing = () => ({
+    split: 'development', cohorts: ['clean', 'hard_negative', 'defect'], reviewers: { a: labeled ? 'Ana Reviewer' : null, b: null },
+    progress: {
+      reviewer_a: { total: 1, labeled, adjudicated: 0, needs_adjudication: 0, unreviewed: 1 - labeled },
+      reviewer_b: { total: 1, labeled: 0, adjudicated: 0, needs_adjudication: 0, unreviewed: 1 },
+      adjudication: { total: 1, labeled: 0, adjudicated: 0, needs_adjudication: 0, unreviewed: 1 },
+    },
+    predictions_available: true,
+    cases: [{ id: 'flask-1', predicted_findings: 0, reviewer_a: labeled ? 'LABELED' : 'UNREVIEWED', reviewer_b: 'UNREVIEWED', adjudication: 'UNREVIEWED' }],
+  });
+  await page.route('**/api/eval/cases', route => route.fulfill({ json: listing() }));
+  await page.route('**/api/eval/score', route => route.fulfill({ json: { ready: false, progress: listing().progress.adjudication,
+    agreement: { cases_compared: 0, cohort_agreement: null, cohort_kappa: null, finding_agreement: null } } }));
+  await page.route('**/api/eval/cases/flask-1?**', route => route.fulfill({ json: {
+    id: 'flask-1', diff: 'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,1 +1,1 @@\n-x = 1\n+x = 2\n',
+    predicted_findings: [], label: { status: 'UNREVIEWED', cohort: null, rationale: '', findings: [] } } }));
+  await page.route('**/api/eval/labels/a/flask-1', route => {
+    const body = route.request().postDataJSON();
+    expect(body).toMatchObject({ reviewer_name: 'Ana Reviewer', cohort: 'clean' });
+    labeled = 1;
+    return route.fulfill({ json: { saved: true } });
+  });
+  await connect(page);
+  await page.getByRole('button', { name: 'Labeling', exact: true }).click();
+  await page.getByLabel('Your name').fill('Ana Reviewer');
+  await page.getByRole('button', { name: /flask-1/ }).click();
+  await page.getByText('Clean', { exact: true }).click();
+  await page.getByLabel('Rationale').fill('Version bump only.');
+  await page.getByRole('button', { name: 'Save label' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Label saved.' })).toBeVisible();
+  await expect(page.getByText('1/1')).toBeVisible();
 });

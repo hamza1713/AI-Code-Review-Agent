@@ -61,7 +61,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({
             <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
               {verdictTitle}
             </h2>
-            <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono ml-auto md:ml-0">
+            <span className="text-xs text-slate-400 flex items-center gap-1 font-mono ml-auto md:ml-0">
               <Sparkles className="w-3 h-3 text-indigo-400" /> Multi-Agent Consensus
             </span>
           </div>
@@ -78,14 +78,14 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({
         <div className="flex flex-row md:flex-col items-center justify-between md:justify-center gap-3 md:min-w-[170px] border-t md:border-t-0 md:border-l border-slate-800/80 pt-3 md:pt-0 md:pl-4">
           {/* Confidence Score Pill */}
           <div className="flex items-center md:flex-col justify-center gap-2 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 w-full text-center">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">
+            <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
               Confidence
             </span>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl font-extrabold font-mono leading-none ${gaugeColor}`}>
                 {confidenceScore}
               </span>
-              <span className="text-[10px] text-slate-500 font-mono">/ 100</span>
+              <span className="text-xs text-slate-500 font-mono">/ 100</span>
             </div>
             {/* Progress bar */}
             <div className="hidden md:block w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-1">

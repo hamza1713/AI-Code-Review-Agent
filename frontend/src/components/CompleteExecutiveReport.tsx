@@ -418,7 +418,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
   }, [data.verdict]);
 
   return (
-    <div className="bg-[#12151c] border border-slate-800/80 rounded-xl p-5 shadow-2xl space-y-6">
+    <div className="bg-surface border border-slate-800/80 rounded-xl p-5 shadow-2xl space-y-6">
       {/* ── TOP HEADER BAR ────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
         <div className="flex items-start gap-3">
@@ -430,11 +430,11 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
               <h2 className="text-base font-bold text-white tracking-tight uppercase">
                 Executive PR Review Report
               </h2>
-              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${verdictStyle.badgeBg} flex items-center gap-1.5`}>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${verdictStyle.badgeBg} flex items-center gap-1.5`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${verdictStyle.dotColor} animate-pulse`} />
                 {verdictStyle.label}
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/50">
+              <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/50">
                 Confidence: {data.confidence_score}/100
               </span>
             </div>
@@ -447,7 +447,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
         {/* View Mode Switcher & Export Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Mode Switcher */}
-          <div className="flex items-center bg-[#0a0c10] p-1 rounded-lg border border-slate-800">
+          <div className="flex items-center bg-canvas p-1 rounded-lg border border-slate-800">
             <button
               onClick={() => setViewMode('dashboard')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
@@ -526,19 +526,19 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
         {/* Card 1: Verdict */}
         <div className={`p-4 rounded-xl border ${verdictStyle.badgeBg} flex flex-col justify-between`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">Merge Decision</span>
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Merge Decision</span>
             {verdictStyle.icon}
           </div>
           <div className="mt-2">
             <div className="text-lg font-extrabold text-white tracking-tight">{data.verdict}</div>
-            <p className="text-[11px] text-slate-300 mt-1 line-clamp-2">{verdictStyle.desc}</p>
+            <p className="text-xs text-slate-300 mt-1 line-clamp-2">{verdictStyle.desc}</p>
           </div>
         </div>
 
         {/* Card 2: Quality Score */}
-        <div className="p-4 rounded-xl border border-slate-800 bg-[#0a0c10] flex flex-col justify-between">
+        <div className="p-4 rounded-xl border border-slate-800 bg-canvas flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Quality Score</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quality Score</span>
             <span className="text-xs font-mono font-bold text-indigo-400">{qualityScore}/100</span>
           </div>
           <div className="mt-2">
@@ -557,7 +557,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
             {scoreBreakdown && (
               <button
                 onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
-                className="mt-2 flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                className="mt-2 flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
               >
                 <Info className="w-3 h-3" />
                 <span>{showScoreBreakdown ? 'Hide calculation' : 'View formula breakdown'}</span>
@@ -567,44 +567,44 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
         </div>
 
         {/* Card 3: Test Evidence */}
-        <div className="p-4 rounded-xl border border-slate-800 bg-[#0a0c10] flex flex-col justify-between">
+        <div className="p-4 rounded-xl border border-slate-800 bg-canvas flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Test Evidence</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Evidence</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
               {testEvidence.badge}
             </span>
           </div>
           <div className="mt-2">
-            <p className="text-[11px] text-slate-300 leading-tight line-clamp-3">
+            <p className="text-xs text-slate-300 leading-tight line-clamp-3">
               {testEvidence.summary}
             </p>
           </div>
         </div>
 
         {/* Card 4: Findings Summary */}
-        <div className="p-4 rounded-xl border border-slate-800 bg-[#0a0c10] flex flex-col justify-between">
+        <div className="p-4 rounded-xl border border-slate-800 bg-canvas flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Findings</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Findings</span>
             <span className="text-sm font-extrabold text-white font-mono">{allFindings.length}</span>
           </div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             {severityCounts.CRITICAL > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
                 {severityCounts.CRITICAL} Critical
               </span>
             )}
             {severityCounts.HIGH > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
                 {severityCounts.HIGH} High
               </span>
             )}
             {severityCounts.MEDIUM > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                 {severityCounts.MEDIUM} Med
               </span>
             )}
             {severityCounts.LOW > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
                 {severityCounts.LOW} Low
               </span>
             )}
@@ -619,7 +619,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
             <Info className="w-3.5 h-3.5" />
             <span>Deterministic Scoring Formula:</span>
           </div>
-          <p className="text-indigo-200/90 leading-relaxed text-[11px]">{scoreBreakdown}</p>
+          <p className="text-indigo-200/90 leading-relaxed text-xs">{scoreBreakdown}</p>
         </div>
       )}
 
@@ -632,7 +632,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
               <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wide">
                 <OctagonAlert className="w-4 h-4 shrink-0" />
                 <span>Blocking Violations (Must Resolve Before Merge)</span>
-                <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 text-[10px] border border-rose-800">
+                <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 text-xs border border-rose-800">
                   {blockingReasons.length}
                 </span>
               </div>
@@ -647,7 +647,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
           )}
 
           {/* Search & Severity Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#0a0c10] p-2.5 rounded-xl border border-slate-800">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-canvas p-2.5 rounded-xl border border-slate-800">
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -684,7 +684,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                     }`}
                   >
                     <span>{sev === 'ALL' ? 'All' : sev.charAt(0) + sev.slice(1).toLowerCase()}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/30 font-mono">
+                    <span className="text-xs px-1.5 py-0.2 rounded bg-black/30 font-mono">
                       {count}
                     </span>
                   </button>
@@ -723,7 +723,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                     });
                     setExpandedFindings(next);
                   }}
-                  className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
                 >
                   {filteredFindings.every(f => expandedFindings[f.id]) ? 'Collapse All' : 'Expand All'}
                 </button>
@@ -731,7 +731,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
             </div>
 
             {filteredFindings.length === 0 ? (
-              <div className="text-center py-12 rounded-xl bg-[#0a0c10] border border-slate-800 text-slate-400 space-y-2">
+              <div className="text-center py-12 rounded-xl bg-canvas border border-slate-800 text-slate-400 space-y-2">
                 <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400" />
                 <p className="text-sm font-semibold text-slate-200">No findings match your filter criteria.</p>
                 <p className="text-xs">Try selecting 'All' or clearing your search term.</p>
@@ -760,25 +760,25 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                 return (
                   <div
                     key={f.id}
-                    className={`rounded-xl border border-slate-800 bg-[#0a0c10] border-l-4 ${sevColor} p-4 transition-all hover:border-slate-700 space-y-3`}
+                    className={`rounded-xl border border-slate-800 bg-canvas border-l-4 ${sevColor} p-4 transition-all hover:border-slate-700 space-y-3`}
                   >
                     {/* Header Row */}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-slate-400 font-bold">#{f.index}</span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${sevBadge}`}>
+                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded border ${sevBadge}`}>
                           {f.severity}
                         </span>
                         {f.cwe && (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-indigo-300 border border-indigo-900/60 font-semibold">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-indigo-300 border border-indigo-900/60 font-semibold">
                             {f.cwe}
                           </span>
                         )}
-                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">
                           {f.location}
                         </span>
                         {f.isBlocking && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-1">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center gap-1">
                             <OctagonAlert className="w-3 h-3" />
                             Blocking
                           </span>
@@ -791,7 +791,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                           {f.sources.map(src => (
                             <span
                               key={src}
-                              className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 font-mono"
+                              className="text-xs uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 font-mono"
                             >
                               {src}
                             </span>
@@ -823,11 +823,11 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                         {/* Snippet preview if available */}
                         {f.snippet && (
                           <div className="space-y-1">
-                            <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1">
+                            <div className="text-xs font-mono uppercase text-slate-400 flex items-center gap-1">
                               <Code2 className="w-3 h-3" />
                               <span>Code Context:</span>
                             </div>
-                            <pre className="p-2.5 rounded-lg bg-[#07090d] border border-slate-800 text-[11px] text-slate-300 font-mono overflow-x-auto">
+                            <pre className="p-2.5 rounded-lg bg-canvas border border-slate-800 text-xs text-slate-300 font-mono overflow-x-auto">
                               <code>{f.snippet}</code>
                             </pre>
                           </div>
@@ -843,7 +843,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                               </div>
                               <button
                                 onClick={() => handleCopyFix(f.id, f.fixRecommendation!)}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-900/40 hover:bg-indigo-900/70 text-indigo-300 text-[10px] font-semibold border border-indigo-700/50 transition-colors cursor-pointer"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-900/40 hover:bg-indigo-900/70 text-indigo-300 text-xs font-semibold border border-indigo-700/50 transition-colors cursor-pointer"
                               >
                                 {copiedFixId === f.id ? (
                                   <>
@@ -858,7 +858,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                                 )}
                               </button>
                             </div>
-                            <p className="text-[11px] text-slate-300 leading-relaxed font-mono">
+                            <p className="text-xs text-slate-300 leading-relaxed font-mono">
                               {f.fixRecommendation}
                             </p>
                           </div>
@@ -872,7 +872,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
           </div>
 
           {/* Remediation Roadmap Section */}
-          <div className="p-4 rounded-xl bg-[#0a0c10] border border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl bg-canvas border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Wrench className="w-4 h-4 text-indigo-400" />
@@ -884,21 +884,21 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 space-y-1.5">
-                <span className="text-[11px] font-bold text-rose-300 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5" />
                   <span>Immediate Security Refactoring</span>
                 </span>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-xs text-slate-300 leading-relaxed">
                   Address all SQL injection (`CWE-89`), OS command execution (`CWE-78`), and eval/exec (`CWE-95`) vulnerabilities. Replace raw string concatenations with parameterized statements and safe execution APIs.
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 space-y-1.5">
-                <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Governance & CI Gate Verification</span>
                 </span>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-xs text-slate-300 leading-relaxed">
                   Ensure password hashes use secure PBKDF2/Argon2 algorithms (`CWE-916`) rather than legacy MD5/SHA1. Execute the generated pytest test suite to confirm all defect assertions pass.
                 </p>
               </div>
@@ -906,7 +906,7 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
           </div>
 
           {/* Scope & Limitations Disclosure */}
-          <div className="p-3.5 rounded-xl bg-slate-900/40 border border-slate-800/60 text-[11px] text-slate-400 leading-relaxed flex items-start gap-2.5">
+          <div className="p-3.5 rounded-xl bg-slate-900/40 border border-slate-800/60 text-xs text-slate-400 leading-relaxed flex items-start gap-2.5">
             <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-300">Coverage & Audit Scope: </span>
@@ -919,12 +919,12 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
 
       {/* ── VIEW MODE: FORMATTED DOCUMENT ─────────────────────────── */}
       {viewMode === 'document' && (
-        <div className="bg-[#0a0c10] border border-slate-800/80 rounded-xl p-6 text-slate-200 text-xs leading-relaxed max-h-[750px] overflow-y-auto">
+        <div className="bg-canvas border border-slate-800/80 rounded-xl p-6 text-slate-200 text-xs leading-relaxed max-h-[750px] overflow-y-auto">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
               table: ({ children }) => (
-                <div className="overflow-x-auto my-4 rounded-xl border border-slate-800 bg-[#0d1117] shadow-inner">
+                <div className="overflow-x-auto my-4 rounded-xl border border-slate-800 bg-surface shadow-inner">
                   <table className="w-full text-left text-xs border-collapse">{children}</table>
                 </div>
               ),
@@ -965,13 +965,13 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
                 const isBlock = className?.includes('language-');
                 if (isBlock) {
                   return (
-                    <code className="block p-3 rounded-lg bg-[#07090d] border border-slate-800 font-mono text-[11px] text-indigo-200 overflow-x-auto my-2">
+                    <code className="block p-3 rounded-lg bg-canvas border border-slate-800 font-mono text-xs text-indigo-200 overflow-x-auto my-2">
                       {children}
                     </code>
                   );
                 }
                 return (
-                  <code className="px-1.5 py-0.5 rounded bg-indigo-950/70 border border-indigo-800/40 text-indigo-300 font-mono text-[11px]">
+                  <code className="px-1.5 py-0.5 rounded bg-indigo-950/70 border border-indigo-800/40 text-indigo-300 font-mono text-xs">
                     {children}
                   </code>
                 );
@@ -996,9 +996,9 @@ export const CompleteExecutiveReport: React.FC<CompleteExecutiveReportProps> = (
 
       {/* ── VIEW MODE: RAW MARKDOWN ───────────────────────────────── */}
       {viewMode === 'raw' && (
-        <div className="bg-[#0a0c10] border border-slate-800/80 rounded-xl p-4 space-y-3">
+        <div className="bg-canvas border border-slate-800/80 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800">
-            <span className="font-mono text-[11px]">Markdown Source ({displayReport.split('\n').length} lines)</span>
+            <span className="font-mono text-xs">Markdown Source ({displayReport.split('\n').length} lines)</span>
             <button
               onClick={handleCopyReport}
               className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 cursor-pointer"

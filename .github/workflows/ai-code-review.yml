@@ -26,10 +26,7 @@ jobs:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           sarif_output: results.sarif
-
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: results.sarif
-          category: ai-code-review-agent
+          sarif_category: ai-code-review-agent
+          # The action uploads the SARIF report itself; a second upload step here
+          # duplicated it and failed with "Path does not exist" whenever the
+          # review step failed first.

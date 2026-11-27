@@ -85,7 +85,9 @@ AI-Code-Review-Agent/
 │
 ├── docs/                                   # In-Depth System & Architecture Documentation
 │   ├── ARCHITECTURE_AND_STRUCTURE.md       # This file
-│   └── SKILLS.md                           # Standardized Agent Skills Catalog (12 Agent Skills)
+│   ├── LABELING_GUIDE.md                   # Human labeling and adjudication workflow
+│   ├── SCALING.md                          # Single-node limits and multi-node path
+│   └── internal/                           # Build logs, audit report, SKILLS.md catalog
 │
 ├── samples/                                # Sample PR Diffs & Benchmark Data
 │   ├── simple_formatting_pr.txt            # Sample Cosmetic PR Diff (Fast-Path)

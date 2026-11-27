@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from code_review_agent.bot import CommandRouter
 from code_review_agent.calibration.api import router as calibration_router
 from code_review_agent.config import get_webhook_secret, logger
+from code_review_agent.eval.api import router as eval_router
 from code_review_agent.gateway_security import GatewaySecurityMiddleware
 from code_review_agent.models import ReviewAPIResponse
 from code_review_agent.review_executor import (
@@ -47,7 +48,11 @@ from code_review_agent.review_executor import (
     run_job_async,
 )
 from code_review_agent.review_service import RateLimitExceeded, rate_limiter
-from code_review_agent.tenancy import resolve_request_tenant, tenant_scope
+from code_review_agent.tenancy import (
+    TenantAccessError,
+    resolve_request_tenant,
+    tenant_scope,
+)
 from code_review_agent.webhook_queue import WebhookJobQueue, WebhookWorker
 
 # Global persistent queue and worker instances
@@ -215,6 +220,17 @@ def _bot_identities() -> set:
     return {u.strip().lower() for u in raw.split(",") if u.strip()}
 
 
+def request_tenant(request: Request, repo_identifier: str | None = None) -> str:
+    """Tenant for an authenticated API request; a tenant token cannot name another tenant."""
+    bound = getattr(request.state, "tenant", None)
+    try:
+        return resolve_request_tenant(
+            dict(request.headers), repo_identifier=repo_identifier, bound_tenant=bound
+        )
+    except TenantAccessError as error:
+        raise HTTPException(403, str(error)) from None
+
+
 @app.get("/health")
 @app.get("/health/live")
 def health_check():
@@ -289,7 +305,7 @@ def get_jobs(
     offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):
     """List persistent webhook review jobs with pagination and tenant isolation."""
-    tenant_id = resolve_request_tenant(dict(request.headers))
+    tenant_id = request_tenant(request)
     return {"jobs": queue.list_jobs(status=status, limit=limit, offset=offset, tenant_id=tenant_id)}
 
 
@@ -347,6 +363,32 @@ def pilot_report(repository: str, reviewer_profile_id: str | None = None):
     return PilotStore(str(queue.db_path)).report(repository, reviewer_profile_id)
 
 
+@app.get("/api/pilot/weekly")
+def pilot_weekly(
+    repository: str,
+    days: int = Query(7, ge=1, le=365),
+    reviewer_profile_id: str | None = None,
+):
+    """Pilot latency, cost and withheld-rate summary for one repository."""
+    from code_review_agent.pilot import PilotStore
+
+    try:
+        return PilotStore(str(queue.db_path)).weekly(repository, days, reviewer_profile_id)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+
+
+@app.get("/api/telemetry/latency")
+def telemetry_latency(
+    repo_id: str | None = None, days: int = Query(30, ge=1, le=365)
+):
+    """Review latency percentiles recorded by completed reviews."""
+    from code_review_agent.observability.telemetry import latency_summary
+
+    # Same path resolution as TelemetryTracker.record_to_db (QUEUE_DB_PATH).
+    return latency_summary(None, repo_id=repo_id, days=days)
+
+
 @app.post("/api/pilot/control")
 def pilot_control(repository: str, request: PilotControlRequest):
     from code_review_agent.pilot import PilotStore
@@ -359,7 +401,7 @@ def pilot_control(repository: str, request: PilotControlRequest):
 @app.get("/jobs/{job_id}")
 def get_job_detail(job_id: str, request: Request):
     """Retrieve details for a specific webhook job with tenant isolation."""
-    tenant_id = resolve_request_tenant(dict(request.headers))
+    tenant_id = request_tenant(request)
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -369,7 +411,7 @@ def get_job_detail(job_id: str, request: Request):
 @app.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str, request: Request):
     """Cancel an active or queued review job with tenant isolation."""
-    tenant_id = resolve_request_tenant(dict(request.headers))
+    tenant_id = request_tenant(request)
     success = queue.cancel_job(
         job_id, reason="Cancelled by user/operator via API", tenant_id=tenant_id
     )
@@ -474,7 +516,7 @@ def reconcile_job(job_id: str, req: ReconcileJobRequest | None = None):
 @app.get("/jobs/{job_id}/result")
 def get_job_result(job_id: str, request: Request):
     """Retrieve completed review result for a webhook job with tenant isolation."""
-    tenant_id = resolve_request_tenant(dict(request.headers))
+    tenant_id = request_tenant(request)
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -494,7 +536,7 @@ def get_job_sarif(job_id: str, request: Request):
     """Retrieve OASIS SARIF 2.1.0 report for a completed review job with tenant isolation."""
     from code_review_agent.sarif_exporter import SarifExporter
 
-    tenant_id = resolve_request_tenant(dict(request.headers))
+    tenant_id = request_tenant(request)
     job = queue.get_job(job_id, tenant_id=tenant_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -612,6 +654,7 @@ def delete_suppression(
 
 
 app.include_router(calibration_router)
+app.include_router(eval_router)
 
 
 class RemediationApplyRequest(BaseModel):
@@ -841,7 +884,7 @@ async def github_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
-            tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=pr_identifier),
+            tenant_id=resolve_request_tenant(None, repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -956,7 +999,7 @@ async def gitlab_webhook(
                 pr_identifier=mr_identifier,
                 payload=payload,
                 idempotency_key=idempotency_key,
-                tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=mr_identifier),
+                tenant_id=resolve_request_tenant(None, repo_identifier=mr_identifier),
             )
             return {
                 "status": "accepted",
@@ -1085,7 +1128,7 @@ async def bitbucket_webhook(
             pr_identifier=pr_identifier,
             payload=payload,
             idempotency_key=idempotency_key,
-            tenant_id=resolve_request_tenant(dict(request.headers), repo_identifier=pr_identifier),
+            tenant_id=resolve_request_tenant(None, repo_identifier=pr_identifier),
         )
         return {
             "status": "accepted",
@@ -1130,7 +1173,10 @@ def get_benchmark_metrics():
 
 
 @app.get("/api/session")
-def operator_session():
+def operator_session(request: Request):
+    tenant = getattr(request.state, "tenant", None)
+    if tenant:
+        return {"authenticated": True, "role": "tenant", "scope": "tenant", "tenant": tenant}
     return {"authenticated": True, "role": "operator", "scope": "single-deployment"}
 
 
@@ -1273,10 +1319,7 @@ async def api_review(
 ):
     payload = await read_review_input(request, raw_diff, pr_url, file, zip_file)
     reserve_review()
-    tenant_id = resolve_request_tenant(
-        dict(request.headers),
-        repo_identifier=pr_url or payload.get("pr_url"),
-    )
+    tenant_id = request_tenant(request, repo_identifier=pr_url or payload.get("pr_url"))
     if request.headers.get("prefer") == "respond-async":
         try:
             job_id = queue.enqueue(
@@ -1311,6 +1354,7 @@ async def api_review_stream(
 ):
     payload = await read_review_input(request, raw_diff, pr_url, file, zip_file)
     reserve_review()
+    tenant_id = request_tenant(request, repo_identifier=pr_url or payload.get("pr_url"))
 
     loop = asyncio.get_running_loop()
     event_queue: asyncio.Queue = asyncio.Queue()
@@ -1320,7 +1364,11 @@ async def api_review_stream(
 
     async def events():
 
-        job_task = asyncio.create_task(execute_bounded("review", payload, event_callback=on_event))
+        # create_task copies the current context, so the tenant scope travels with the job.
+        with tenant_scope(tenant_id):
+            job_task = asyncio.create_task(
+                execute_bounded("review", payload, event_callback=on_event)
+            )
 
         while not job_task.done():
             try:

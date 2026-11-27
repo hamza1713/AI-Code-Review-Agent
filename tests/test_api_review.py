@@ -359,9 +359,9 @@ def dangerous_function(cmd):
         """Verify that GET / and GET /ui serve the single-page HTML interface."""
         res_root = client.get("/")
         assert res_root.status_code == 200
-        assert "AI Code Review Agent" in res_root.text
-        assert "Submit Code for Review" in res_root.text
+        assert "<title>Code Review Agent</title>" in res_root.text
+        assert '<div id="root">' in res_root.text
 
         res_ui = client.get("/ui")
         assert res_ui.status_code == 200
-        assert "AI Code Review Agent" in res_ui.text
+        assert "<title>Code Review Agent</title>" in res_ui.text

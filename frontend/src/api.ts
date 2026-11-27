@@ -13,8 +13,27 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 export async function responseError(response: Response): Promise<string> {
   const body = await response.json().catch(() => null);
   if (typeof body?.detail === 'string') return body.detail;
+  if (Array.isArray(body?.detail) && body.detail[0]?.msg) return String(body.detail[0].msg);
   if (response.status === 401) return 'Your operator token was rejected. Reconnect with a valid token.';
   return `The service could not complete this request (${response.status}). Please try again.`;
+}
+
+/** GET a JSON endpoint and raise the server's message on failure. */
+export async function getJson(path: string, signal?: AbortSignal) {
+  const response = await apiFetch(path, { signal });
+  if (!response.ok) throw new Error(await responseError(response));
+  return response.json();
+}
+
+/** Send JSON with any method and raise the server's message on failure. */
+export async function sendJson(path: string, method: 'POST' | 'PUT', body?: unknown) {
+  const response = await apiFetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  return response.json();
 }
 
 export async function getCalibrationMetrics(repoId?: string, windowDays: number = 30, signal?: AbortSignal) {
